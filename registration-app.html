@@ -463,6 +463,30 @@
         No ID needed — a member code will be generated for you automatically once your registration is approved. Find it later on the Sign In tab.
       </div>
 
+      <div class="field" id="field-staffRelation" style="display:none;">
+        <div class="id-hint">Only a Spouse or Child of a UG staff member is eligible to register under this category.</div>
+      </div>
+      <div class="field-row" id="fieldRow-staffRelation" style="display:none;">
+        <div class="field" id="field-relatedStaffName">
+          <label for="regRelatedStaffName">UG Staff Member's Full Name</label>
+          <input type="text" id="regRelatedStaffName" placeholder="e.g. Kwame Owusu">
+          <p class="field-error">Required.</p>
+        </div>
+        <div class="field" id="field-relatedStaffIdNo">
+          <label for="regRelatedStaffIdNo">UG Staff Member's ID No.</label>
+          <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
+          <p class="field-error">Required.</p>
+        </div>
+      </div>
+      <div class="field" id="field-staffRelationship" style="display:none;">
+        <label>Relationship to Staff Member</label>
+        <div class="tick-row" id="staffRelationshipRow">
+          <div class="tick-box" data-value="Spouse"><span class="box"></span> Spouse</div>
+          <div class="tick-box" data-value="Child"><span class="box"></span> Child</div>
+        </div>
+        <p class="field-error">Please select Spouse or Child.</p>
+      </div>
+
       <div class="field" id="field-photo">
         <label for="regPhotoInput">Photo</label>
         <div class="photo-upload" id="photoUploadBox">
@@ -912,6 +936,10 @@
     "Public Child (Under 17)", "Public Adult (17 & Above)",
     FAMILY_CATEGORY
   ];
+  // A UG Staff Relation must name the UG staff member they're related
+  // to, that staff member's own ID number, and their relationship —
+  // restricted to Spouse or Child, nothing else is eligible.
+  const UG_STAFF_RELATION_CATEGORIES = ["UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)"];
   const ACTIVITIES = {
     gym: {
       key: "gym", label: "Gym Membership", short: "Gym",
@@ -1109,6 +1137,7 @@
   let selectedGender = null;
   let selectedMedicalCondition = null;
   let selectedDeclaration = null;
+  let selectedStaffRelationship = null;
 
   const form = document.getElementById('regForm');
   const classField = document.getElementById('regClass');
@@ -1121,6 +1150,12 @@
   const idField = document.getElementById('regId');
   const idOptionalTag = document.getElementById('idOptionalTag');
   const idOptionalHint = document.getElementById('idOptionalHint');
+  const staffRelationNote = document.getElementById('field-staffRelation');
+  const staffRelationFieldRow = document.getElementById('fieldRow-staffRelation');
+  const relatedStaffNameField = document.getElementById('regRelatedStaffName');
+  const relatedStaffIdNoField = document.getElementById('regRelatedStaffIdNo');
+  const staffRelationshipField = document.getElementById('field-staffRelationship');
+  const staffRelationshipRow = document.getElementById('staffRelationshipRow');
   const photoUploadBox = document.getElementById('photoUploadBox');
   const photoInputSelfie = document.getElementById('regPhotoInputSelfie');
   const photoInputGallery = document.getElementById('regPhotoInputGallery');
@@ -1229,9 +1264,32 @@
     familyMembersField.style.display = isFamily ? 'block' : 'none';
     if(!isFamily) resetFamilyMembers();
 
+    const isStaffRelation = UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1;
+    staffRelationNote.style.display = isStaffRelation ? 'block' : 'none';
+    staffRelationFieldRow.style.display = isStaffRelation ? 'grid' : 'none';
+    staffRelationshipField.style.display = isStaffRelation ? 'block' : 'none';
+    if(!isStaffRelation){
+      relatedStaffNameField.value = '';
+      relatedStaffIdNoField.value = '';
+      selectedStaffRelationship = null;
+      [...staffRelationshipRow.children].forEach(c => c.classList.remove('active'));
+      clearFieldError('field-relatedStaffName');
+      clearFieldError('field-relatedStaffIdNo');
+      clearFieldError('field-staffRelationship');
+    }
+
     updateDurationOptions();
   }
   classField.addEventListener('change', updateConditionalFields);
+
+  staffRelationshipRow.addEventListener('click', (e) => {
+    const opt = e.target.closest('.tick-box');
+    if(!opt) return;
+    [...staffRelationshipRow.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedStaffRelationship = opt.dataset.value;
+    clearFieldError('field-staffRelationship');
+  });
 
   function updateDurationOptions(){
     populateDurationGrid(durationGrid, currentActivity, classField.value);
@@ -1455,6 +1513,11 @@
     if(!surnameField.value.trim()){ markInvalid('field-surname'); valid = false; } else clearFieldError('field-surname');
     if(dept && !deptField.value.trim()){ markInvalid('field-dept'); valid = false; } else clearFieldError('field-dept');
     if(isIdRequired() && !idField.value.trim()){ markInvalid('field-id'); valid = false; } else clearFieldError('field-id');
+    if(UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1){
+      if(!relatedStaffNameField.value.trim()){ markInvalid('field-relatedStaffName'); valid = false; } else clearFieldError('field-relatedStaffName');
+      if(!relatedStaffIdNoField.value.trim()){ markInvalid('field-relatedStaffIdNo'); valid = false; } else clearFieldError('field-relatedStaffIdNo');
+      if(!selectedStaffRelationship){ markInvalid('field-staffRelationship'); valid = false; } else clearFieldError('field-staffRelationship');
+    }
     if(!photoBase64){ markInvalid('field-photo'); valid = false; } else clearFieldError('field-photo');
     return valid;
   }
@@ -1603,6 +1666,9 @@
       name: fullName,
       department: deptField.value.trim(),
       idNo: idField.value.trim(),
+      relatedStaffName: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? relatedStaffNameField.value.trim() : "",
+      relatedStaffIdNo: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? relatedStaffIdNoField.value.trim() : "",
+      staffRelationship: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? selectedStaffRelationship : "",
       familyMembers: classField.value === FAMILY_CATEGORY ? collectFamilyMembers() : undefined,
       dob: dobField.value,
       gender: selectedGender,

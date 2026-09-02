@@ -120,6 +120,13 @@ const LESSON_STYLE_CATEGORIES = [
   FAMILY_CATEGORY
 ];
 
+// A "UG Staff Relation" registrant must name the UG staff member they're
+// related to, that staff member's own ID number, and their relationship
+// to them — restricted to Spouse or Child, nothing else is eligible.
+// See the "submit" handler below.
+const UG_STAFF_RELATION_CATEGORIES = ["UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)"];
+const STAFF_RELATIONSHIP_OPTIONS = ["Spouse", "Child"];
+
 const ACTIVITIES = {
   gym: {
     key: "gym",
@@ -263,6 +270,11 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 // sessionCap (currently just Swimming Lessons' package) — it sits
 // blank/unused otherwise.
 //
+// "relatedStaffName"/"relatedStaffIdNo"/"staffRelationship" are only
+// ever populated for a UG_STAFF_RELATION_CATEGORIES class ("UG Staff
+// Relation (Under 17)"/"(17 & Above)") — see the "submit" handler
+// below — and sit blank/unused otherwise.
+//
 // A Family Package registration is NOT one row for the whole family —
 // see the "submit" handler below: the person filling the form becomes
 // one full row (dob/gender/medical/photo/etc. all captured normally),
@@ -276,6 +288,7 @@ const HEADERS = [
   "idNo", "name", "dob", "gender", "nationality", "hasMedicalCondition",
   "medicalConditionDetails", "address",
   "email", "phone", "department", "class",
+  "relatedStaffName", "relatedStaffIdNo", "staffRelationship",
   "duration", "sessionsUsed",
   "date", "time", "emergencyName", "emergencyPhone", "emergencyRelationship",
   "photoUrl", "signatureUrl", "isRenewal"
@@ -815,6 +828,22 @@ function doPost(e) {
         return errorMsg("That plan isn't available for your category.");
       }
 
+      // A UG Staff Relation must name the UG staff member they're
+      // related to, that staff member's own ID number, and their
+      // relationship — restricted to Spouse or Child, nothing else is
+      // eligible for this category.
+      const relatedStaffName = String(data.relatedStaffName || "").trim();
+      const relatedStaffIdNo = String(data.relatedStaffIdNo || "").trim();
+      const staffRelationship = String(data.staffRelationship || "").trim();
+      if (UG_STAFF_RELATION_CATEGORIES.indexOf(data.class) !== -1) {
+        if (!relatedStaffName || !relatedStaffIdNo) {
+          return errorMsg("Please provide the full name and ID number of the UG staff member you're related to.");
+        }
+        if (STAFF_RELATIONSHIP_OPTIONS.indexOf(staffRelationship) === -1) {
+          return errorMsg("Only a Spouse or Child of a UG staff member is eligible to register under this category.");
+        }
+      }
+
       // ID number is optional for categories NOT in idRequiredCategories
       // — an auto-generated "<prefix><7 digits>" code is used if they
       // don't have or didn't provide one. idRequiredCategories (UG
@@ -885,7 +914,7 @@ function doPost(e) {
         if (h === "photoUrl") return photoUrl;
         if (h === "signatureUrl") return signatureUrl;
         if (h === "sessionsUsed") return "";
-        if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
+        if (h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(data[h] || "");
         // Force "date"/"time" to literal text too — otherwise Sheets
         // silently converts them to real date/time values.
         if (h === "date" || h === "time") return forceLiteralText(data[h] || "");

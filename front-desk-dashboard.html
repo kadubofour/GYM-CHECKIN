@@ -526,6 +526,7 @@
     "Public Child (Under 17)", "Public Adult (17 & Above)",
     FAMILY_CATEGORY
   ];
+  const UG_STAFF_RELATION_CATEGORIES = ["UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)"];
   const ACTIVITIES = {
     gym: {
       key: "gym", label: "Gym Membership",
@@ -1042,6 +1043,10 @@
       const familyRow = e.class === FAMILY_CATEGORY
         ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
         : '';
+      const staffRelationRow = UG_STAFF_RELATION_CATEGORIES.indexOf(e.class) !== -1
+        ? `<div class="detail-item"><div class="dlabel">Related UG Staff</div><div class="dvalue">${e.relatedStaffName ? escapeHtml(e.relatedStaffName) : '—'} (${e.relatedStaffIdNo ? escapeHtml(e.relatedStaffIdNo) : '—'})</div></div>
+           <div class="detail-item"><div class="dlabel">Relationship to Staff</div><div class="dvalue">${e.staffRelationship ? escapeHtml(e.staffRelationship) : '—'}</div></div>`
+        : '';
       return `
       <div class="approval-card">
         <div class="approval-head">
@@ -1063,6 +1068,7 @@
           <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
           <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
           ${familyRow}
+          ${staffRelationRow}
           <div class="detail-item"><div class="dlabel">Date of Birth</div><div class="dvalue">${escapeHtml(e.dob||'—')}</div></div>
           <div class="detail-item"><div class="dlabel">Gender</div><div class="dvalue">${escapeHtml(e.gender||'—')}</div></div>
           <div class="detail-item"><div class="dlabel">Nationality</div><div class="dvalue">${escapeHtml(e.nationality||'—')}</div></div>
