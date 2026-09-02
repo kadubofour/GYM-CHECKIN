@@ -106,9 +106,7 @@
   /* Phone: country code + number */
   .phone-group{ display:flex; gap:8px; }
   .phone-group select{ flex:0 0 118px; padding-left:10px; padding-right:28px; }
-  .phone-group input{
-    flex:1; min-width:0; font-size:17px; font-weight:700; letter-spacing:0.02em; color:var(--text);
-  }
+  .phone-group input{ flex:1; min-width:0; }
 
   /* Additional family member rows (Family Package) — name + optional
      medical conditions per person, one card per family member. */
@@ -200,13 +198,13 @@
   .tick-box.active .box::after{ content:"✓"; }
 
   /* Emergency contact — pulled out of the plain form flow into its own
-     highlighted box so it doesn't blend in with every other section. */
+     box so it doesn't blend in with every other section. */
   .emergency-box{
-    border:1.5px solid var(--danger); background:var(--danger-dim); border-radius:12px;
+    border:1px solid var(--line); background:var(--panel-alt); border-radius:12px;
     padding:16px 16px 4px; margin-bottom:6px;
   }
   .emergency-box-title{
-    font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.02em; color:var(--danger);
+    font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.02em; color:var(--text);
     margin:0 0 3px;
   }
   .emergency-box-sub{ font-size:12px; color:var(--text-dim); margin:0 0 16px; }
@@ -583,20 +581,18 @@
           </div>
         </div>
 
-        <div class="field-row">
-          <div class="field" id="field-emergencyPhone">
-            <label for="regEmergencyPhone">Contact Phone</label>
-            <div class="phone-group">
-              <select id="regEmergencyPhoneCode" class="country-code-select"></select>
-              <input type="text" id="regEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
-            </div>
-            <p class="field-error">Please enter a valid phone number.</p>
+        <div class="field" id="field-emergencyPhone">
+          <label for="regEmergencyPhone">Contact Phone</label>
+          <div class="phone-group">
+            <select id="regEmergencyPhoneCode" class="country-code-select"></select>
+            <input type="text" id="regEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
           </div>
-          <div class="field" id="field-emergencyRelationship">
-            <label for="regEmergencyRelationship">Relationship</label>
-            <input type="text" id="regEmergencyRelationship" placeholder="e.g. Spouse, Parent">
-            <p class="field-error">Required.</p>
-          </div>
+          <p class="field-error">Please enter a valid phone number.</p>
+        </div>
+        <div class="field" id="field-emergencyRelationship">
+          <label for="regEmergencyRelationship">Relationship</label>
+          <input type="text" id="regEmergencyRelationship" placeholder="e.g. Spouse, Parent">
+          <p class="field-error">Required.</p>
         </div>
       </div>
 
@@ -855,20 +851,18 @@
               <p class="field-error">Required.</p>
             </div>
           </div>
-          <div class="field-row">
-            <div class="field" id="field-ren-emergencyPhone">
-              <label for="renEmergencyPhone">Contact Phone</label>
-              <div class="phone-group">
-                <select id="renEmergencyPhoneCode" class="country-code-select"></select>
-                <input type="text" id="renEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
-              </div>
-              <p class="field-error">Please enter a valid phone number.</p>
+          <div class="field" id="field-ren-emergencyPhone">
+            <label for="renEmergencyPhone">Contact Phone</label>
+            <div class="phone-group">
+              <select id="renEmergencyPhoneCode" class="country-code-select"></select>
+              <input type="text" id="renEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
             </div>
-            <div class="field" id="field-ren-emergencyRelationship">
-              <label for="renEmergencyRelationship">Relationship</label>
-              <input type="text" id="renEmergencyRelationship" placeholder="e.g. Spouse, Parent">
-              <p class="field-error">Required.</p>
-            </div>
+            <p class="field-error">Please enter a valid phone number.</p>
+          </div>
+          <div class="field" id="field-ren-emergencyRelationship">
+            <label for="renEmergencyRelationship">Relationship</label>
+            <input type="text" id="renEmergencyRelationship" placeholder="e.g. Spouse, Parent">
+            <p class="field-error">Required.</p>
           </div>
         </div>
         <button type="submit" class="btn btn-primary" id="renewDetailsSubmitBtn">Save Changes</button>
