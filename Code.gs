@@ -83,11 +83,13 @@
  *   whole family. The person filling out the form becomes one full
  *   row (dob/gender/medical/photo/etc. all captured normally, exactly
  *   like any other registration); every additional family member they
- *   list by full name (up to 4 more, so 5 people total) becomes its
- *   own lightweight row — name plus the SAME shared phone/email/
- *   address/emergency-contact, but no separate dob/gender/medical/
- *   photo — each with its own auto-generated member code. See the
- *   "submit" handler below.
+ *   list (up to 4 more, so 5 people total) becomes its own lightweight
+ *   row — full name, and optionally that person's OWN medical
+ *   conditions (stored in the same hasMedicalCondition/
+ *   medicalConditionDetails columns the primary registrant uses), plus
+ *   the SAME shared phone/email/address/emergency-contact — but no
+ *   separate dob/gender/photo — each with its own auto-generated
+ *   member code. See the "submit" handler below.
  * - Because every row in the family shares one phone number, the Sign
  *   In tab's "lookup" action (phone-number code retrieval) naturally
  *   returns every family member's code at once when the head enters
@@ -844,23 +846,36 @@ function doPost(e) {
       // A Family Package registration isn't one row for the whole
       // family — see the HEADERS comment above. The person filling the
       // form (idNo/photo/etc. above) is one full row; every additional
-      // family member they list by name gets their own lightweight row
-      // below, generated and validated up front so the whole submission
-      // fails cleanly (nothing written) rather than partially, if the
-      // code pool or the 5-person cap is hit.
+      // family member they list gets their own lightweight row below
+      // — name, and optionally their own medical conditions (stored in
+      // the same hasMedicalCondition/medicalConditionDetails columns
+      // the primary registrant uses) — generated and validated up
+      // front so the whole submission fails cleanly (nothing written)
+      // rather than partially, if the code pool or the 5-person cap is
+      // hit.
       let extraFamilyMembers = [];
       if (data.class === FAMILY_CATEGORY) {
-        const rawNames = Array.isArray(data.familyMemberNames) ? data.familyMemberNames : [];
-        const names = rawNames.map(n => String(n || "").trim()).filter(n => n !== "");
-        if (names.length > 4) {
+        const rawMembers = Array.isArray(data.familyMembers) ? data.familyMembers : [];
+        const members = rawMembers
+          .map(m => ({
+            name: String((m && m.name) || "").trim(),
+            medicalConditions: String((m && m.medicalConditions) || "").trim()
+          }))
+          .filter(m => m.name !== "");
+        if (members.length > 4) {
           return errorMsg("A family package covers at most 5 people, including you — please list at most 4 additional family members.");
         }
-        for (const n of names) {
+        for (const m of members) {
           const extraIdNo = generateUniqueIdNo(activity);
           if (!extraIdNo) {
             return errorMsg("Couldn't generate member codes for the whole family right now — the code pool may be full. Please ask the front desk to register the family manually instead.");
           }
-          extraFamilyMembers.push({ name: n, idNo: extraIdNo });
+          extraFamilyMembers.push({
+            name: m.name,
+            idNo: extraIdNo,
+            hasMedicalCondition: m.medicalConditions ? "Yes" : "No",
+            medicalConditionDetails: m.medicalConditions
+          });
         }
       }
 
@@ -883,13 +898,15 @@ function doPost(e) {
           if (h === "name") return member.name;
           if (h === "class") return data.class;
           if (h === "duration") return data.duration;
+          if (h === "hasMedicalCondition") return member.hasMedicalCondition;
+          if (h === "medicalConditionDetails") return member.medicalConditionDetails;
           if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
           if (h === "email" || h === "address" || h === "emergencyName" || h === "emergencyRelationship") return data[h] || "";
           if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
-          // dob/gender/nationality/medical/department/photo/signature/
+          // dob/gender/nationality/department/photo/signature/
           // sessionsUsed/isRenewal are all left blank for an additional
-          // family member — only their name and the shared contact
-          // details are collected on the form.
+          // family member — only their name, optional medical
+          // conditions, and the shared contact details are collected.
           return "";
         }));
       });

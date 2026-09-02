@@ -108,9 +108,14 @@
   .phone-group select{ flex:0 0 118px; padding-left:10px; padding-right:28px; }
   .phone-group input{ flex:1; min-width:0; }
 
-  /* Additional family member name rows (Family Package) */
-  .family-member-row{ display:flex; gap:8px; margin-bottom:8px; }
-  .family-member-row input{ flex:1; min-width:0; }
+  /* Additional family member rows (Family Package) — name + optional
+     medical conditions per person, one card per family member. */
+  .family-member-row{
+    border:1px solid var(--line-strong); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--bg);
+  }
+  .family-member-top{ display:flex; gap:8px; margin-bottom:8px; }
+  .family-member-top input{ flex:1; min-width:0; }
+  .family-member-medical{ width:100%; }
   .family-member-remove{
     flex:0 0 auto; background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
     border-radius:8px; padding:0 14px; cursor:pointer; font-size:14px; font-weight:700;
@@ -1151,15 +1156,19 @@
     if(familyMembersList.children.length >= MAX_EXTRA_FAMILY_MEMBERS) return;
     const row = document.createElement('div');
     row.className = 'family-member-row';
-    row.innerHTML = `<input type="text" class="family-member-name" placeholder="Full name">
-      <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>`;
+    row.innerHTML = `
+      <div class="family-member-top">
+        <input type="text" class="family-member-name" placeholder="Full name">
+        <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>
+      </div>
+      <input type="text" class="family-member-medical" placeholder="Medical conditions (leave blank if none)">`;
     row.querySelector('.family-member-remove').addEventListener('click', () => {
       row.remove();
       updateAddFamilyMemberBtn();
     });
     familyMembersList.appendChild(row);
     updateAddFamilyMemberBtn();
-    row.querySelector('input').focus();
+    row.querySelector('.family-member-name').focus();
   }
   function updateAddFamilyMemberBtn(){
     addFamilyMemberBtn.style.display = familyMembersList.children.length >= MAX_EXTRA_FAMILY_MEMBERS ? 'none' : 'block';
@@ -1169,8 +1178,11 @@
     updateAddFamilyMemberBtn();
     clearFieldError('field-familyMembers');
   }
-  function familyMemberNames(){
-    return [...familyMembersList.querySelectorAll('.family-member-name')].map(i => i.value.trim());
+  function collectFamilyMembers(){
+    return [...familyMembersList.children].map(row => ({
+      name: row.querySelector('.family-member-name').value.trim(),
+      medicalConditions: row.querySelector('.family-member-medical').value.trim()
+    }));
   }
   addFamilyMemberBtn.addEventListener('click', addFamilyMemberRow);
 
@@ -1439,8 +1451,8 @@
     let valid = true;
     if(!selectedDuration){ markInvalid('field-duration'); valid = false; } else clearFieldError('field-duration');
     if(classField.value === FAMILY_CATEGORY){
-      const names = familyMemberNames();
-      if(names.some(n => !n)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
+      const members = collectFamilyMembers();
+      if(members.some(m => !m.name)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
     }
     return valid;
   }
@@ -1563,7 +1575,7 @@
       name: fullName,
       department: deptField.value.trim(),
       idNo: idField.value.trim(),
-      familyMemberNames: classField.value === FAMILY_CATEGORY ? familyMemberNames() : undefined,
+      familyMembers: classField.value === FAMILY_CATEGORY ? collectFamilyMembers() : undefined,
       dob: dobField.value,
       gender: selectedGender,
       nationality: nationalityField.value.trim(),
