@@ -232,6 +232,19 @@
     color:var(--text-faint); margin-bottom:3px;
   }
   .detail-item .dvalue{ font-size:13px; color:var(--text); word-break:break-word; }
+  /* Pulled out of the detail-grid so it can't get lost among a dozen
+     other fields — staff need to find this one fast. */
+  .emergency-callout{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.35); border-left:4px solid var(--danger);
+    border-radius:8px; padding:10px 12px; margin-bottom:14px;
+  }
+  .emergency-callout-label{
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--danger); font-weight:800; flex-shrink:0;
+  }
+  .emergency-callout-value{ font-size:13px; color:var(--text); font-weight:600; word-break:break-word; }
+  .emergency-callout-empty{ color:var(--text-faint); font-weight:400; }
 
   /* Walk-in quick-entry form */
   .walkin-card{
@@ -988,6 +1001,14 @@
     pendingCounts[currentActivity.key] = pendingEntries.length;
   }
 
+  // Pulled out of the plain detail-grid into its own callout so staff
+  // can spot it immediately instead of hunting through a dozen fields.
+  function emergencyCalloutHtml(e){
+    const parts = [e.emergencyName, e.emergencyPhone, e.emergencyRelationship].filter(Boolean).map(escapeHtml);
+    const value = parts.length ? parts.join(' · ') : '<span class="emergency-callout-empty">Not provided</span>';
+    return `<div class="emergency-callout"><span class="emergency-callout-label">Emergency Contact</span><span class="emergency-callout-value">${value}</span></div>`;
+  }
+
   // ---- Approvals tab ----
   function planLabel(entry){
     const cfg = currentActivity.durations[entry.duration];
@@ -1037,6 +1058,7 @@
           </div>
         </div>
         ${renewalBanner}
+        ${emergencyCalloutHtml(e)}
         <div class="detail-grid">
           <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
           <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
@@ -1052,9 +1074,6 @@
           <div class="detail-item"><div class="dlabel">Signature</div><div class="dvalue">${e.signatureUrl ? `<a href="${escapeHtml(e.signatureUrl)}" target="_blank" rel="noopener" style="color:var(--blue);">View signature →</a>` : '—'}</div></div>
           <div class="detail-item"><div class="dlabel">Address</div><div class="dvalue">${escapeHtml(e.address||'—')}</div></div>
           <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${planLabel(e)}</div></div>
-          <div class="detail-item"><div class="dlabel">Emergency Contact</div><div class="dvalue">${e.emergencyName ? escapeHtml(e.emergencyName) : '—'}</div></div>
-          <div class="detail-item"><div class="dlabel">Emergency Phone</div><div class="dvalue">${e.emergencyPhone ? escapeHtml(e.emergencyPhone) : '—'}</div></div>
-          <div class="detail-item"><div class="dlabel">Relationship</div><div class="dvalue">${e.emergencyRelationship ? escapeHtml(e.emergencyRelationship) : '—'}</div></div>
         </div>
       </div>`;
     }).join('');
