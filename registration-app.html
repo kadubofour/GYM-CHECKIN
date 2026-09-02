@@ -361,7 +361,6 @@
   }
   .lookup-result-name{ font-weight:700; font-size:14px; color:var(--text); }
   .lookup-result-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
-  .lookup-results-list .code-chip{ font-size:15px; padding:6px 12px; }
   .countdown-box.expired{ border-color:rgba(192,57,43,0.3); background:var(--danger-dim); }
   .countdown-num{ font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; color:var(--gold-dark); }
   .countdown-box.expired .countdown-num{ color:var(--danger); font-size:26px; }
@@ -373,6 +372,18 @@
     display:inline-block; background:var(--gold-dim); color:var(--gold-dark); font-family:'JetBrains Mono',monospace;
     font-size:22px; font-weight:700; letter-spacing:0.12em; padding:10px 18px; border-radius:8px; margin-bottom:16px;
   }
+  .code-chip-row{ display:flex; flex-direction:column; align-items:center; gap:6px; margin-bottom:16px; }
+  .code-chip-row .code-chip{ margin-bottom:0; }
+  .lookup-result-row .code-chip-row{ margin-bottom:0; }
+  .lookup-result-row .code-chip{ font-size:15px; padding:6px 12px; }
+  .copy-code-btn{
+    background:var(--panel-alt); border:1px solid var(--line-strong); color:var(--blue); font-size:11px;
+    font-weight:700; padding:6px 14px; border-radius:8px; cursor:pointer; font-family:'Inter',sans-serif;
+    text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .copy-code-btn:hover{ border-color:var(--blue); }
+  .copy-code-btn.copied{ background:var(--blue-dim); color:var(--blue-dark); border-color:var(--blue); }
+  .lookup-result-row .copy-code-btn{ font-size:10px; padding:4px 10px; }
   .error-msg{ color:var(--text-dim); font-size:13.5px; margin:0 0 20px; }
   input.code-input{
     font-family:'JetBrains Mono',monospace; font-size:20px; letter-spacing:0.08em; text-align:center;
@@ -1875,10 +1886,37 @@
     return html;
   }
 
+  // Lets a registrant copy their own code straight from the phone-
+  // lookup result and paste it into the Sign In tab, instead of having
+  // to read it off the front desk's screen and retype it by hand.
+  function codeChipWithCopyHtml(code){
+    return `<div class="code-chip-row">
+      <div class="code-chip">${escapeHtml(code||'')}</div>
+      <button type="button" class="copy-code-btn" data-copy-code="${escapeHtml(code||'')}">Copy Code</button>
+    </div>`;
+  }
+  function attachCopyButtons(container){
+    container.querySelectorAll('.copy-code-btn').forEach(btn => {
+      btn.addEventListener('click', () => copyCodeToClipboard(btn));
+    });
+  }
+  function copyCodeToClipboard(btn){
+    const code = btn.dataset.copyCode;
+    if(!code) return;
+    const markCopied = () => {
+      btn.textContent = 'Copied ✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy Code'; btn.classList.remove('copied'); }, 2000);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(markCopied).catch(() => {});
+    }
+  }
+
   function renderMemberResult(member, opts){
     opts = opts || {};
     const info = getStatusInfo(member);
-    const codeChip = opts.showCode ? `<div class="code-chip">${escapeHtml(member.idNo||'')}</div>` : '';
+    const codeChip = opts.showCode ? codeChipWithCopyHtml(member.idNo) : '';
 
     document.getElementById('resultBody').innerHTML = `
       <div class="result-icon">${info.expired ? '⚠' : '✓'}</div>
@@ -1891,6 +1929,7 @@
     document.querySelector('#view-result .result').className = 'result' + (info.expired ? ' expired' : '');
     showView('result');
     document.getElementById('doneBtn').addEventListener('click', resetSignIn);
+    attachCopyButtons(document.getElementById('resultBody'));
   }
 
   function renderMessage(isError, title, message){
@@ -2004,19 +2043,20 @@
           <div class="lookup-result-name">${escapeHtml(m.name||'')}</div>
           <div class="lookup-result-sub">${escapeHtml(m.class||'')}${info.expired ? ' · Expired / used up' : ''}</div>
         </div>
-        <div class="code-chip" style="margin:0;">${escapeHtml(m.idNo||'')}</div>
+        ${codeChipWithCopyHtml(m.idNo)}
       </div>`;
     }).join('');
     document.getElementById('resultBody').innerHTML = `
       <div class="result-icon">✓</div>
       <div class="result-name">${members.length > 1 ? 'Codes Found' : 'Found'}</div>
-      <div class="result-sub">${members.length} member${members.length===1?'':'s'} on this number${data.pendingCount ? ` · ${data.pendingCount} more still pending` : ''}</div>
+      <div class="result-sub">${members.length} member${members.length===1?'':'s'} on this number${data.pendingCount ? ` · ${data.pendingCount} more still pending` : ''} — copy a code below and paste it into Sign In</div>
       <div class="lookup-results-list">${rowsHtml}</div>
       <button class="btn btn-secondary" id="doneBtn">Done</button>
     `;
     document.querySelector('#view-result .result').className = 'result';
     showView('result');
     document.getElementById('doneBtn').addEventListener('click', resetSignIn);
+    attachCopyButtons(document.getElementById('resultBody'));
   }
 
   /* ===================== SIGN OUT ===================== */
