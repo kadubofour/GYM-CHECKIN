@@ -69,14 +69,29 @@
  *   version.
  *
  * HOW SWIMMING LESSONS' SESSION CAP WORKS:
- * - Every other duration/plan in this file is a pure date-window
- *   expiry (days added to the registration/approval date). Swimming
- *   Lessons' "Monthly" plan is BOTH a 6-week (42-day) window AND
- *   capped at 12 sign-ins, whichever is hit first — see the
+ * - Swimming Lessons has exactly ONE plan (no Walk-in): the
+ *   "12-Session Package", which is BOTH a 6-week (42-day) window AND
+ *   capped at 12 sign-outs, whichever is hit first — see the
  *   "sessionCap" property on that duration in ACTIVITIES, and
- *   isExpired()/getExpiryDate() below. Each successful check-in
- *   increments that member's "sessionsUsed" column in Registrations;
+ *   isExpired()/getExpiryDate() below. A session only counts as used
+ *   once the member SIGNS OUT (not at sign-in — see "checkout" below),
+ *   incrementing that member's "sessionsUsed" column in Registrations;
  *   a renewal or fresh approval resets it back to blank.
+ *
+ * HOW A FAMILY PACKAGE REGISTRATION WORKS:
+ * - "Family Package (Max 5)" (FAMILY_CATEGORY) is NOT one row for the
+ *   whole family. The person filling out the form becomes one full
+ *   row (dob/gender/medical/photo/etc. all captured normally, exactly
+ *   like any other registration); every additional family member they
+ *   list by full name (up to 4 more, so 5 people total) becomes its
+ *   own lightweight row — name plus the SAME shared phone/email/
+ *   address/emergency-contact, but no separate dob/gender/medical/
+ *   photo — each with its own auto-generated member code. See the
+ *   "submit" handler below.
+ * - Because every row in the family shares one phone number, the Sign
+ *   In tab's "lookup" action (phone-number code retrieval) naturally
+ *   returns every family member's code at once when the head enters
+ *   that shared number — see "lookup" below.
  *
  * (Photo upload, e-signature, date-grouped Registrations sheet, the
  * Excel export, walk-ins, and renew/update-details all work exactly
@@ -88,6 +103,20 @@
 // ------------------------------------------------------------------
 // Activity registry — the one place that defines the 5 activities
 // ------------------------------------------------------------------
+
+// Exact category label used everywhere a family-package row needs to be
+// identified (submit(), and the multi-name family registration below).
+const FAMILY_CATEGORY = "Family Package (Max 5)";
+
+// Shared category set for Leisure Tennis, Tennis Lessons, Leisure
+// Swimming and Swimming Lessons (per the printed rate cards) — Gym
+// keeps its own plain 4-category set.
+const LESSON_STYLE_CATEGORIES = [
+  "UG Student", "UG Staff",
+  "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
+  "Public Child (Under 17)", "Public Adult (17 & Above)",
+  FAMILY_CATEGORY
+];
 
 const ACTIVITIES = {
   gym: {
@@ -113,6 +142,9 @@ const ACTIVITIES = {
       "Semesterly/Quarterly": { days: 120, legacy: true }
     }
   },
+  // Leisure Tennis, Tennis Lessons, Leisure Swimming and Swimming Lessons
+  // all share this same 7-category set (per the printed rate cards) —
+  // only Gym keeps the plain 4-category set above.
   leisureTennis: {
     key: "leisureTennis",
     label: "Leisure Tennis",
@@ -121,17 +153,14 @@ const ACTIVITIES = {
     registrationsSheet: "Registrations - Leisure Tennis",
     visitsSheet: "Visits - Leisure Tennis",
     alertsSheet: "Alerts - Leisure Tennis",
-    categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+    categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
+    // Leisure Tennis is Walk-in/Monthly only — no Semesterly/Quarterly/
+    // Half-yearly/Yearly (unlike Gym and Leisure Swimming).
     durations: {
       "Walk-in": { days: 1 },
-      "Monthly": { days: 30 },
-      "Semesterly": { days: 120, onlyFor: ["UG Student"] },
-      "Quarterly": { days: 90, hideFor: ["UG Student"] },
-      "Half-yearly": { days: 182 },
-      "Yearly": { days: 365 },
-      "Semesterly/Quarterly": { days: 120, legacy: true }
+      "Monthly": { days: 30 }
     }
   },
   leisureSwimming: {
@@ -142,7 +171,7 @@ const ACTIVITIES = {
     registrationsSheet: "Registrations - Leisure Swimming",
     visitsSheet: "Visits - Leisure Swimming",
     alertsSheet: "Alerts - Leisure Swimming",
-    categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+    categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
     durations: {
@@ -151,8 +180,7 @@ const ACTIVITIES = {
       "Semesterly": { days: 120, onlyFor: ["UG Student"] },
       "Quarterly": { days: 90, hideFor: ["UG Student"] },
       "Half-yearly": { days: 182 },
-      "Yearly": { days: 365 },
-      "Semesterly/Quarterly": { days: 120, legacy: true }
+      "Yearly": { days: 365 }
     }
   },
   tennisLessons: {
@@ -163,12 +191,7 @@ const ACTIVITIES = {
     registrationsSheet: "Registrations - Tennis Lessons",
     visitsSheet: "Visits - Tennis Lessons",
     alertsSheet: "Alerts - Tennis Lessons",
-    categories: [
-      "UG Student", "UG Staff",
-      "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
-      "Public Child (Under 17)", "Public Adult (17 & Above)",
-      "Family Package (Max 4)"
-    ],
+    categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
     durations: {
@@ -184,20 +207,16 @@ const ACTIVITIES = {
     registrationsSheet: "Registrations - Swimming Lessons",
     visitsSheet: "Visits - Swimming Lessons",
     alertsSheet: "Alerts - Swimming Lessons",
-    categories: [
-      "UG Student", "UG Staff",
-      "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
-      "Public Child (Under 17)", "Public Adult (17 & Above)",
-      "Family Package (Max 4)"
-    ],
+    categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
+    // Only ONE plan exists for Swimming Lessons — no Walk-in. 6 weeks =
+    // 42 days, AND capped at 12 sign-ins — whichever comes first ends
+    // the package. See isExpired() below.
     durations: {
-      "Walk-in": { days: 1 },
-      // 6 weeks = 42 days, AND capped at 12 sign-ins — whichever comes
-      // first ends the package. See isExpired() below.
-      "Monthly": { days: 42, sessionCap: 12 }
-    }
+      "12-Session Package": { days: 42, sessionCap: 12 }
+    },
+    planDisclaimer: "Swimming lessons consist of 12 sessions held over 6 weeks. All 12 sessions must be completed within that 6-week window — sessions do not carry over beyond it."
   }
 };
 
@@ -238,14 +257,23 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 
 
 // Columns shared by every activity's Pending/Registrations sheets.
-// "familyMembersCount" is only ever populated for the lesson
-// activities' "Family Package (Max 4)" category; "sessionsUsed" is
-// only ever populated for a duration with a sessionCap (currently
-// just Swimming Lessons' Monthly) — both sit blank/unused otherwise.
+// "sessionsUsed" is only ever populated for a duration with a
+// sessionCap (currently just Swimming Lessons' package) — it sits
+// blank/unused otherwise.
+//
+// A Family Package registration is NOT one row for the whole family —
+// see the "submit" handler below: the person filling the form becomes
+// one full row (dob/gender/medical/photo/etc. all captured normally),
+// and each additional family member they list by name becomes its own
+// lightweight row (name + shared phone/email/address/emergency contact
+// only — no separate dob/gender/medical/photo). All rows in one family
+// share the same phone number, which is how "lookup" (the Sign In tab's
+// phone-number code retrieval) returns every family member's code at
+// once — there's no separate "family group" column needed for that.
 const HEADERS = [
   "idNo", "name", "dob", "gender", "nationality", "hasMedicalCondition",
   "medicalConditionDetails", "address",
-  "email", "phone", "department", "class", "familyMembersCount",
+  "email", "phone", "department", "class",
   "duration", "sessionsUsed",
   "date", "time", "emergencyName", "emergencyPhone", "emergencyRelationship",
   "photoUrl", "signatureUrl", "isRenewal"
@@ -813,16 +841,34 @@ function doPost(e) {
       const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType);
       const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType);
 
-      const familyMembersCount = (data.class === "Family Package (Max 4)")
-        ? String(Math.max(1, Math.min(4, parseInt(data.familyMembersCount, 10) || 1)))
-        : "";
+      // A Family Package registration isn't one row for the whole
+      // family — see the HEADERS comment above. The person filling the
+      // form (idNo/photo/etc. above) is one full row; every additional
+      // family member they list by name gets their own lightweight row
+      // below, generated and validated up front so the whole submission
+      // fails cleanly (nothing written) rather than partially, if the
+      // code pool or the 5-person cap is hit.
+      let extraFamilyMembers = [];
+      if (data.class === FAMILY_CATEGORY) {
+        const rawNames = Array.isArray(data.familyMemberNames) ? data.familyMemberNames : [];
+        const names = rawNames.map(n => String(n || "").trim()).filter(n => n !== "");
+        if (names.length > 4) {
+          return errorMsg("A family package covers at most 5 people, including you — please list at most 4 additional family members.");
+        }
+        for (const n of names) {
+          const extraIdNo = generateUniqueIdNo(activity);
+          if (!extraIdNo) {
+            return errorMsg("Couldn't generate member codes for the whole family right now — the code pool may be full. Please ask the front desk to register the family manually instead.");
+          }
+          extraFamilyMembers.push({ name: n, idNo: extraIdNo });
+        }
+      }
 
       const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
       sheet.appendRow(HEADERS.map(h => {
         if (h === "idNo") return sheetSafeText(idNo);
         if (h === "photoUrl") return photoUrl;
         if (h === "signatureUrl") return signatureUrl;
-        if (h === "familyMembersCount") return familyMembersCount;
         if (h === "sessionsUsed") return "";
         if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
         // Force "date"/"time" to literal text too — otherwise Sheets
@@ -830,7 +876,29 @@ function doPost(e) {
         if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
         return data[h] || "";
       }));
-      return ok({ idNo: idNo });
+
+      extraFamilyMembers.forEach(member => {
+        sheet.appendRow(HEADERS.map(h => {
+          if (h === "idNo") return sheetSafeText(member.idNo);
+          if (h === "name") return member.name;
+          if (h === "class") return data.class;
+          if (h === "duration") return data.duration;
+          if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
+          if (h === "email" || h === "address" || h === "emergencyName" || h === "emergencyRelationship") return data[h] || "";
+          if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
+          // dob/gender/nationality/medical/department/photo/signature/
+          // sessionsUsed/isRenewal are all left blank for an additional
+          // family member — only their name and the shared contact
+          // details are collected on the form.
+          return "";
+        }));
+      });
+
+      const response = { idNo: idNo };
+      if (data.class === FAMILY_CATEGORY) {
+        response.familyMembers = [{ name: data.name, idNo: idNo }].concat(extraFamilyMembers);
+      }
+      return ok(response);
     }
 
 
@@ -900,18 +968,6 @@ function doPost(e) {
         Utilities.getUuid(), match.idNo, match.name, match.class,
         formatDateMDY(now), now.toLocaleTimeString(), "",
       ]);
-
-      // Duration has a session cap (Swimming Lessons' Monthly) —
-      // increment the member's used-sessions count.
-      const cfg = getDurationConfig(activity, match.duration);
-      if (cfg && cfg.sessionCap) {
-        const regIdx = findRowIndexByIdNo(registrations, match.idNo);
-        if (regIdx !== -1) {
-          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
-          registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
-          match.sessionsUsed = String(newUsed);
-        }
-      }
       return ok({ member: match });
     }
 
@@ -944,6 +1000,21 @@ function doPost(e) {
       if (targetRow === -1) return errorMsg("No open sign-in found for this code today. Please sign in first.");
 
       visits.getRange(targetRow, timeOutColIndex + 1).setValue(new Date().toLocaleTimeString());
+
+      // Duration has a session cap (Swimming Lessons' package) — a
+      // session only counts as "used" once the member actually signs
+      // out, not when they sign in (so a session in progress doesn't
+      // get counted early, and a forgotten sign-in with no sign-out
+      // doesn't burn a session at all).
+      const cfg = getDurationConfig(activity, match.duration);
+      if (cfg && cfg.sessionCap) {
+        const regIdx = findRowIndexByIdNo(registrations, match.idNo);
+        if (regIdx !== -1) {
+          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
+          registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+          match.sessionsUsed = String(newUsed);
+        }
+      }
       return ok({ member: match });
     }
 
@@ -1017,17 +1088,22 @@ function doPost(e) {
 
 
     if (action === "lookup") {
+      // Returns EVERY approved row sharing this phone number, not just
+      // one — so a Family Package's shared contact number retrieves
+      // every family member's code at once (each family member is its
+      // own row — see the HEADERS comment above), and anyone else who
+      // happens to share a phone number with another registrant sees
+      // all of theirs too.
       const phone = String(data.phone || "").trim();
 
       const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      const pendingMatch = sheetToObjects(pending).find(r => String(r.phone).trim() === phone);
-      if (pendingMatch) return ok({ found: true, approved: false });
+      const pendingCount = sheetToObjects(pending).filter(r => String(r.phone).trim() === phone).length;
 
       const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const regMatch = sheetToObjects(registrations).find(r => String(r.phone).trim() === phone);
-      if (regMatch) return ok({ found: true, approved: true, member: regMatch });
+      const approvedMembers = sheetToObjects(registrations).filter(r => String(r.phone).trim() === phone);
 
-      return ok({ found: false });
+      if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
+      return ok({ found: true, approvedMembers: approvedMembers, pendingCount: pendingCount });
     }
 
 

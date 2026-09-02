@@ -7,12 +7,20 @@ Five activities, one Google Sheets backend, four static front-ends.
 | Activity | Code prefix | Example | Categories | Plans |
 |---|---|---|---|---|
 | Gym Membership | `G` | `G1234567` | UG Student, UG Staff, Non-UG Student, Public | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
-| Leisure Tennis | `T` | `T1234567` | UG Student, UG Staff, Non-UG Student, Public | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
-| Leisure Swimming | `S` | `S1234567` | UG Student, UG Staff, Non-UG Student, Public | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
-| Tennis Lessons | `TL` | `TL1234567` | UG Student, UG Staff, UG Staff Relation (Under 17 / 17 & Above), Public Child (Under 17), Public Adult (17 & Above), Family Package (Max 4) | Walk-in, Monthly (30-day window) |
-| Swimming Lessons | `SL` | `SL1234567` | Same 7 categories as Tennis Lessons | Walk-in, Monthly (6-week / 42-day window, capped at 12 sessions — whichever limit hits first ends the package) |
+| Leisure Tennis | `T` | `T1234567` | UG Student, UG Staff, UG Staff Relation (Under 17 / 17 & Above), Public Child (Under 17), Public Adult (17 & Above), Family Package (Max 5) | Walk-in, Monthly only |
+| Leisure Swimming | `S` | `S1234567` | Same 7 categories as Leisure Tennis | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
+| Tennis Lessons | `TL` | `TL1234567` | Same 7 categories | Walk-in, Monthly (30-day window) |
+| Swimming Lessons | `SL` | `SL1234567` | Same 7 categories | **12-Session Package only** — 6-week (42-day) window capped at 12 sessions, whichever limit hits first ends the package. No Walk-in. |
 
-A code is always `<prefix>` + 7 digits, auto-generated for every category except UG Student / UG Staff, who keep entering their own student/staff ID unprefixed — exactly as before.
+A code is always `<prefix>` + 7 digits, auto-generated for every category except UG Student / UG Staff, who keep entering their own student/staff ID unprefixed. Only Gym keeps the plain 4-category set (UG Student / UG Staff / Non-UG Student / Public) — the other four activities all use the 7-category set above, per the printed rate cards.
+
+### Family Package registrations
+
+"Family Package (Max 5)" is **not** one row for the whole family. The person filling out the form is the primary registrant (full details captured as normal — DOB, gender, medical, photo, signature); each additional family member they list by full name (up to 4 more) gets their own lightweight row with its own auto-generated code, sharing the same phone/email/address/emergency contact. Because every row in a family shares one phone number, the family head can retrieve every member's code at once from the Sign In tab's "Don't have your code?" phone lookup — no need to write each one down separately at the front desk.
+
+### Swimming Lessons session counting
+
+A Swimming Lessons session is only counted as "used" when the member **signs out**, not when they sign in — so an in-progress visit, or one where they forgot to sign out, doesn't burn a session early or accidentally.
 
 ## Files
 

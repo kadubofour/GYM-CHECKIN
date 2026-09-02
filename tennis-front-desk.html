@@ -418,16 +418,24 @@
 
   // This app only ever touches these two activities (mirrors the matching
   // entries in Code.gs ACTIVITIES — keep in sync).
+  const FAMILY_CATEGORY = "Family Package (Max 5)";
+  const LESSON_STYLE_CATEGORIES = [
+    "UG Student", "UG Staff",
+    "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
+    "Public Child (Under 17)", "Public Adult (17 & Above)",
+    FAMILY_CATEGORY
+  ];
   const ACTIVITIES = {
+    // Leisure Tennis is Walk-in/Monthly only.
     leisureTennis: {
-      key: "leisureTennis", label: "Leisure Tennis", icon: "🎾",
-      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      key: "leisureTennis", label: "Leisure Tennis",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
-      durations: { "Walk-in": {days:1}, "Monthly": {days:30}, "Semesterly": {days:120,onlyFor:["UG Student"]}, "Quarterly": {days:90,hideFor:["UG Student"]}, "Half-yearly": {days:182}, "Yearly": {days:365} }
+      durations: { "Walk-in": {days:1}, "Monthly": {days:30} }
     },
     tennisLessons: {
-      key: "tennisLessons", label: "Tennis Lessons", icon: "🎾",
-      categories: ["UG Student","UG Staff","UG Staff Relation (Under 17)","UG Staff Relation (17 & Above)","Public Child (Under 17)","Public Adult (17 & Above)","Family Package (Max 4)"],
+      key: "tennisLessons", label: "Tennis Lessons",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
       durations: { "Walk-in": {days:1}, "Monthly": {days:30} }
     }
@@ -499,7 +507,7 @@
       const count = pendingCounts[a.key];
       const badge = count ? `<span class="activity-pill-badge">${count}</span>` : '';
       return `<div class="activity-pill${a.key === currentActivity.key ? ' active' : ''}" data-key="${a.key}" tabindex="0" role="button">
-        <span>${a.icon} ${escapeHtml(a.label)}</span>${badge}
+        <span>${escapeHtml(a.label)}</span>${badge}
       </div>`;
     }).join('');
     host.querySelectorAll('.activity-pill').forEach(el => {
@@ -583,7 +591,7 @@
   wfPhoneCode.innerHTML = COUNTRY_CODES.map(c => `<option value="${c.code}"${c.def ? ' selected' : ''}>${c.label}</option>`).join('');
 
   const wfActivity = document.getElementById('wfActivity');
-  wfActivity.innerHTML = Object.values(ACTIVITIES).map(a => `<option value="${a.key}">${a.icon} ${escapeHtml(a.label)}</option>`).join('');
+  wfActivity.innerHTML = Object.values(ACTIVITIES).map(a => `<option value="${a.key}">${escapeHtml(a.label)}</option>`).join('');
 
   function populateCategorySelect(selectEl, activity){
     selectEl.innerHTML = activity.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -697,7 +705,7 @@
     const host = document.getElementById('approvalsHost');
     document.getElementById('pendingBadge').textContent = pendingEntries.length;
     if(pendingEntries.length === 0){
-      host.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>Nothing pending for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      host.innerHTML = `<div class="empty-state"><p>Nothing pending for ${escapeHtml(currentActivity.label)}.</p></div>`;
       return;
     }
     host.innerHTML = pendingEntries.map(e => {
@@ -708,7 +716,9 @@
         ? `<button class="reject-btn" data-idno="${escapeHtml(e.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject</button>
            <button class="approve-btn" data-idno="${escapeHtml(e.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve</button>`
         : `<span class="status-tag status-locked">Needs main front desk</span>`;
-      const familyRow = e.familyMembersCount ? `<div class="detail-item"><div class="dlabel">Family Members</div><div class="dvalue">${escapeHtml(e.familyMembersCount)}</div></div>` : '';
+      const familyRow = e.class === FAMILY_CATEGORY
+        ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
+        : '';
       return `
       <div class="approval-card">
         <div class="approval-head">
@@ -817,11 +827,11 @@
     const list = filteredRegistrants();
 
     if(approvedEntries.length === 0){
-      host.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No approved registrants yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      host.innerHTML = `<div class="empty-state"><p>No approved registrants yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
       footNote.textContent = ""; return;
     }
     if(list.length === 0){
-      host.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No matches for "${escapeHtml(searchTerm)}".</p></div>`;
+      host.innerHTML = `<div class="empty-state"><p>No matches for "${escapeHtml(searchTerm)}".</p></div>`;
       footNote.textContent = ""; return;
     }
 
@@ -846,7 +856,7 @@
         <div class="detail-grid">
           <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
           <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
-          ${e.familyMembersCount ? `<div class="detail-item"><div class="dlabel">Family Members</div><div class="dvalue">${escapeHtml(e.familyMembersCount)}</div></div>` : ''}
+          ${e.class === FAMILY_CATEGORY ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>` : ''}
           <div class="detail-item"><div class="dlabel">Date of Birth</div><div class="dvalue">${escapeHtml(e.dob||'—')}</div></div>
           <div class="detail-item"><div class="dlabel">Gender</div><div class="dvalue">${escapeHtml(e.gender||'—')}</div></div>
           <div class="detail-item"><div class="dlabel">Nationality</div><div class="dvalue">${escapeHtml(e.nationality||'—')}</div></div>
@@ -943,11 +953,11 @@
     const list = sortedFilteredVisits();
 
     if(visitEntries.length === 0){
-      host.innerHTML = `<div class="empty-state"><div class="icon">🕒</div><p>No visits logged yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      host.innerHTML = `<div class="empty-state"><p>No visits logged yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
       footNote.textContent = ""; return;
     }
     if(list.length === 0){
-      host.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No matches for "${escapeHtml(visitSearchTerm)}".</p></div>`;
+      host.innerHTML = `<div class="empty-state"><p>No matches for "${escapeHtml(visitSearchTerm)}".</p></div>`;
       footNote.textContent = ""; return;
     }
 

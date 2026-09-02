@@ -108,6 +108,15 @@
   .phone-group select{ flex:0 0 118px; padding-left:10px; padding-right:28px; }
   .phone-group input{ flex:1; min-width:0; }
 
+  /* Additional family member name rows (Family Package) */
+  .family-member-row{ display:flex; gap:8px; margin-bottom:8px; }
+  .family-member-row input{ flex:1; min-width:0; }
+  .family-member-remove{
+    flex:0 0 auto; background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
+    border-radius:8px; padding:0 14px; cursor:pointer; font-size:14px; font-weight:700;
+  }
+  .family-member-remove:hover{ border-color:var(--danger); color:var(--danger); }
+
   /* Photo upload */
   .photo-upload{
     border:1.5px dashed var(--line-strong); border-radius:10px; background:var(--panel-alt);
@@ -327,6 +336,15 @@
   .countdown-box{
     background:var(--panel-alt); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px;
   }
+  .lookup-results-list{ text-align:left; margin-bottom:16px; }
+  .lookup-result-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:8px;
+  }
+  .lookup-result-name{ font-weight:700; font-size:14px; color:var(--text); }
+  .lookup-result-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+  .lookup-results-list .code-chip{ font-size:15px; padding:6px 12px; }
   .countdown-box.expired{ border-color:rgba(192,57,43,0.3); background:var(--danger-dim); }
   .countdown-num{ font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; color:var(--gold-dark); }
   .countdown-box.expired .countdown-num{ color:var(--danger); font-size:26px; }
@@ -518,10 +536,13 @@
         <p class="field-error">Please choose a plan.</p>
       </div>
 
-      <div class="field" id="field-familyCount" style="display:none;">
-        <label for="regFamilyCount">Number of Family Members (max 4)</label>
-        <input type="text" id="regFamilyCount" inputmode="numeric" placeholder="e.g. 3">
-        <p class="field-error">Enter a number from 1 to 4.</p>
+      <div class="id-hint" id="planDisclaimer" style="display:none;"></div>
+
+      <div class="field" id="field-familyMembers" style="display:none;">
+        <label>Additional Family Members <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(up to 4 more — you're member 1 of up to 5)</span></label>
+        <div id="familyMembersList"></div>
+        <button type="button" class="btn btn-secondary" id="addFamilyMemberBtn" style="margin-top:2px;">+ Add Family Member</button>
+        <p class="field-error" id="familyMembersError">Enter a full name for each family member (or remove the row).</p>
       </div>
 
       </div>
@@ -610,10 +631,10 @@
       <div class="photo-sheet">
         <div class="photo-sheet-title">Add photo</div>
         <button type="button" class="photo-sheet-btn" id="photoSheetSelfie">
-          <span class="photo-sheet-icon">🤳</span><span>Take a selfie</span>
+          <span>Take a selfie</span>
         </button>
         <button type="button" class="photo-sheet-btn" id="photoSheetGallery">
-          <span class="photo-sheet-icon">🖼️</span><span>Choose from gallery</span>
+          <span>Choose from gallery</span>
         </button>
         <button type="button" class="photo-sheet-cancel" id="photoSheetCancel">Cancel</button>
       </div>
@@ -862,9 +883,19 @@
   }
 
   /* ===================== ACTIVITIES (mirrors Code.gs ACTIVITIES — keep in sync) ===================== */
+  const FAMILY_CATEGORY = "Family Package (Max 5)";
+  // Leisure Tennis, Tennis Lessons, Leisure Swimming and Swimming
+  // Lessons all share this 7-category set (per the printed rate
+  // cards) — only Gym keeps the plain 4-category set.
+  const LESSON_STYLE_CATEGORIES = [
+    "UG Student", "UG Staff",
+    "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
+    "Public Child (Under 17)", "Public Adult (17 & Above)",
+    FAMILY_CATEGORY
+  ];
   const ACTIVITIES = {
     gym: {
-      key: "gym", label: "Gym Membership", icon: "🏋️", short: "Gym",
+      key: "gym", label: "Gym Membership", short: "Gym",
       categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -877,23 +908,21 @@
         "Yearly": { days: 365 }
       }
     },
+    // Leisure Tennis is Walk-in/Monthly only — no Semesterly/Quarterly/
+    // Half-yearly/Yearly (unlike Gym and Leisure Swimming).
     leisureTennis: {
-      key: "leisureTennis", label: "Leisure Tennis", icon: "🎾", short: "Leisure Tennis",
-      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      key: "leisureTennis", label: "Leisure Tennis", short: "Leisure Tennis",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
       durations: {
         "Walk-in": { days: 1 },
-        "Monthly": { days: 30 },
-        "Semesterly": { days: 120, onlyFor: ["UG Student"] },
-        "Quarterly": { days: 90, hideFor: ["UG Student"] },
-        "Half-yearly": { days: 182 },
-        "Yearly": { days: 365 }
+        "Monthly": { days: 30 }
       }
     },
     leisureSwimming: {
-      key: "leisureSwimming", label: "Leisure Swimming", icon: "🏊", short: "Leisure Swimming",
-      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      key: "leisureSwimming", label: "Leisure Swimming", short: "Leisure Swimming",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
       durations: {
@@ -906,13 +935,8 @@
       }
     },
     tennisLessons: {
-      key: "tennisLessons", label: "Tennis Lessons", icon: "🎾", short: "Tennis Lessons",
-      categories: [
-        "UG Student", "UG Staff",
-        "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
-        "Public Child (Under 17)", "Public Adult (17 & Above)",
-        "Family Package (Max 4)"
-      ],
+      key: "tennisLessons", label: "Tennis Lessons", short: "Tennis Lessons",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
       durations: {
@@ -920,20 +944,16 @@
         "Monthly": { days: 30 }
       }
     },
+    // Only ONE plan exists for Swimming Lessons — no Walk-in.
     swimmingLessons: {
-      key: "swimmingLessons", label: "Swimming Lessons", icon: "🏊", short: "Swimming Lessons",
-      categories: [
-        "UG Student", "UG Staff",
-        "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
-        "Public Child (Under 17)", "Public Adult (17 & Above)",
-        "Family Package (Max 4)"
-      ],
+      key: "swimmingLessons", label: "Swimming Lessons", short: "Swimming Lessons",
+      categories: LESSON_STYLE_CATEGORIES,
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
       durations: {
-        "Walk-in": { days: 1 },
-        "Monthly": { days: 42, sessionCap: 12 }
-      }
+        "12-Session Package": { days: 42, sessionCap: 12 }
+      },
+      planDisclaimer: "Swimming lessons consist of 12 sessions held over 6 weeks. All 12 sessions must be completed within that 6-week window — sessions do not carry over beyond it."
     }
   };
 
@@ -944,8 +964,8 @@
     return true;
   }
   function durationLabel(key, cfg){
-    if(cfg.sessionCap) return `${key} (${cfg.days}-day window · up to ${cfg.sessionCap} sessions)`;
-    if(key === "Walk-in") return "Walk-in";
+    // Session-capped plans (Swimming Lessons) get their own disclaimer
+    // paragraph instead of a long parenthetical here.
     return key;
   }
 
@@ -993,7 +1013,6 @@
     const grid = document.getElementById('activityGrid');
     grid.innerHTML = Object.values(ACTIVITIES).map(a => `
       <div class="activity-card" data-key="${a.key}" tabindex="0" role="button">
-        <div class="activity-card-icon">${a.icon}</div>
         <div class="activity-card-label">${escapeHtml(a.label)}</div>
       </div>`).join('');
     grid.querySelectorAll('.activity-card').forEach(el => {
@@ -1010,7 +1029,7 @@
     if(!activity) return;
     currentActivity = activity;
     try{ localStorage.setItem('sportsRegActivityKey', key); }catch(e){}
-    document.getElementById('activeActivityChip').textContent = `${activity.icon} ${activity.label}`;
+    document.getElementById('activeActivityChip').textContent = activity.label;
     document.getElementById('mainTitle').textContent = activity.label.toUpperCase();
     applyActivityEverywhere();
     resetAllFlows();
@@ -1036,6 +1055,10 @@
     populateCategorySelect(classField, currentActivity);
     populateCategorySelect(walkinClass, currentActivity);
     updateConditionalFields();
+    // Swimming Lessons has no Walk-in plan — members must register for
+    // the 12-session package, so hide the walk-in path entirely.
+    const hasWalkin = !!(currentActivity && currentActivity.durations['Walk-in']);
+    document.getElementById('toWalkinBtn').style.display = hasWalkin ? 'block' : 'none';
   }
 
   /* ===================== Top-level tabs (inside the app screen) ===================== */
@@ -1093,8 +1116,10 @@
   const emailField = document.getElementById('regEmail');
   const addressField = document.getElementById('regAddress');
   const durationGrid = document.getElementById('durationGrid');
-  const familyCountField = document.getElementById('field-familyCount');
-  const familyCountInput = document.getElementById('regFamilyCount');
+  const planDisclaimerEl = document.getElementById('planDisclaimer');
+  const familyMembersField = document.getElementById('field-familyMembers');
+  const familyMembersList = document.getElementById('familyMembersList');
+  const addFamilyMemberBtn = document.getElementById('addFamilyMemberBtn');
   const emergencySurnameField = document.getElementById('regEmergencySurname');
   const emergencyOtherNamesField = document.getElementById('regEmergencyOtherNames');
   const emergencyPhoneField = document.getElementById('regEmergencyPhone');
@@ -1112,10 +1137,38 @@
   const signaturePadWrap = document.getElementById('signaturePadWrap');
   const clearSignatureBtn = document.getElementById('clearSignatureBtn');
 
-  const FAMILY_CATEGORY = "Family Package (Max 4)";
-
   function isIdRequired(){ return currentActivity && currentActivity.idRequiredCategories.indexOf(classField.value) !== -1; }
   function isDeptRequired(){ return currentActivity && currentActivity.deptRequiredCategories.indexOf(classField.value) !== -1; }
+
+  /* ---- Additional family member name rows (Family Package) ---- */
+  const MAX_EXTRA_FAMILY_MEMBERS = 4; // + the person filling the form = 5 total
+
+  function addFamilyMemberRow(){
+    if(familyMembersList.children.length >= MAX_EXTRA_FAMILY_MEMBERS) return;
+    const row = document.createElement('div');
+    row.className = 'family-member-row';
+    row.innerHTML = `<input type="text" class="family-member-name" placeholder="Full name">
+      <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>`;
+    row.querySelector('.family-member-remove').addEventListener('click', () => {
+      row.remove();
+      updateAddFamilyMemberBtn();
+    });
+    familyMembersList.appendChild(row);
+    updateAddFamilyMemberBtn();
+    row.querySelector('input').focus();
+  }
+  function updateAddFamilyMemberBtn(){
+    addFamilyMemberBtn.style.display = familyMembersList.children.length >= MAX_EXTRA_FAMILY_MEMBERS ? 'none' : 'block';
+  }
+  function resetFamilyMembers(){
+    familyMembersList.innerHTML = '';
+    updateAddFamilyMemberBtn();
+    clearFieldError('field-familyMembers');
+  }
+  function familyMemberNames(){
+    return [...familyMembersList.querySelectorAll('.family-member-name')].map(i => i.value.trim());
+  }
+  addFamilyMemberBtn.addEventListener('click', addFamilyMemberRow);
 
   function updateConditionalFields(){
     if(!currentActivity) return;
@@ -1128,8 +1181,9 @@
     idOptionalHint.style.display = idRequired ? 'none' : 'block';
     if(!idRequired) clearFieldError('field-id');
 
-    familyCountField.style.display = classField.value === FAMILY_CATEGORY ? 'block' : 'none';
-    if(classField.value !== FAMILY_CATEGORY){ familyCountInput.value = ''; clearFieldError('field-familyCount'); }
+    const isFamily = classField.value === FAMILY_CATEGORY;
+    familyMembersField.style.display = isFamily ? 'block' : 'none';
+    if(!isFamily) resetFamilyMembers();
 
     updateDurationOptions();
   }
@@ -1138,6 +1192,21 @@
   function updateDurationOptions(){
     populateDurationGrid(durationGrid, currentActivity, classField.value);
     selectedDuration = null;
+
+    // Only one plan exists (Swimming Lessons) — nothing to choose, so
+    // select it automatically instead of making the member click it.
+    const visibleOpts = [...durationGrid.children].filter(el => el.style.display !== 'none');
+    if(visibleOpts.length === 1){
+      visibleOpts[0].classList.add('active');
+      selectedDuration = visibleOpts[0].dataset.value;
+    }
+
+    if(currentActivity && currentActivity.planDisclaimer){
+      planDisclaimerEl.textContent = currentActivity.planDisclaimer;
+      planDisclaimerEl.style.display = 'block';
+    } else {
+      planDisclaimerEl.style.display = 'none';
+    }
   }
 
   genderRow.addEventListener('click', (e) => {
@@ -1366,8 +1435,8 @@
     let valid = true;
     if(!selectedDuration){ markInvalid('field-duration'); valid = false; } else clearFieldError('field-duration');
     if(classField.value === FAMILY_CATEGORY){
-      const n = parseInt(familyCountInput.value, 10);
-      if(!n || n < 1 || n > 4){ markInvalid('field-familyCount'); valid = false; } else clearFieldError('field-familyCount');
+      const names = familyMemberNames();
+      if(names.some(n => !n)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
     }
     return valid;
   }
@@ -1449,6 +1518,7 @@
   function resetRegisterForm(){
     form.reset();
     if(currentActivity) populateCategorySelect(classField, currentActivity);
+    resetFamilyMembers();
     [...durationGrid.children].forEach(c => c.classList.remove('active'));
     [...genderRow.children].forEach(c => c.classList.remove('active'));
     [...medicalConditionRow.children].forEach(c => c.classList.remove('active'));
@@ -1489,7 +1559,7 @@
       name: fullName,
       department: deptField.value.trim(),
       idNo: idField.value.trim(),
-      familyMembersCount: classField.value === FAMILY_CATEGORY ? familyCountInput.value.trim() : "",
+      familyMemberNames: classField.value === FAMILY_CATEGORY ? familyMemberNames() : undefined,
       dob: dobField.value,
       gender: selectedGender,
       nationality: nationalityField.value.trim(),
@@ -1525,7 +1595,10 @@
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
       if(data.status === "ok"){
-        showConfirm(false, "Submitted!", `${fullName} — waiting on front desk approval for ${currentActivity.label}. Once approved, use the Sign In tab with your phone number to find your code.`);
+        const familyNote = (data.familyMembers && data.familyMembers.length > 1)
+          ? ` This covers ${data.familyMembers.length} people — once approved, look up your phone number on the Sign In tab to see every family member's code at once.`
+          : '';
+        showConfirm(false, "Submitted!", `${fullName} — waiting on front desk approval for ${currentActivity.label}. Once approved, use the Sign In tab with your phone number to find your code.${familyNote}`);
         resetRegisterForm();
       } else {
         showConfirm(true, "Couldn't submit", data.message || "Please try again or tell the front desk.");
@@ -1795,13 +1868,7 @@
         renderMessage(true, "Something went wrong", "Please try again.");
         return;
       }
-      if(!data.found){
-        renderMessage(true, "Not found", "We couldn't find a registration with that phone number.");
-      } else if(!data.approved){
-        renderMessage(false, "Still Pending", "Your registration hasn't been approved yet — check back soon.");
-      } else {
-        renderMemberResult(data.member, { showCode: true, subtitle: "Approved" });
-      }
+      renderLookupResults(data);
     })
     .catch(() => {
       lookupBtn.disabled = false;
@@ -1809,6 +1876,41 @@
       renderMessage(true, "No connection", "Check the network and try again.");
     });
   });
+
+  // Every approved row sharing that phone number comes back at once —
+  // for a Family Package that's every family member's code in one go,
+  // not just whichever row happened to match first.
+  function renderLookupResults(data){
+    if(!data.found){
+      renderMessage(true, "Not found", "We couldn't find a registration with that phone number.");
+      return;
+    }
+    const members = data.approvedMembers || [];
+    if(members.length === 0){
+      renderMessage(false, "Still Pending", `${data.pendingCount} registration${data.pendingCount===1?'':'s'} found on this number — still awaiting front-desk approval, check back soon.`);
+      return;
+    }
+    const rowsHtml = members.map(m => {
+      const info = getStatusInfo(m);
+      return `<div class="lookup-result-row">
+        <div>
+          <div class="lookup-result-name">${escapeHtml(m.name||'')}</div>
+          <div class="lookup-result-sub">${escapeHtml(m.class||'')}${info.expired ? ' · Expired / used up' : ''}</div>
+        </div>
+        <div class="code-chip" style="margin:0;">${escapeHtml(m.idNo||'')}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('resultBody').innerHTML = `
+      <div class="result-icon">✓</div>
+      <div class="result-name">${members.length > 1 ? 'Codes Found' : 'Found'}</div>
+      <div class="result-sub">${members.length} member${members.length===1?'':'s'} on this number${data.pendingCount ? ` · ${data.pendingCount} more still pending` : ''}</div>
+      <div class="lookup-results-list">${rowsHtml}</div>
+      <button class="btn btn-secondary" id="doneBtn">Done</button>
+    `;
+    document.querySelector('#view-result .result').className = 'result';
+    showView('result');
+    document.getElementById('doneBtn').addEventListener('click', resetSignIn);
+  }
 
   /* ===================== SIGN OUT ===================== */
   const outViews = {
@@ -2020,6 +2122,12 @@
   function openRenewDuration(){
     selectedRenewDuration = null;
     populateDurationGrid(renewDurationGrid, currentActivity, verifiedMember ? verifiedMember.class : '');
+    // Only one plan exists (Swimming Lessons) — select it automatically.
+    const visibleOpts = [...renewDurationGrid.children].filter(el => el.style.display !== 'none');
+    if(visibleOpts.length === 1){
+      visibleOpts[0].classList.add('active');
+      selectedRenewDuration = visibleOpts[0].dataset.value;
+    }
     clearFieldError('field-renew-duration');
     showRenewView('duration');
   }
