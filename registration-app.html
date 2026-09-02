@@ -464,27 +464,27 @@
       </div>
 
       <div class="field" id="field-staffRelation" style="display:none;">
-        <div class="id-hint">Only a Spouse or Child of a UG staff member is eligible to register under this category.</div>
-      </div>
-      <div class="field-row" id="fieldRow-staffRelation" style="display:none;">
-        <div class="field" id="field-relatedStaffName">
-          <label for="regRelatedStaffName">UG Staff Member's Full Name</label>
-          <input type="text" id="regRelatedStaffName" placeholder="e.g. Kwame Owusu">
-          <p class="field-error">Required.</p>
+        <label>Related UG Staff Member <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(Spouse or Child only)</span></label>
+        <div class="field-row">
+          <div class="field" id="field-relatedStaffName">
+            <label for="regRelatedStaffName">Full Name</label>
+            <input type="text" id="regRelatedStaffName" placeholder="Surname first, e.g. Owusu Kwame">
+            <p class="field-error">Required.</p>
+          </div>
+          <div class="field" id="field-relatedStaffIdNo">
+            <label for="regRelatedStaffIdNo">ID No.</label>
+            <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
+            <p class="field-error">Required.</p>
+          </div>
         </div>
-        <div class="field" id="field-relatedStaffIdNo">
-          <label for="regRelatedStaffIdNo">UG Staff Member's ID No.</label>
-          <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
-          <p class="field-error">Required.</p>
+        <div class="field" id="field-staffRelationship" style="margin-bottom:0;">
+          <label>Relationship to Staff Member</label>
+          <div class="tick-row" id="staffRelationshipRow">
+            <div class="tick-box" data-value="Spouse"><span class="box"></span> Spouse</div>
+            <div class="tick-box" data-value="Child"><span class="box"></span> Child</div>
+          </div>
+          <p class="field-error">Please select Spouse or Child.</p>
         </div>
-      </div>
-      <div class="field" id="field-staffRelationship" style="display:none;">
-        <label>Relationship to Staff Member</label>
-        <div class="tick-row" id="staffRelationshipRow">
-          <div class="tick-box" data-value="Spouse"><span class="box"></span> Spouse</div>
-          <div class="tick-box" data-value="Child"><span class="box"></span> Child</div>
-        </div>
-        <p class="field-error">Please select Spouse or Child.</p>
       </div>
 
       <div class="field" id="field-photo">
@@ -1151,11 +1151,9 @@
   const idField = document.getElementById('regId');
   const idOptionalTag = document.getElementById('idOptionalTag');
   const idOptionalHint = document.getElementById('idOptionalHint');
-  const staffRelationNote = document.getElementById('field-staffRelation');
-  const staffRelationFieldRow = document.getElementById('fieldRow-staffRelation');
+  const staffRelationSection = document.getElementById('field-staffRelation');
   const relatedStaffNameField = document.getElementById('regRelatedStaffName');
   const relatedStaffIdNoField = document.getElementById('regRelatedStaffIdNo');
-  const staffRelationshipField = document.getElementById('field-staffRelationship');
   const staffRelationshipRow = document.getElementById('staffRelationshipRow');
   const photoUploadBox = document.getElementById('photoUploadBox');
   const photoInputSelfie = document.getElementById('regPhotoInputSelfie');
@@ -1266,9 +1264,7 @@
     if(!isFamily) resetFamilyMembers();
 
     const isStaffRelation = UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1;
-    staffRelationNote.style.display = isStaffRelation ? 'block' : 'none';
-    staffRelationFieldRow.style.display = isStaffRelation ? 'grid' : 'none';
-    staffRelationshipField.style.display = isStaffRelation ? 'block' : 'none';
+    staffRelationSection.style.display = isStaffRelation ? 'block' : 'none';
     if(!isStaffRelation){
       relatedStaffNameField.value = '';
       relatedStaffIdNoField.value = '';
