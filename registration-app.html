@@ -581,9 +581,10 @@
 
       <div class="field" id="field-familyMembers" style="display:none;">
         <label>Additional Family Members <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(up to 4 more — you're member 1 of up to 5)</span></label>
+        <p class="renew-option-sub" style="margin:-6px 0 10px;">Enter each name surname first.</p>
         <div id="familyMembersList"></div>
         <button type="button" class="btn btn-secondary" id="addFamilyMemberBtn" style="margin-top:2px;">+ Add Family Member</button>
-        <p class="field-error" id="familyMembersError">Enter a full name for each family member (or remove the row).</p>
+        <p class="field-error" id="familyMembersError">Enter a full name (surname first) for each family member, or remove the row.</p>
       </div>
 
       </div>
@@ -1215,7 +1216,7 @@
     row.className = 'family-member-row';
     row.innerHTML = `
       <div class="family-member-top">
-        <input type="text" class="family-member-name" placeholder="Full name">
+        <input type="text" class="family-member-name" placeholder="Surname first, e.g. Owusu Kwame">
         <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>
       </div>
       <input type="text" class="family-member-medical" placeholder="Medical conditions (leave blank if none)">`;
