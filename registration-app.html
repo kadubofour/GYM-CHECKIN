@@ -1114,6 +1114,7 @@
   const classField = document.getElementById('regClass');
   const otherNamesField = document.getElementById('regOtherNames');
   const surnameField = document.getElementById('regSurname');
+  const deptFieldWrap = document.getElementById('field-dept');
   const deptField = document.getElementById('regDept');
   const deptOptionalTag = document.getElementById('deptOptionalTag');
   const idFieldWrap = document.getElementById('field-id');
@@ -1165,6 +1166,10 @@
 
   function isIdRequired(){ return currentActivity && currentActivity.idRequiredCategories.indexOf(classField.value) !== -1; }
   function isDeptRequired(){ return currentActivity && currentActivity.deptRequiredCategories.indexOf(classField.value) !== -1; }
+  // Public members never have a department or a student/staff ID to
+  // give, so those two sections are hidden entirely for them rather
+  // than shown-but-optional.
+  function isPublicCategory(){ return classField.value.indexOf('Public') !== -1; }
 
   /* ---- Additional family member name rows (Family Package) ---- */
   const MAX_EXTRA_FAMILY_MEMBERS = 4; // + the person filling the form = 5 total
@@ -1205,14 +1210,20 @@
 
   function updateConditionalFields(){
     if(!currentActivity) return;
+    const isPublic = isPublicCategory();
+
     const dept = isDeptRequired();
+    deptFieldWrap.style.display = isPublic ? 'none' : 'block';
     deptOptionalTag.style.display = dept ? 'none' : 'inline';
-    if(!dept) clearFieldError('field-dept');
+    if(isPublic){ deptField.value = ''; }
+    if(isPublic || !dept) clearFieldError('field-dept');
 
     const idRequired = isIdRequired();
+    idFieldWrap.style.display = isPublic ? 'none' : 'block';
     idOptionalTag.style.display = idRequired ? 'none' : 'inline';
     idOptionalHint.style.display = idRequired ? 'none' : 'block';
-    if(!idRequired) clearFieldError('field-id');
+    if(isPublic){ idField.value = ''; }
+    if(isPublic || !idRequired) clearFieldError('field-id');
 
     const isFamily = classField.value === FAMILY_CATEGORY;
     familyMembersField.style.display = isFamily ? 'block' : 'none';
