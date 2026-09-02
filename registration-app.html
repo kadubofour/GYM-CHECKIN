@@ -106,7 +106,9 @@
   /* Phone: country code + number */
   .phone-group{ display:flex; gap:8px; }
   .phone-group select{ flex:0 0 118px; padding-left:10px; padding-right:28px; }
-  .phone-group input{ flex:1; min-width:0; }
+  .phone-group input{
+    flex:1; min-width:0; font-size:17px; font-weight:700; letter-spacing:0.02em; color:var(--text);
+  }
 
   /* Additional family member rows (Family Package) — name + optional
      medical conditions per person, one card per family member. */
@@ -1066,7 +1068,10 @@
   }
 
   function populateDurationGrid(gridEl, activity, category){
-    const keys = Object.keys(activity.durations);
+    // Walk-in is never a choice here — it has its own dedicated entry
+    // point on the Sign In tab ("Walk-in →"), not a plan you register
+    // or renew into.
+    const keys = Object.keys(activity.durations).filter(k => k !== 'Walk-in');
     gridEl.innerHTML = keys.map(k => {
       const cfg = activity.durations[k];
       const allowed = durationAllowedForCategory(cfg, category);
