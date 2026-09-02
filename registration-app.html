@@ -1,0 +1,2229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>University of Ghana Sports Directorate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#FFFFFF; --panel-alt:#F2F6FC;
+    --line:#DCE4F0; --line-strong:#B9C7DE;
+    --text:#0F1D3B; --text-dim:#5B6B85; --text-faint:#8B98AC;
+    --blue:#15369E; --blue-dark:#0C2568; --blue-dim:rgba(21,54,158,0.08); --blue-dim-strong:rgba(21,54,158,0.14);
+    --gold:#B8860B; --gold-dark:#8C660A; --gold-dim:rgba(184,134,11,0.12);
+    --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 560px at 88% -8%, var(--blue-dim), transparent 60%),
+      radial-gradient(900px 500px at 8% 108%, var(--gold-dim), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px;
+  }
+  .screen{display:none;}
+  .screen.active{display:block; width:100%;}
+  .card{
+    width:100%; max-width:480px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:30px 30px 30px; position:relative; margin:0 auto;
+    box-shadow:0 1px 3px rgba(15,29,59,0.04), 0 10px 30px rgba(15,29,59,0.06);
+  }
+  .brand-eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--blue); margin:0 0 6px; text-align:center;
+  }
+  h1{
+    font-family:'Bebas Neue',sans-serif; font-size:40px; letter-spacing:0.02em; line-height:0.9;
+    margin:0 0 20px; text-align:center; color:var(--text);
+  }
+
+  /* Activity picker */
+  .activity-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px; }
+  .activity-card{
+    border:1px solid var(--line-strong); background:var(--bg); border-radius:12px;
+    padding:20px 12px; text-align:center; cursor:pointer; transition:all .12s ease; user-select:none;
+  }
+  .activity-card:hover, .activity-card:focus-visible{ border-color:var(--blue); background:var(--blue-dim); outline:none; }
+  .activity-card-icon{ font-size:28px; margin-bottom:8px; }
+  .activity-card-label{ font-weight:700; font-size:13.5px; color:var(--text); line-height:1.25; }
+  .activity-card-sub{ font-size:11px; color:var(--text-dim); margin-top:3px; }
+
+  .activity-chip-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .activity-chip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--blue-dim); color:var(--blue);
+    font-weight:700; font-size:12px; padding:6px 12px; border-radius:20px;
+  }
+  #changeActivityBtn{ display:block; text-align:right; margin:0; width:auto; font-size:10.5px; }
+
+  /* Tabs */
+  .tab-bar{ display:flex; gap:5px; margin-bottom:22px; background:var(--panel-alt); padding:5px; border-radius:11px; }
+  .tab-btn{
+    flex:1; background:transparent; border:none; color:var(--text-dim);
+    padding:10px 4px; border-radius:8px; cursor:pointer; font-weight:700; font-size:11px;
+    font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:0.01em;
+  }
+  .tab-btn.active{ background:var(--panel); color:var(--blue); box-shadow:0 1px 3px rgba(15,29,59,0.08); }
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* Sub-views within a tab (code form / lookup / walk-in / result, etc.) */
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .subhead{ text-align:center; font-size:12.5px; color:var(--text-dim); margin:0 0 22px; }
+  .section-label{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--text-dim); margin:22px 0 10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-label:first-of-type{margin-top:0;}
+  .section-label::before{ content:""; width:5px; height:5px; background:var(--gold); border-radius:1px; }
+  label{
+    display:block; font-size:12px; font-weight:600; color:var(--text-dim);
+    margin:0 0 6px; text-transform:uppercase; letter-spacing:0.04em;
+  }
+  .field{margin-bottom:14px;}
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  input[type=text], input[type=date], input[type=email], select{
+    width:100%; background:var(--bg); border:1px solid var(--line-strong); color:var(--text);
+    padding:12px; border-radius:8px; font-family:'Inter',sans-serif; font-size:14.5px;
+    outline:none; transition:border-color .15s ease, box-shadow .15s ease; appearance:none;
+  }
+  select{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%235B6B85'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:34px; cursor:pointer;
+  }
+  input:focus, select:focus{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-dim); }
+  input::placeholder{color:var(--text-faint);}
+  .field-error{ font-size:11.5px; color:var(--danger); margin-top:5px; display:none; }
+  .field.invalid input, .field.invalid select{border-color:var(--danger);}
+  .field.invalid .field-error{display:block;}
+
+  /* Phone: country code + number */
+  .phone-group{ display:flex; gap:8px; }
+  .phone-group select{ flex:0 0 118px; padding-left:10px; padding-right:28px; }
+  .phone-group input{ flex:1; min-width:0; }
+
+  /* Photo upload */
+  .photo-upload{
+    border:1.5px dashed var(--line-strong); border-radius:10px; background:var(--panel-alt);
+    padding:16px; cursor:pointer; display:flex; align-items:center; gap:14px; transition:border-color .12s ease;
+  }
+  .photo-upload:hover{ border-color:var(--blue); }
+  .photo-upload.has-photo{ border-style:solid; }
+  .photo-thumb{
+    width:56px; height:56px; border-radius:8px; background:var(--bg); border:1px solid var(--line);
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:22px; color:var(--text-faint);
+  }
+  .photo-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .photo-copy{ font-size:13px; font-weight:600; color:var(--text-dim); }
+  .photo-copy .sub{ font-size:11.5px; font-weight:400; color:var(--text-faint); margin-top:2px; }
+  .field.invalid .photo-upload{ border-color:var(--danger); }
+
+  /* Photo source action sheet (selfie vs gallery) */
+  .photo-sheet-overlay{
+    position:fixed; inset:0; background:rgba(15,29,59,0.45); display:none;
+    align-items:flex-end; justify-content:center; z-index:50; padding:0;
+  }
+  .photo-sheet-overlay.show{ display:flex; }
+  .photo-sheet{
+    width:100%; max-width:480px; background:var(--panel); border-radius:16px 16px 0 0;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+    box-shadow:0 -10px 30px rgba(15,29,59,0.18);
+  }
+  .photo-sheet-title{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--text-faint); text-align:center; padding:6px 0 4px;
+  }
+  .photo-sheet-btn{
+    width:100%; display:flex; align-items:center; gap:12px; background:var(--panel-alt);
+    border:1px solid var(--line); color:var(--text); font-family:'Inter',sans-serif;
+    font-size:14.5px; font-weight:600; padding:14px 16px; border-radius:10px;
+    cursor:pointer; margin-top:8px; text-align:left;
+  }
+  .photo-sheet-btn:active{ background:var(--blue-dim); }
+  .photo-sheet-icon{ font-size:20px; width:24px; text-align:center; flex-shrink:0; }
+  .photo-sheet-cancel{
+    width:100%; background:transparent; border:none; color:var(--text-dim);
+    font-family:'Inter',sans-serif; font-size:14px; font-weight:700; padding:14px 16px 4px;
+    margin-top:6px; cursor:pointer; text-transform:uppercase; letter-spacing:0.03em;
+  }
+
+  /* Signature pad */
+  .signature-pad-wrap{
+    border:1.5px dashed var(--line-strong); border-radius:10px; background:var(--panel-alt); padding:10px;
+    transition:border-color .12s ease;
+  }
+  .signature-pad-wrap.has-signature{ border-style:solid; }
+  .field.invalid .signature-pad-wrap{ border-color:var(--danger); }
+  #signatureCanvas{
+    display:block; width:100%; height:150px; background:var(--bg); border:1px solid var(--line);
+    border-radius:8px; touch-action:none; cursor:crosshair;
+  }
+  .signature-pad-footer{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:10px; }
+  .signature-pad-hint{ font-size:11.5px; color:var(--text-faint); }
+
+  .tick-row{ display:flex; gap:10px; }
+  .tick-box{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+    border:1px solid var(--line-strong); background:var(--bg); border-radius:8px;
+    padding:11px 8px; cursor:pointer; user-select:none; font-size:13.5px; font-weight:600;
+    color:var(--text-dim); transition:all .12s ease;
+  }
+  .tick-box:hover{border-color:var(--blue);}
+  .tick-box .box{
+    width:16px; height:16px; border-radius:4px; border:1.5px solid var(--line-strong);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .tick-box.active{ border-color:var(--blue); background:var(--blue-dim); color:var(--blue); }
+  .tick-box.active .box{ background:var(--blue); border-color:var(--blue); color:#fff; font-size:11px; font-weight:900; }
+  .tick-box.active .box::after{ content:"✓"; }
+
+  /* Declaration step */
+  .declaration-box{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:10px;
+    padding:16px; margin-bottom:16px;
+  }
+  .declaration-text{
+    margin:0; font-size:13.5px; line-height:1.6; color:var(--text); font-style:italic;
+  }
+  .declaration-text strong{ font-style:normal; color:var(--blue-dark); }
+  .tick-box-full{
+    flex:none; width:100%; justify-content:flex-start; text-align:left;
+    align-items:flex-start; padding:12px; margin-bottom:10px;
+  }
+  .tick-box-full .box{ margin-top:1px; }
+  .tick-box-full span.label-text{ font-weight:500; line-height:1.45; }
+
+  /* Registration wizard */
+  .wizard-progress{ display:flex; justify-content:space-between; margin:0 0 24px; position:relative; }
+  .wizard-progress::before{
+    content:""; position:absolute; top:13px; left:9%; right:9%; height:2px; background:var(--line); z-index:0;
+  }
+  .wizard-progress-step{
+    position:relative; z-index:1; display:flex; flex-direction:column; align-items:center;
+    gap:6px; flex:1; cursor:default;
+  }
+  .wizard-progress-step.reachable{ cursor:pointer; }
+  .wizard-progress-step.reachable .wizard-progress-dot{ transition:all .15s ease, transform .1s ease; }
+  .wizard-progress-step.reachable:hover .wizard-progress-dot{ border-color:var(--blue); transform:scale(1.08); }
+  .wizard-progress-step.reachable:hover .wizard-progress-label{ color:var(--blue); }
+  .wizard-progress-step.reachable:focus-visible{ outline:2px solid var(--blue); outline-offset:3px; border-radius:8px; }
+  .wizard-progress-dot{
+    width:26px; height:26px; border-radius:50%; background:var(--panel); border:2px solid var(--line-strong);
+    display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace;
+    font-size:11px; font-weight:700; color:var(--text-faint); transition:all .15s ease;
+  }
+  .wizard-progress-step.active .wizard-progress-dot{ border-color:var(--blue); background:var(--blue); color:#fff; }
+  .wizard-progress-step.done .wizard-progress-dot{ border-color:var(--blue); background:var(--blue-dim); color:transparent; font-size:0; }
+  .wizard-progress-step.done .wizard-progress-dot::after{ content:"✓"; font-size:11px; color:var(--blue); }
+  .wizard-progress-label{
+    font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--text-faint); text-align:center; line-height:1.2;
+  }
+  .wizard-progress-step.active .wizard-progress-label{ color:var(--blue); font-weight:700; }
+  .wizard-step{ display:none; }
+  .wizard-step.active{ display:block; animation:wizardIn .18s ease; }
+  @keyframes wizardIn{ from{opacity:0; transform:translateX(6px);} to{opacity:1; transform:translateX(0);} }
+  .wizard-nav{ display:flex; gap:10px; margin-top:18px; }
+  .wizard-nav .btn{ margin-top:0; width:auto; }
+  .wizard-nav .btn-secondary{ flex:0 0 auto; padding-left:22px; padding-right:22px; }
+  .wizard-nav .btn-primary{ flex:1; }
+
+  .duration-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .duration-opt{
+    border:1px solid var(--line-strong); background:var(--bg); border-radius:8px; padding:11px 8px;
+    text-align:center; font-size:13px; font-weight:600; cursor:pointer; color:var(--text-dim);
+    transition:all .12s ease; user-select:none;
+  }
+  .duration-opt:hover{border-color:var(--blue);}
+  .duration-opt.active{ border-color:var(--blue); background:var(--blue-dim); color:var(--blue); }
+
+  /* Renew tab: verified-member card + action options */
+  .renew-member-card{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .renew-member-name{ font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:0.02em; color:var(--text); }
+  .renew-member-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+  .renew-change-code{
+    background:none; border:none; color:var(--blue); font-size:11px; font-family:'JetBrains Mono',monospace;
+    text-transform:uppercase; letter-spacing:0.05em; cursor:pointer; flex-shrink:0;
+  }
+  .renew-change-code:hover{ color:var(--blue-dark); }
+  .renew-option{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid var(--line-strong); background:var(--bg); border-radius:10px;
+    padding:16px; margin-bottom:12px; cursor:pointer; transition:all .12s ease;
+  }
+  .renew-option:hover, .renew-option:focus-visible{ border-color:var(--blue); background:var(--blue-dim); outline:none; }
+  .renew-option-title{ font-weight:700; font-size:14.5px; color:var(--text); }
+  .renew-option-sub{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .renew-option-arrow{ font-size:18px; color:var(--text-faint); flex-shrink:0; transition:color .12s ease; }
+  .renew-option:hover .renew-option-arrow, .renew-option:focus-visible .renew-option-arrow{ color:var(--blue); }
+  .back-link{ display:block; text-align:left; margin:0 0 16px; }
+
+  .btn{
+    width:100%; padding:14px 16px; border-radius:8px; border:none; font-family:'Inter',sans-serif;
+    font-weight:800; font-size:14px; letter-spacing:0.03em; text-transform:uppercase;
+    cursor:pointer; transition:transform .08s ease, opacity .12s ease; margin-top:16px;
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn[disabled]{opacity:0.5; cursor:not-allowed;}
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:hover:not([disabled]){background:var(--blue-dark);}
+  .btn-gold{ background:var(--gold); color:#fff; }
+  .btn-gold:hover:not([disabled]){background:var(--gold-dark);}
+  .btn-secondary{ background:transparent; border:1px solid var(--line-strong); color:var(--text); }
+  .btn-secondary:hover{ border-color:var(--blue); color:var(--blue); }
+
+  .switch-link{
+    display:block; text-align:center; margin-top:16px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint);
+    background:none; border:none; cursor:pointer; width:100%;
+  }
+  .switch-link:hover{color:var(--blue);}
+
+  .setup-warning{
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.3); color:var(--danger);
+    font-size:12px; padding:10px 12px; border-radius:8px; margin-bottom:18px; line-height:1.5;
+  }
+  .id-hint{
+    background:var(--gold-dim); border:1px solid rgba(184,134,11,0.3); color:var(--gold-dark);
+    font-size:12px; padding:10px 12px; border-radius:8px; margin-bottom:14px; line-height:1.5;
+  }
+
+  /* Confirm overlay (registration) — scoped to the Register tab panel,
+     not the whole card, so it covers just the form instead of also
+     swallowing the header and tab bar above it. */
+  #tab-register{ position:relative; }
+  .confirm-overlay{
+    position:absolute; inset:0; background:var(--panel); border-radius:16px; display:none;
+    align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:30px;
+    z-index:5;
+  }
+  .confirm-overlay.show{display:flex;}
+  .confirm-icon{
+    width:56px; height:56px; border-radius:50%; background:var(--blue-dim); color:var(--blue);
+    display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:16px;
+  }
+  .confirm-overlay.error .confirm-icon{ background:var(--danger-dim); color:var(--danger); }
+  .confirm-overlay h2{ font-family:'Bebas Neue',sans-serif; font-size:28px; margin:0 0 6px; letter-spacing:0.02em; }
+  .confirm-overlay p{ color:var(--text-dim); font-size:13.5px; margin:0; max-width:320px; }
+
+  /* Sign-in result */
+  .result{ text-align:center; }
+  .result-icon{
+    width:64px; height:64px; border-radius:50%; background:var(--blue-dim); color:var(--blue);
+    display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 16px;
+  }
+  .result.error .result-icon, .result.expired .result-icon{ background:var(--danger-dim); color:var(--danger); }
+  .result-name{ font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:0.02em; margin:0 0 4px; }
+  .result-sub{ font-size:12.5px; color:var(--text-dim); margin:0 0 22px; }
+  .countdown-box{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px;
+  }
+  .countdown-box.expired{ border-color:rgba(192,57,43,0.3); background:var(--danger-dim); }
+  .countdown-num{ font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; color:var(--gold-dark); }
+  .countdown-box.expired .countdown-num{ color:var(--danger); font-size:26px; }
+  .countdown-label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--text-dim); margin-top:6px;
+  }
+  .code-chip{
+    display:inline-block; background:var(--gold-dim); color:var(--gold-dark); font-family:'JetBrains Mono',monospace;
+    font-size:22px; font-weight:700; letter-spacing:0.12em; padding:10px 18px; border-radius:8px; margin-bottom:16px;
+  }
+  .error-msg{ color:var(--text-dim); font-size:13.5px; margin:0 0 20px; }
+  input.code-input{
+    font-family:'JetBrains Mono',monospace; font-size:20px; letter-spacing:0.08em; text-align:center;
+  }
+  input.code-input::placeholder{ font-size:14px; letter-spacing:normal; font-family:'Inter',sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="screen active" id="screen-picker">
+  <div class="card">
+    <p class="brand-eyebrow">University of Ghana Sports Directorate</p>
+    <h1>CHOOSE YOUR PROGRAM</h1>
+    <p class="subhead">Pick what you're registering for, signing in to, or renewing.</p>
+    <div class="setup-warning" id="setupWarningPicker" style="display:none;">
+      ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL.
+    </div>
+    <div class="activity-grid" id="activityGrid"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-app">
+  <div class="card">
+  <div class="activity-chip-row">
+    <span class="activity-chip" id="activeActivityChip"></span>
+    <button type="button" class="switch-link" id="changeActivityBtn">Change ✕</button>
+  </div>
+  <h1 id="mainTitle">GYM MEMBERSHIP</h1>
+
+  <div class="setup-warning" id="setupWarning" style="display:none;">
+    ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL.
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="register">Register</button>
+    <button class="tab-btn" data-tab="renew">Renewal</button>
+    <button class="tab-btn" data-tab="signin">Sign In</button>
+    <button class="tab-btn" data-tab="signout">Sign Out</button>
+  </div>
+
+  <!-- ============ REGISTRATION TAB ============ -->
+  <div class="tab-panel active" id="tab-register">
+    <p class="subhead">Your registration will be reviewed by the front desk before it's confirmed.</p>
+
+    <div class="wizard-progress" id="wizardProgress">
+      <div class="wizard-progress-step active" data-step="1" role="button" tabindex="0"><span class="wizard-progress-dot">1</span><span class="wizard-progress-label">Basic</span></div>
+      <div class="wizard-progress-step" data-step="2" role="button" tabindex="-1"><span class="wizard-progress-dot">2</span><span class="wizard-progress-label">Personal</span></div>
+      <div class="wizard-progress-step" data-step="3" role="button" tabindex="-1"><span class="wizard-progress-dot">3</span><span class="wizard-progress-label">Contact</span></div>
+      <div class="wizard-progress-step" data-step="4" role="button" tabindex="-1"><span class="wizard-progress-dot">4</span><span class="wizard-progress-label">Plan</span></div>
+      <div class="wizard-progress-step" data-step="5" role="button" tabindex="-1"><span class="wizard-progress-dot">5</span><span class="wizard-progress-label">SOS</span></div>
+      <div class="wizard-progress-step" data-step="6" role="button" tabindex="-1"><span class="wizard-progress-dot">6</span><span class="wizard-progress-label">Confirm</span></div>
+    </div>
+
+    <form id="regForm" novalidate>
+      <div class="wizard-step active" data-step="1">
+      <p class="section-label">Basic details</p>
+      <div class="field" id="field-class">
+        <label for="regClass">Registration Category</label>
+        <select id="regClass"></select>
+        <p class="field-error">Please select a category.</p>
+      </div>
+
+      <div class="field-row">
+        <div class="field" id="field-surname">
+          <label for="regSurname">Surname</label>
+          <input type="text" id="regSurname" placeholder="e.g. Owusu">
+          <p class="field-error">Required.</p>
+        </div>
+        <div class="field" id="field-otherNames">
+          <label for="regOtherNames">Other Names</label>
+          <input type="text" id="regOtherNames" placeholder="e.g. Kwame Yaw">
+          <p class="field-error">Required.</p>
+        </div>
+      </div>
+
+      <div class="field" id="field-dept">
+        <label for="regDept">Department <span id="deptOptionalTag" style="color:var(--text-dim);text-transform:none;font-weight:400;">(optional)</span></label>
+        <input type="text" id="regDept" placeholder="e.g. Computer Science">
+        <p class="field-error" id="deptFieldError">Required for this category.</p>
+      </div>
+
+      <div class="field" id="field-id">
+        <label for="regId">ID No. <span id="idOptionalTag" style="display:none;color:var(--text-dim);text-transform:none;font-weight:400;">(optional)</span></label>
+        <input type="text" id="regId" placeholder="e.g. 10123456 / Staff ID">
+        <p class="field-error">Please enter your ID number.</p>
+      </div>
+      <div class="id-hint" id="idOptionalHint" style="display:none;">
+        No ID needed — a member code will be generated for you automatically once your registration is approved. Find it later on the Sign In tab.
+      </div>
+
+      <div class="field" id="field-photo">
+        <label for="regPhotoInput">Photo</label>
+        <div class="photo-upload" id="photoUploadBox">
+          <div class="photo-thumb" id="photoThumb">📷</div>
+          <div class="photo-copy">
+            <div id="photoCopyMain">Tap to add a photo</div>
+            <div class="sub" id="photoCopySub">Clear photo of your face</div>
+          </div>
+          <input type="file" id="regPhotoInputSelfie" accept="image/*" capture="user" hidden>
+          <input type="file" id="regPhotoInputGallery" accept="image/*" hidden>
+        </div>
+        <p class="field-error">A photo is required.</p>
+      </div>
+
+      </div>
+
+      <div class="wizard-step" data-step="2">
+      <p class="section-label">Personal information</p>
+      <div class="field-row">
+        <div class="field" id="field-dob">
+          <label for="regDob">Date of Birth</label>
+          <input type="date" id="regDob">
+          <p class="field-error">Please enter a date of birth.</p>
+        </div>
+        <div class="field" id="field-gender">
+          <label>Gender</label>
+          <div class="tick-row" id="genderRow">
+            <div class="tick-box" data-value="Male"><span class="box"></span> Male</div>
+            <div class="tick-box" data-value="Female"><span class="box"></span> Female</div>
+          </div>
+          <p class="field-error">Please select a gender.</p>
+        </div>
+      </div>
+
+      <div class="field" id="field-nationality">
+        <label for="regNationality">Nationality</label>
+        <input type="text" id="regNationality" placeholder="e.g. Ghanaian">
+        <p class="field-error">Required.</p>
+      </div>
+
+      <div class="field" id="field-medicalCondition">
+        <label>Do you have any of the following or similar medical conditions — for example hypertension, asthma, cardiovascular and respiratory disorders, epilepsy, etc?</label>
+        <div class="tick-row" id="medicalConditionRow">
+          <div class="tick-box" data-value="Yes"><span class="box"></span> Yes</div>
+          <div class="tick-box" data-value="No"><span class="box"></span> No</div>
+        </div>
+        <p class="field-error">Please select yes or no.</p>
+      </div>
+
+      <div class="field" id="field-medicalConditionDetails" style="display:none;">
+        <label for="regMedicalConditionDetails">Please state</label>
+        <input type="text" id="regMedicalConditionDetails" placeholder="e.g. Asthma">
+        <p class="field-error">Please state your medical condition.</p>
+      </div>
+
+      </div>
+
+      <div class="wizard-step" data-step="3">
+      <p class="section-label">Contact</p>
+      <div class="field" id="field-phone">
+        <label for="regPhone">Phone Number</label>
+        <div class="phone-group">
+          <select id="regPhoneCode" class="country-code-select"></select>
+          <input type="text" id="regPhone" placeholder="24 123 4567" inputmode="tel">
+        </div>
+        <p class="field-error">Please enter a valid phone number.</p>
+      </div>
+
+      <div class="field" id="field-email">
+        <label for="regEmail">Email Address</label>
+        <input type="email" id="regEmail" placeholder="e.g. kwame@example.com">
+        <p class="field-error">Please enter a valid email address.</p>
+      </div>
+
+      <div class="field" id="field-address">
+        <label for="regAddress">Address <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(digital, postal, or residential)</span></label>
+        <input type="text" id="regAddress" placeholder="e.g. GA-184-9021, or P.O. Box LG 25, or House No. 12 East Legon">
+        <p class="field-error">Required.</p>
+      </div>
+
+      </div>
+
+      <div class="wizard-step" data-step="4">
+      <p class="section-label">Plan</p>
+      <div class="field" id="field-duration">
+        <label>Plan</label>
+        <div class="duration-grid" id="durationGrid"></div>
+        <p class="field-error">Please choose a plan.</p>
+      </div>
+
+      <div class="field" id="field-familyCount" style="display:none;">
+        <label for="regFamilyCount">Number of Family Members (max 4)</label>
+        <input type="text" id="regFamilyCount" inputmode="numeric" placeholder="e.g. 3">
+        <p class="field-error">Enter a number from 1 to 4.</p>
+      </div>
+
+      </div>
+
+      <div class="wizard-step" data-step="5">
+      <p class="section-label">Emergency Contact</p>
+      <div class="field-row">
+        <div class="field" id="field-emergencySurname">
+          <label for="regEmergencySurname">Surname</label>
+          <input type="text" id="regEmergencySurname" placeholder="e.g. Owusu">
+          <p class="field-error">Required.</p>
+        </div>
+        <div class="field" id="field-emergencyOtherNames">
+          <label for="regEmergencyOtherNames">Other Names</label>
+          <input type="text" id="regEmergencyOtherNames" placeholder="e.g. Ama">
+          <p class="field-error">Required.</p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field" id="field-emergencyPhone">
+          <label for="regEmergencyPhone">Contact Phone</label>
+          <div class="phone-group">
+            <select id="regEmergencyPhoneCode" class="country-code-select"></select>
+            <input type="text" id="regEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
+          </div>
+          <p class="field-error">Please enter a valid phone number.</p>
+        </div>
+        <div class="field" id="field-emergencyRelationship">
+          <label for="regEmergencyRelationship">Relationship</label>
+          <input type="text" id="regEmergencyRelationship" placeholder="e.g. Spouse, Parent">
+          <p class="field-error">Required.</p>
+        </div>
+      </div>
+
+      </div>
+
+      <div class="wizard-step" data-step="6">
+      <p class="section-label">Declaration</p>
+      <div class="field" id="field-declaration">
+        <div class="declaration-box">
+          <p class="declaration-text">I, <strong id="declarationName">&mdash;</strong>, do promise to adhere to the rules, regulations, terms and conditions governing membership and use of the University Of Ghana Sports Directorate facilities.</p>
+        </div>
+        <div class="tick-row" id="declarationRow">
+          <div class="tick-box" data-value="Yes"><span class="box"></span> Yes</div>
+          <div class="tick-box" data-value="No"><span class="box"></span> No</div>
+        </div>
+        <p class="field-error">Please confirm the declaration to continue.</p>
+      </div>
+
+      <div class="field" id="field-infoCorrect">
+        <div class="tick-box tick-box-full" id="infoCorrectBox" tabindex="0" role="checkbox" aria-checked="false">
+          <span class="box"></span><span class="label-text">I confirm that the information I have entered is correct and accurate</span>
+        </div>
+        <p class="field-error">Please confirm your information is correct to continue.</p>
+      </div>
+
+      <div class="field" id="field-signature">
+        <label>Signature of Applicant</label>
+        <div class="signature-pad-wrap" id="signaturePadWrap">
+          <canvas id="signatureCanvas"></canvas>
+          <div class="signature-pad-footer">
+            <span class="signature-pad-hint">Sign above using your mouse or finger</span>
+            <button type="button" class="switch-link" id="clearSignatureBtn">Clear</button>
+          </div>
+        </div>
+        <p class="field-error">Please sign to continue.</p>
+      </div>
+
+      </div>
+
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-secondary" id="wizBackBtn" style="display:none;">Back</button>
+        <button type="button" class="btn btn-primary" id="wizNextBtn">Continue</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn" style="display:none;" disabled>Submit for Approval</button>
+      </div>
+    </form>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+      <div class="confirm-icon" id="confirmIcon">✓</div>
+      <h2 id="confirmTitle">Submitted!</h2>
+      <p id="confirmDetail"></p>
+    </div>
+
+    <div class="photo-sheet-overlay" id="photoSheetOverlay">
+      <div class="photo-sheet">
+        <div class="photo-sheet-title">Add photo</div>
+        <button type="button" class="photo-sheet-btn" id="photoSheetSelfie">
+          <span class="photo-sheet-icon">🤳</span><span>Take a selfie</span>
+        </button>
+        <button type="button" class="photo-sheet-btn" id="photoSheetGallery">
+          <span class="photo-sheet-icon">🖼️</span><span>Choose from gallery</span>
+        </button>
+        <button type="button" class="photo-sheet-cancel" id="photoSheetCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SIGN IN TAB ============ -->
+  <div class="tab-panel" id="tab-signin">
+    <div class="view active" id="view-code">
+      <p class="subhead">Enter your member code or ID number to sign in.</p>
+      <form id="codeForm" novalidate>
+        <div class="field" id="field-code">
+          <label for="codeInput">Member Code</label>
+          <input type="text" id="codeInput" class="code-input" placeholder="Code or ID number">
+          <p class="field-error">Enter your code or ID number.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="checkinBtn">Sign In</button>
+      </form>
+      <button class="switch-link" id="toLookupBtn">Don't have your code? →</button>
+      <button class="btn btn-gold" id="toWalkinBtn">Walk-in →</button>
+    </div>
+
+    <div class="view" id="view-lookup">
+      <p class="subhead">Find your code using the phone number you registered with.</p>
+      <form id="lookupForm" novalidate>
+        <div class="field" id="field-phone-lookup">
+          <label for="phoneInput">Phone Number</label>
+          <div class="phone-group">
+            <select id="phoneInputCode" class="country-code-select"></select>
+            <input type="text" id="phoneInput" placeholder="24 123 4567">
+          </div>
+          <p class="field-error">Enter the phone number you registered with.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="lookupBtn">Find My Status</button>
+      </form>
+      <button class="switch-link" id="toCodeBtn">← Back to sign in</button>
+    </div>
+
+    <div class="view" id="view-walkin">
+      <p class="subhead">Quick walk-in entry — just a few details. Front desk still needs to approve it before you're checked in.</p>
+      <form id="walkinSigninForm" novalidate>
+        <div class="field" id="field-walkin-class">
+          <label for="walkinClass">Category</label>
+          <select id="walkinClass"></select>
+          <p class="field-error">Please select a category.</p>
+        </div>
+        <div class="field" id="field-walkin-name">
+          <label for="walkinName">Full Name</label>
+          <input type="text" id="walkinName" placeholder="e.g. Kwame Owusu">
+          <p class="field-error">Required.</p>
+        </div>
+        <div class="field" id="field-walkin-id" style="display:none;">
+          <label for="walkinId">ID Number</label>
+          <input type="text" id="walkinId" placeholder="Your student/staff ID">
+          <p class="field-error">Required for this category.</p>
+        </div>
+        <div class="field" id="field-walkin-phone">
+          <label for="walkinPhone">Phone Number</label>
+          <div class="phone-group">
+            <select id="walkinPhoneCode" class="country-code-select"></select>
+            <input type="text" id="walkinPhone" placeholder="24 123 4567" inputmode="tel">
+          </div>
+          <p class="field-error">Please enter a valid phone number.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="walkinSubmitBtn">Submit Walk-in</button>
+      </form>
+      <button class="switch-link" id="toCodeFromWalkinBtn">← Back to sign in</button>
+    </div>
+
+    <div class="view" id="view-result">
+      <div class="result" id="resultBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ SIGN OUT TAB ============ -->
+  <div class="tab-panel" id="tab-signout">
+    <div class="view active" id="view-out-code">
+      <p class="subhead">Enter your member code or ID number to sign out.</p>
+      <form id="codeOutForm" novalidate>
+        <div class="field" id="field-code-out">
+          <label for="codeOutInput">Member Code</label>
+          <input type="text" id="codeOutInput" class="code-input" placeholder="Code or ID number">
+          <p class="field-error">Enter your code or ID number.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="checkoutBtn">Sign Out</button>
+      </form>
+      <button class="btn btn-gold" id="toOutPhoneBtn">Walk-in Sign Out →</button>
+    </div>
+
+    <div class="view" id="view-out-phone">
+      <p class="subhead">Sign out using the phone number you entered when you walked in.</p>
+      <form id="phoneOutForm" novalidate>
+        <div class="field" id="field-phone-out">
+          <label for="phoneOutInput">Phone Number</label>
+          <div class="phone-group">
+            <select id="phoneOutCode" class="country-code-select"></select>
+            <input type="text" id="phoneOutInput" placeholder="24 123 4567" inputmode="tel">
+          </div>
+          <p class="field-error">Enter the phone number you signed in with.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="checkoutPhoneBtn">Sign Out</button>
+      </form>
+      <button class="switch-link" id="toOutCodeBtn">← Back to sign out</button>
+    </div>
+
+    <div class="view" id="view-out-result">
+      <div class="result" id="resultOutBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ RENEW / UPDATE DETAILS TAB ============ -->
+  <div class="tab-panel" id="tab-renew">
+    <div class="view active" id="view-renew-code">
+      <p class="subhead">Enter your member code or ID number to renew your plan or update your details.</p>
+      <form id="renewCodeForm" novalidate>
+        <div class="field" id="field-renew-code">
+          <label for="renewCodeInput">Your Code</label>
+          <input type="text" id="renewCodeInput" class="code-input" placeholder="Code or ID number">
+          <p class="field-error">Enter your code or ID number.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" id="renewVerifyBtn">Continue</button>
+      </form>
+    </div>
+
+    <div class="view" id="view-renew-menu">
+      <div class="renew-member-card">
+        <div>
+          <div class="renew-member-name" id="renewMemberName"></div>
+          <div class="renew-member-sub" id="renewMemberSub"></div>
+        </div>
+        <button type="button" class="renew-change-code" id="renewChangeCodeBtn">Not you?</button>
+      </div>
+
+      <div class="renew-option" id="renewOptionSubscription" tabindex="0" role="button">
+        <div>
+          <div class="renew-option-title">Renew Plan</div>
+          <div class="renew-option-sub" id="renewSubStatus">Extend your plan — needs front-desk approval</div>
+        </div>
+        <span class="renew-option-arrow">→</span>
+      </div>
+
+      <div class="renew-option" id="renewOptionDetails" tabindex="0" role="button">
+        <div>
+          <div class="renew-option-title">Update My Details</div>
+          <div class="renew-option-sub">Phone, email, address, emergency contact</div>
+        </div>
+        <span class="renew-option-arrow">→</span>
+      </div>
+    </div>
+
+    <div class="view" id="view-renew-duration">
+      <button type="button" class="switch-link back-link" id="toRenewMenuFromDurationBtn">← Back</button>
+      <p class="section-label">Choose a new plan</p>
+      <div class="field" id="field-renew-duration">
+        <div class="duration-grid" id="renewDurationGrid"></div>
+        <p class="field-error">Please choose a plan.</p>
+      </div>
+      <p class="renew-option-sub" style="margin:-6px 0 4px;">Your request goes to the front desk — your current plan keeps working until it's approved.</p>
+      <button type="button" class="btn btn-primary" id="renewConfirmBtn">Submit Renewal Request</button>
+    </div>
+
+    <div class="view" id="view-renew-details">
+      <button type="button" class="switch-link back-link" id="toRenewMenuFromDetailsBtn">← Back</button>
+      <p class="section-label">Update your details</p>
+      <form id="renewDetailsForm" novalidate>
+        <div class="field" id="field-ren-phone">
+          <label for="renPhone">Phone Number</label>
+          <div class="phone-group">
+            <select id="renPhoneCode" class="country-code-select"></select>
+            <input type="text" id="renPhone" placeholder="24 123 4567" inputmode="tel">
+          </div>
+          <p class="field-error">Please enter a valid phone number.</p>
+        </div>
+        <div class="field" id="field-ren-email">
+          <label for="renEmail">Email Address</label>
+          <input type="email" id="renEmail" placeholder="e.g. kwame@example.com">
+          <p class="field-error">Please enter a valid email address.</p>
+        </div>
+        <div class="field" id="field-ren-address">
+          <label for="renAddress">Address</label>
+          <input type="text" id="renAddress" placeholder="e.g. GA-184-9021, or P.O. Box LG 25">
+          <p class="field-error">Required.</p>
+        </div>
+        <p class="section-label">Emergency Contact</p>
+        <div class="field-row">
+          <div class="field" id="field-ren-emergencySurname">
+            <label for="renEmergencySurname">Surname</label>
+            <input type="text" id="renEmergencySurname" placeholder="e.g. Owusu">
+            <p class="field-error">Required.</p>
+          </div>
+          <div class="field" id="field-ren-emergencyOtherNames">
+            <label for="renEmergencyOtherNames">Other Names</label>
+            <input type="text" id="renEmergencyOtherNames" placeholder="e.g. Ama">
+            <p class="field-error">Required.</p>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field" id="field-ren-emergencyPhone">
+            <label for="renEmergencyPhone">Contact Phone</label>
+            <div class="phone-group">
+              <select id="renEmergencyPhoneCode" class="country-code-select"></select>
+              <input type="text" id="renEmergencyPhone" placeholder="20 987 6543" inputmode="tel">
+            </div>
+            <p class="field-error">Please enter a valid phone number.</p>
+          </div>
+          <div class="field" id="field-ren-emergencyRelationship">
+            <label for="renEmergencyRelationship">Relationship</label>
+            <input type="text" id="renEmergencyRelationship" placeholder="e.g. Spouse, Parent">
+            <p class="field-error">Required.</p>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="renewDetailsSubmitBtn">Save Changes</button>
+      </form>
+    </div>
+
+    <div class="view" id="view-renew-result">
+      <div class="result" id="resultRenewBody"></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- PASTE YOUR APPS SCRIPT WEB APP URL HERE ----
+  const SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+  // ---------------------------------------------------
+
+  if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
+    document.getElementById('setupWarning').style.display = 'block';
+    document.getElementById('setupWarningPicker').style.display = 'block';
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  // Date sent to the backend must always be month-first (M/d/yyyy) to
+  // match how it's stored and parsed server-side. Plain toLocaleDateString()
+  // depends on the browser's locale (day-first in many regions, including
+  // Ghana), so build the string explicitly instead of relying on it.
+  function formatDateMDY(d){
+    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  }
+
+  /* ===================== ACTIVITIES (mirrors Code.gs ACTIVITIES — keep in sync) ===================== */
+  const ACTIVITIES = {
+    gym: {
+      key: "gym", label: "Gym Membership", icon: "🏋️", short: "Gym",
+      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      deptRequiredCategories: ["UG Student", "UG Staff"],
+      durations: {
+        "Walk-in": { days: 1 },
+        "Monthly": { days: 30 },
+        "Semesterly": { days: 120, onlyFor: ["UG Student"] },
+        "Quarterly": { days: 90, hideFor: ["UG Student"] },
+        "Half-yearly": { days: 182 },
+        "Yearly": { days: 365 }
+      }
+    },
+    leisureTennis: {
+      key: "leisureTennis", label: "Leisure Tennis", icon: "🎾", short: "Leisure Tennis",
+      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      deptRequiredCategories: ["UG Student", "UG Staff"],
+      durations: {
+        "Walk-in": { days: 1 },
+        "Monthly": { days: 30 },
+        "Semesterly": { days: 120, onlyFor: ["UG Student"] },
+        "Quarterly": { days: 90, hideFor: ["UG Student"] },
+        "Half-yearly": { days: 182 },
+        "Yearly": { days: 365 }
+      }
+    },
+    leisureSwimming: {
+      key: "leisureSwimming", label: "Leisure Swimming", icon: "🏊", short: "Leisure Swimming",
+      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      deptRequiredCategories: ["UG Student", "UG Staff"],
+      durations: {
+        "Walk-in": { days: 1 },
+        "Monthly": { days: 30 },
+        "Semesterly": { days: 120, onlyFor: ["UG Student"] },
+        "Quarterly": { days: 90, hideFor: ["UG Student"] },
+        "Half-yearly": { days: 182 },
+        "Yearly": { days: 365 }
+      }
+    },
+    tennisLessons: {
+      key: "tennisLessons", label: "Tennis Lessons", icon: "🎾", short: "Tennis Lessons",
+      categories: [
+        "UG Student", "UG Staff",
+        "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
+        "Public Child (Under 17)", "Public Adult (17 & Above)",
+        "Family Package (Max 4)"
+      ],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      deptRequiredCategories: ["UG Student", "UG Staff"],
+      durations: {
+        "Walk-in": { days: 1 },
+        "Monthly": { days: 30 }
+      }
+    },
+    swimmingLessons: {
+      key: "swimmingLessons", label: "Swimming Lessons", icon: "🏊", short: "Swimming Lessons",
+      categories: [
+        "UG Student", "UG Staff",
+        "UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)",
+        "Public Child (Under 17)", "Public Adult (17 & Above)",
+        "Family Package (Max 4)"
+      ],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      deptRequiredCategories: ["UG Student", "UG Staff"],
+      durations: {
+        "Walk-in": { days: 1 },
+        "Monthly": { days: 42, sessionCap: 12 }
+      }
+    }
+  };
+
+  function durationAllowedForCategory(cfg, category){
+    if(!cfg) return false;
+    if(cfg.onlyFor && cfg.onlyFor.indexOf(category) === -1) return false;
+    if(cfg.hideFor && cfg.hideFor.indexOf(category) !== -1) return false;
+    return true;
+  }
+  function durationLabel(key, cfg){
+    if(cfg.sessionCap) return `${key} (${cfg.days}-day window · up to ${cfg.sessionCap} sessions)`;
+    if(key === "Walk-in") return "Walk-in";
+    return key;
+  }
+
+  let currentActivity = null;
+
+  // ---- Country codes for phone fields ----
+  const COUNTRY_CODES = [
+    { code:"+233", label:"🇬🇭 +233", def:true },
+    { code:"+234", label:"🇳🇬 +234" },
+    { code:"+225", label:"🇨🇮 +225" },
+    { code:"+228", label:"🇹🇬 +228" },
+    { code:"+229", label:"🇧🇯 +229" },
+    { code:"+226", label:"🇧🇫 +226" },
+    { code:"+223", label:"🇲🇱 +223" },
+    { code:"+221", label:"🇸🇳 +221" },
+    { code:"+232", label:"🇸🇱 +232" },
+    { code:"+231", label:"🇱🇷 +231" },
+    { code:"+27",  label:"🇿🇦 +27" },
+    { code:"+254", label:"🇰🇪 +254" },
+    { code:"+1",   label:"🇺🇸 +1" },
+    { code:"+44",  label:"🇬🇧 +44" },
+    { code:"+91",  label:"🇮🇳 +91" },
+    { code:"+86",  label:"🇨🇳 +86" }
+  ];
+  function populateCountryCodeSelects(){
+    document.querySelectorAll('select.country-code-select').forEach(sel => {
+      sel.innerHTML = COUNTRY_CODES.map(c =>
+        `<option value="${c.code}"${c.def ? ' selected' : ''}>${c.label}</option>`
+      ).join('');
+    });
+  }
+  populateCountryCodeSelects();
+
+  /* ===================== Screens: activity picker <-> app ===================== */
+  const screens = {
+    picker: document.getElementById('screen-picker'),
+    app: document.getElementById('screen-app')
+  };
+  function showScreen(name){
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  }
+
+  function renderActivityPicker(){
+    const grid = document.getElementById('activityGrid');
+    grid.innerHTML = Object.values(ACTIVITIES).map(a => `
+      <div class="activity-card" data-key="${a.key}" tabindex="0" role="button">
+        <div class="activity-card-icon">${a.icon}</div>
+        <div class="activity-card-label">${escapeHtml(a.label)}</div>
+      </div>`).join('');
+    grid.querySelectorAll('.activity-card').forEach(el => {
+      el.addEventListener('click', () => selectActivity(el.dataset.key));
+      el.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectActivity(el.dataset.key); }
+      });
+    });
+  }
+  renderActivityPicker();
+
+  function selectActivity(key){
+    const activity = ACTIVITIES[key];
+    if(!activity) return;
+    currentActivity = activity;
+    try{ localStorage.setItem('sportsRegActivityKey', key); }catch(e){}
+    document.getElementById('activeActivityChip').textContent = `${activity.icon} ${activity.label}`;
+    document.getElementById('mainTitle').textContent = activity.label.toUpperCase();
+    applyActivityEverywhere();
+    resetAllFlows();
+    showScreen('app');
+  }
+  document.getElementById('changeActivityBtn').addEventListener('click', () => showScreen('picker'));
+
+  function populateCategorySelect(selectEl, activity){
+    selectEl.innerHTML = '<option value="" disabled selected>Select category</option>' +
+      activity.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
+
+  function populateDurationGrid(gridEl, activity, category){
+    const keys = Object.keys(activity.durations);
+    gridEl.innerHTML = keys.map(k => {
+      const cfg = activity.durations[k];
+      const allowed = durationAllowedForCategory(cfg, category);
+      return `<div class="duration-opt" data-value="${escapeHtml(k)}" style="${allowed ? '' : 'display:none;'}">${escapeHtml(durationLabel(k, cfg))}</div>`;
+    }).join('');
+  }
+
+  function applyActivityEverywhere(){
+    populateCategorySelect(classField, currentActivity);
+    populateCategorySelect(walkinClass, currentActivity);
+    updateConditionalFields();
+  }
+
+  /* ===================== Top-level tabs (inside the app screen) ===================== */
+  const topTabs = document.querySelectorAll('.tab-bar > .tab-btn');
+  const topPanels = {
+    register: document.getElementById('tab-register'),
+    signin: document.getElementById('tab-signin'),
+    signout: document.getElementById('tab-signout'),
+    renew: document.getElementById('tab-renew')
+  };
+  topTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      topTabs.forEach(b => b.classList.remove('active'));
+      Object.values(topPanels).forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      topPanels[btn.dataset.tab].classList.add('active');
+    });
+  });
+
+  /* ===================== MEMBERSHIP REGISTRATION ===================== */
+  let selectedDuration = null;
+  let selectedGender = null;
+  let selectedMedicalCondition = null;
+  let selectedDeclaration = null;
+
+  const form = document.getElementById('regForm');
+  const classField = document.getElementById('regClass');
+  const otherNamesField = document.getElementById('regOtherNames');
+  const surnameField = document.getElementById('regSurname');
+  const deptField = document.getElementById('regDept');
+  const deptOptionalTag = document.getElementById('deptOptionalTag');
+  const idFieldWrap = document.getElementById('field-id');
+  const idField = document.getElementById('regId');
+  const idOptionalTag = document.getElementById('idOptionalTag');
+  const idOptionalHint = document.getElementById('idOptionalHint');
+  const photoUploadBox = document.getElementById('photoUploadBox');
+  const photoInputSelfie = document.getElementById('regPhotoInputSelfie');
+  const photoInputGallery = document.getElementById('regPhotoInputGallery');
+  const photoThumb = document.getElementById('photoThumb');
+  const photoCopyMain = document.getElementById('photoCopyMain');
+  const photoCopySub = document.getElementById('photoCopySub');
+  const photoSheetOverlay = document.getElementById('photoSheetOverlay');
+  const photoSheetSelfie = document.getElementById('photoSheetSelfie');
+  const photoSheetGallery = document.getElementById('photoSheetGallery');
+  const photoSheetCancel = document.getElementById('photoSheetCancel');
+  const regPhoneCode = document.getElementById('regPhoneCode');
+  const regEmergencyPhoneCode = document.getElementById('regEmergencyPhoneCode');
+  const dobField = document.getElementById('regDob');
+  const genderRow = document.getElementById('genderRow');
+  const nationalityField = document.getElementById('regNationality');
+  const medicalConditionRow = document.getElementById('medicalConditionRow');
+  const medicalConditionDetailsField = document.getElementById('field-medicalConditionDetails');
+  const medicalConditionDetailsInput = document.getElementById('regMedicalConditionDetails');
+  const phoneField = document.getElementById('regPhone');
+  const emailField = document.getElementById('regEmail');
+  const addressField = document.getElementById('regAddress');
+  const durationGrid = document.getElementById('durationGrid');
+  const familyCountField = document.getElementById('field-familyCount');
+  const familyCountInput = document.getElementById('regFamilyCount');
+  const emergencySurnameField = document.getElementById('regEmergencySurname');
+  const emergencyOtherNamesField = document.getElementById('regEmergencyOtherNames');
+  const emergencyPhoneField = document.getElementById('regEmergencyPhone');
+  const emergencyRelationshipField = document.getElementById('regEmergencyRelationship');
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmIcon = document.getElementById('confirmIcon');
+  const confirmTitle = document.getElementById('confirmTitle');
+  const confirmDetail = document.getElementById('confirmDetail');
+  const submitBtn = document.getElementById('submitBtn');
+  const declarationNameEl = document.getElementById('declarationName');
+  const declarationRow = document.getElementById('declarationRow');
+  const infoCorrectBox = document.getElementById('infoCorrectBox');
+  const signatureCanvas = document.getElementById('signatureCanvas');
+  const sigCtx = signatureCanvas.getContext('2d');
+  const signaturePadWrap = document.getElementById('signaturePadWrap');
+  const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+
+  const FAMILY_CATEGORY = "Family Package (Max 4)";
+
+  function isIdRequired(){ return currentActivity && currentActivity.idRequiredCategories.indexOf(classField.value) !== -1; }
+  function isDeptRequired(){ return currentActivity && currentActivity.deptRequiredCategories.indexOf(classField.value) !== -1; }
+
+  function updateConditionalFields(){
+    if(!currentActivity) return;
+    const dept = isDeptRequired();
+    deptOptionalTag.style.display = dept ? 'none' : 'inline';
+    if(!dept) clearFieldError('field-dept');
+
+    const idRequired = isIdRequired();
+    idOptionalTag.style.display = idRequired ? 'none' : 'inline';
+    idOptionalHint.style.display = idRequired ? 'none' : 'block';
+    if(!idRequired) clearFieldError('field-id');
+
+    familyCountField.style.display = classField.value === FAMILY_CATEGORY ? 'block' : 'none';
+    if(classField.value !== FAMILY_CATEGORY){ familyCountInput.value = ''; clearFieldError('field-familyCount'); }
+
+    updateDurationOptions();
+  }
+  classField.addEventListener('change', updateConditionalFields);
+
+  function updateDurationOptions(){
+    populateDurationGrid(durationGrid, currentActivity, classField.value);
+    selectedDuration = null;
+  }
+
+  genderRow.addEventListener('click', (e) => {
+    const opt = e.target.closest('.tick-box');
+    if(!opt) return;
+    [...genderRow.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedGender = opt.dataset.value;
+    clearFieldError('field-gender');
+  });
+
+  medicalConditionRow.addEventListener('click', (e) => {
+    const opt = e.target.closest('.tick-box');
+    if(!opt) return;
+    [...medicalConditionRow.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedMedicalCondition = opt.dataset.value;
+    clearFieldError('field-medicalCondition');
+    if(selectedMedicalCondition === 'Yes'){
+      medicalConditionDetailsField.style.display = '';
+    } else {
+      medicalConditionDetailsField.style.display = 'none';
+      medicalConditionDetailsInput.value = '';
+      clearFieldError('field-medicalConditionDetails');
+    }
+  });
+
+  durationGrid.addEventListener('click', (e) => {
+    const opt = e.target.closest('.duration-opt');
+    if(!opt) return;
+    [...durationGrid.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedDuration = opt.dataset.value;
+    clearFieldError('field-duration');
+  });
+
+  // ---- Declaration tick boxes ----
+  let infoCorrectAgreed = false;
+
+  function toggleTickBox(box, onToggle){
+    const nowActive = !box.classList.contains('active');
+    box.classList.toggle('active', nowActive);
+    box.setAttribute('aria-checked', String(nowActive));
+    onToggle(nowActive);
+  }
+  declarationRow.addEventListener('click', (e) => {
+    const opt = e.target.closest('.tick-box');
+    if(!opt) return;
+    [...declarationRow.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedDeclaration = opt.dataset.value;
+    clearFieldError('field-declaration');
+  });
+  infoCorrectBox.addEventListener('click', () => {
+    toggleTickBox(infoCorrectBox, (active) => { infoCorrectAgreed = active; });
+    if(infoCorrectAgreed) clearFieldError('field-infoCorrect');
+  });
+  infoCorrectBox.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); infoCorrectBox.click(); }
+  });
+
+  // ---- Signature pad ----
+  let signatureSized = false;
+  let hasSignature = false;
+  let isDrawingSignature = false;
+  let lastSigX = 0, lastSigY = 0;
+
+  function sizeSignatureCanvas(){
+    if(signatureSized) return;
+    const rect = signatureCanvas.getBoundingClientRect();
+    if(rect.width === 0) return;
+    const ratio = window.devicePixelRatio || 1;
+    signatureCanvas.width = rect.width * ratio;
+    signatureCanvas.height = rect.height * ratio;
+    sigCtx.scale(ratio, ratio);
+    sigCtx.strokeStyle = '#0F1D3B';
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+    signatureSized = true;
+  }
+
+  function getSignaturePos(e){
+    const rect = signatureCanvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  signatureCanvas.addEventListener('pointerdown', (e) => {
+    isDrawingSignature = true;
+    hasSignature = true;
+    signaturePadWrap.classList.add('has-signature');
+    clearFieldError('field-signature');
+    const pos = getSignaturePos(e);
+    lastSigX = pos.x; lastSigY = pos.y;
+    signatureCanvas.setPointerCapture(e.pointerId);
+  });
+  signatureCanvas.addEventListener('pointermove', (e) => {
+    if(!isDrawingSignature) return;
+    const pos = getSignaturePos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(lastSigX, lastSigY);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+    lastSigX = pos.x; lastSigY = pos.y;
+  });
+  function stopSignatureDrawing(){ isDrawingSignature = false; }
+  signatureCanvas.addEventListener('pointerup', stopSignatureDrawing);
+  signatureCanvas.addEventListener('pointerleave', stopSignatureDrawing);
+  signatureCanvas.addEventListener('pointercancel', stopSignatureDrawing);
+
+  clearSignatureBtn.addEventListener('click', () => {
+    if(signatureCanvas.width > 0) sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    hasSignature = false;
+    signaturePadWrap.classList.remove('has-signature');
+  });
+
+  function resetSignaturePad(){
+    if(signatureCanvas.width > 0) sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    hasSignature = false;
+    signaturePadWrap.classList.remove('has-signature');
+  }
+
+  // ---- Photo upload ----
+  let photoBase64 = null;
+  let photoMimeType = null;
+  const MAX_PHOTO_BYTES = 4 * 1024 * 1024; // ~4MB, generous but keeps requests small
+
+  function resetPhotoUI(){
+    photoBase64 = null;
+    photoMimeType = null;
+    photoThumb.innerHTML = "📷";
+    photoCopyMain.textContent = "Tap to add a photo";
+    photoCopySub.textContent = "Clear photo of your face";
+    photoUploadBox.classList.remove('has-photo');
+  }
+
+  function openPhotoSheet(){ photoSheetOverlay.classList.add('show'); }
+  function closePhotoSheet(){ photoSheetOverlay.classList.remove('show'); }
+
+  photoUploadBox.addEventListener('click', openPhotoSheet);
+  photoSheetCancel.addEventListener('click', closePhotoSheet);
+  photoSheetOverlay.addEventListener('click', (e) => {
+    if(e.target === photoSheetOverlay) closePhotoSheet();
+  });
+  photoSheetSelfie.addEventListener('click', () => {
+    closePhotoSheet();
+    photoInputSelfie.click();
+  });
+  photoSheetGallery.addEventListener('click', () => {
+    closePhotoSheet();
+    photoInputGallery.click();
+  });
+
+  function handlePhotoFile(inputEl){
+    const file = inputEl.files[0];
+    if(!file) return;
+    if(!file.type.startsWith('image/')){
+      showConfirm(true, "Not an image", "Please choose an image file.");
+      inputEl.value = '';
+      return;
+    }
+    if(file.size > MAX_PHOTO_BYTES){
+      showConfirm(true, "Photo too large", "Please choose a photo under 4MB.");
+      inputEl.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      photoBase64 = reader.result;
+      photoMimeType = file.type;
+      photoThumb.innerHTML = `<img src="${reader.result}" alt="Selected photo">`;
+      photoCopyMain.textContent = "Photo added — tap to change";
+      photoCopySub.textContent = "Clear photo of your face";
+      photoUploadBox.classList.add('has-photo');
+      clearFieldError('field-photo');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  photoInputSelfie.addEventListener('change', () => handlePhotoFile(photoInputSelfie));
+  photoInputGallery.addEventListener('change', () => handlePhotoFile(photoInputGallery));
+
+  function clearFieldError(id){ document.getElementById(id).classList.remove('invalid'); }
+  function markInvalid(id){ document.getElementById(id).classList.add('invalid'); }
+  function isValidEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+  function showConfirm(isError, title, detail){
+    confirmOverlay.classList.toggle('error', isError);
+    confirmIcon.textContent = isError ? '✕' : '✓';
+    confirmTitle.textContent = title;
+    confirmDetail.textContent = detail;
+    confirmOverlay.classList.add('show');
+    setTimeout(() => confirmOverlay.classList.remove('show'), 4200);
+  }
+
+  /* ---- Per-step validation (also used by the wizard's Continue button) ---- */
+  function validateStep1(){
+    let valid = true;
+    const dept = isDeptRequired();
+    if(!classField.value){ markInvalid('field-class'); valid = false; } else clearFieldError('field-class');
+    if(!otherNamesField.value.trim()){ markInvalid('field-otherNames'); valid = false; } else clearFieldError('field-otherNames');
+    if(!surnameField.value.trim()){ markInvalid('field-surname'); valid = false; } else clearFieldError('field-surname');
+    if(dept && !deptField.value.trim()){ markInvalid('field-dept'); valid = false; } else clearFieldError('field-dept');
+    if(isIdRequired() && !idField.value.trim()){ markInvalid('field-id'); valid = false; } else clearFieldError('field-id');
+    if(!photoBase64){ markInvalid('field-photo'); valid = false; } else clearFieldError('field-photo');
+    return valid;
+  }
+  function validateStep2(){
+    let valid = true;
+    if(!dobField.value){ markInvalid('field-dob'); valid = false; } else clearFieldError('field-dob');
+    if(!selectedGender){ markInvalid('field-gender'); valid = false; } else clearFieldError('field-gender');
+    if(!nationalityField.value.trim()){ markInvalid('field-nationality'); valid = false; } else clearFieldError('field-nationality');
+    if(!selectedMedicalCondition){ markInvalid('field-medicalCondition'); valid = false; } else clearFieldError('field-medicalCondition');
+    if(selectedMedicalCondition === 'Yes' && !medicalConditionDetailsInput.value.trim()){ markInvalid('field-medicalConditionDetails'); valid = false; } else clearFieldError('field-medicalConditionDetails');
+    return valid;
+  }
+  function validateStep3(){
+    let valid = true;
+    const phoneDigits = phoneField.value.replace(/[^0-9+]/g, '');
+    if(!phoneDigits || phoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-phone'); valid = false; } else clearFieldError('field-phone');
+    if(!isValidEmail(emailField.value.trim())){ markInvalid('field-email'); valid = false; } else clearFieldError('field-email');
+    if(!addressField.value.trim()){ markInvalid('field-address'); valid = false; } else clearFieldError('field-address');
+    return valid;
+  }
+  function validateStep4(){
+    let valid = true;
+    if(!selectedDuration){ markInvalid('field-duration'); valid = false; } else clearFieldError('field-duration');
+    if(classField.value === FAMILY_CATEGORY){
+      const n = parseInt(familyCountInput.value, 10);
+      if(!n || n < 1 || n > 4){ markInvalid('field-familyCount'); valid = false; } else clearFieldError('field-familyCount');
+    }
+    return valid;
+  }
+  function validateStep5(){
+    let valid = true;
+    if(!emergencySurnameField.value.trim()){ markInvalid('field-emergencySurname'); valid = false; } else clearFieldError('field-emergencySurname');
+    if(!emergencyOtherNamesField.value.trim()){ markInvalid('field-emergencyOtherNames'); valid = false; } else clearFieldError('field-emergencyOtherNames');
+    const emPhoneDigits = emergencyPhoneField.value.replace(/[^0-9+]/g, '');
+    if(!emPhoneDigits || emPhoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-emergencyPhone'); valid = false; } else clearFieldError('field-emergencyPhone');
+    if(!emergencyRelationshipField.value.trim()){ markInvalid('field-emergencyRelationship'); valid = false; } else clearFieldError('field-emergencyRelationship');
+    return valid;
+  }
+  function validateStep6(){
+    let valid = true;
+    if(selectedDeclaration !== 'Yes'){ markInvalid('field-declaration'); valid = false; } else clearFieldError('field-declaration');
+    if(!infoCorrectAgreed){ markInvalid('field-infoCorrect'); valid = false; } else clearFieldError('field-infoCorrect');
+    if(!hasSignature){ markInvalid('field-signature'); valid = false; } else clearFieldError('field-signature');
+    return valid;
+  }
+  const stepValidators = { 1:validateStep1, 2:validateStep2, 3:validateStep3, 4:validateStep4, 5:validateStep5, 6:validateStep6 };
+
+  /* ---- Wizard step navigation ---- */
+  const TOTAL_STEPS = 6;
+  let currentStep = 1;
+  let maxStepReached = 1;
+  const wizardStepEls = document.querySelectorAll('#regForm .wizard-step');
+  const progressStepEls = document.querySelectorAll('#wizardProgress .wizard-progress-step');
+  const wizBackBtn = document.getElementById('wizBackBtn');
+  const wizNextBtn = document.getElementById('wizNextBtn');
+
+  function updateDeclarationName(){
+    const fullName = `${surnameField.value.trim()} ${otherNamesField.value.trim()}`.trim();
+    declarationNameEl.textContent = fullName || '—';
+  }
+
+  function showWizardStep(n){
+    currentStep = n;
+    if(n > maxStepReached) maxStepReached = n;
+    if(n === TOTAL_STEPS){ updateDeclarationName(); requestAnimationFrame(sizeSignatureCanvas); }
+    wizardStepEls.forEach(s => s.classList.toggle('active', Number(s.dataset.step) === n));
+    progressStepEls.forEach(d => {
+      const step = Number(d.dataset.step);
+      const reachable = step <= maxStepReached && step !== n;
+      d.classList.toggle('active', step === n);
+      d.classList.toggle('done', step < n);
+      d.classList.toggle('reachable', reachable);
+      d.setAttribute('tabindex', reachable ? '0' : '-1');
+      d.setAttribute('aria-current', step === n ? 'step' : 'false');
+    });
+    const isLast = n === TOTAL_STEPS;
+    wizBackBtn.style.display = n === 1 ? 'none' : 'inline-block';
+    wizNextBtn.style.display = isLast ? 'none' : 'block';
+    submitBtn.style.display = isLast ? 'block' : 'none';
+    submitBtn.disabled = !isLast;
+    document.querySelector('#screen-app .card').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function goToStepIfReachable(n){
+    if(n === currentStep) return;
+    if(n < currentStep || n <= maxStepReached) showWizardStep(n);
+  }
+
+  progressStepEls.forEach(d => {
+    const step = Number(d.dataset.step);
+    d.addEventListener('click', () => goToStepIfReachable(step));
+    d.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); goToStepIfReachable(step); }
+    });
+  });
+
+  wizNextBtn.addEventListener('click', () => {
+    if(!stepValidators[currentStep]()) return;
+    if(currentStep < TOTAL_STEPS) showWizardStep(currentStep + 1);
+  });
+  wizBackBtn.addEventListener('click', () => {
+    if(currentStep > 1) showWizardStep(currentStep - 1);
+  });
+
+  function resetRegisterForm(){
+    form.reset();
+    if(currentActivity) populateCategorySelect(classField, currentActivity);
+    [...durationGrid.children].forEach(c => c.classList.remove('active'));
+    [...genderRow.children].forEach(c => c.classList.remove('active'));
+    [...medicalConditionRow.children].forEach(c => c.classList.remove('active'));
+    [...declarationRow.children].forEach(c => c.classList.remove('active'));
+    medicalConditionDetailsField.style.display = 'none';
+    selectedDuration = null;
+    selectedGender = null;
+    selectedMedicalCondition = null;
+    selectedDeclaration = null;
+    infoCorrectAgreed = false;
+    infoCorrectBox.classList.remove('active');
+    infoCorrectBox.setAttribute('aria-checked', 'false');
+    resetSignaturePad();
+    resetPhotoUI();
+    populateCountryCodeSelects();
+    updateConditionalFields();
+    maxStepReached = 1;
+    showWizardStep(1);
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    let valid = true;
+    if(!validateStep1()) valid = false;
+    if(!validateStep2()) valid = false;
+    if(!validateStep3()) valid = false;
+    if(!validateStep4()) valid = false;
+    if(!validateStep5()) valid = false;
+    if(!validateStep6()) valid = false;
+    if(!valid) return;
+
+    const now = new Date();
+    const fullName = `${surnameField.value.trim()} ${otherNamesField.value.trim()}`.trim();
+    const payload = {
+      action: "submit",
+      activity: currentActivity.key,
+      class: classField.value,
+      name: fullName,
+      department: deptField.value.trim(),
+      idNo: idField.value.trim(),
+      familyMembersCount: classField.value === FAMILY_CATEGORY ? familyCountInput.value.trim() : "",
+      dob: dobField.value,
+      gender: selectedGender,
+      nationality: nationalityField.value.trim(),
+      hasMedicalCondition: selectedMedicalCondition,
+      medicalConditionDetails: selectedMedicalCondition === 'Yes' ? medicalConditionDetailsInput.value.trim() : "",
+      phone: `${regPhoneCode.value} ${phoneField.value.trim()}`,
+      email: emailField.value.trim(),
+      address: addressField.value.trim(),
+      duration: selectedDuration,
+      emergencyName: `${emergencySurnameField.value.trim()} ${emergencyOtherNamesField.value.trim()}`.trim(),
+      emergencyPhone: `${regEmergencyPhoneCode.value} ${emergencyPhoneField.value.trim()}`,
+      emergencyRelationship: emergencyRelationshipField.value.trim(),
+      date: formatDateMDY(now),
+      time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+      photoBase64: photoBase64,
+      photoMimeType: photoMimeType,
+      declarationAccepted: selectedDeclaration === 'Yes',
+      infoConfirmedCorrect: infoCorrectAgreed,
+      signatureBase64: hasSignature ? signatureCanvas.toDataURL('image/png') : "",
+      signatureMimeType: "image/png"
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit for Approval";
+      if(data.status === "ok"){
+        showConfirm(false, "Submitted!", `${fullName} — waiting on front desk approval for ${currentActivity.label}. Once approved, use the Sign In tab with your phone number to find your code.`);
+        resetRegisterForm();
+      } else {
+        showConfirm(true, "Couldn't submit", data.message || "Please try again or tell the front desk.");
+      }
+    })
+    .catch(() => {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit for Approval";
+      showConfirm(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  /* ===================== SIGN IN ===================== */
+  const views = {
+    code: document.getElementById('view-code'),
+    lookup: document.getElementById('view-lookup'),
+    walkin: document.getElementById('view-walkin'),
+    result: document.getElementById('view-result')
+  };
+  function showView(name){
+    Object.values(views).forEach(v => v.classList.remove('active'));
+    views[name].classList.add('active');
+  }
+  document.getElementById('toLookupBtn').addEventListener('click', () => showView('lookup'));
+  document.getElementById('toCodeBtn').addEventListener('click', () => showView('code'));
+  document.getElementById('toWalkinBtn').addEventListener('click', () => showView('walkin'));
+  document.getElementById('toCodeFromWalkinBtn').addEventListener('click', () => showView('code'));
+
+  function renderSigninMessage(isError, title, message){
+    document.getElementById('resultBody').innerHTML = `
+      <div class="result-icon">${isError ? '✕' : '✓'}</div>
+      <div class="result-name">${escapeHtml(title)}</div>
+      <p class="error-msg">${escapeHtml(message)}</p>
+      <button class="btn btn-secondary" id="doneSigninBtn">Done</button>
+    `;
+    document.querySelector('#view-result .result').className = 'result' + (isError ? ' error' : '');
+    showView('result');
+    document.getElementById('doneSigninBtn').addEventListener('click', () => {
+      resetWalkinForm();
+      showView('code');
+    });
+  }
+
+  function resetWalkinForm(){
+    document.getElementById('walkinSigninForm').reset();
+    if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
+    document.getElementById('field-walkin-id').style.display = 'none';
+    ['field-walkin-class','field-walkin-name','field-walkin-id','field-walkin-phone'].forEach(clearFieldError);
+  }
+
+  const walkinClass = document.getElementById('walkinClass');
+  const walkinIdField = document.getElementById('field-walkin-id');
+  const walkinId = document.getElementById('walkinId');
+  const walkinPhoneCode = document.getElementById('walkinPhoneCode');
+  const walkinSigninForm = document.getElementById('walkinSigninForm');
+  const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
+
+  walkinClass.addEventListener('change', () => {
+    const needsId = currentActivity && currentActivity.idRequiredCategories.indexOf(walkinClass.value) !== -1;
+    walkinIdField.style.display = needsId ? 'block' : 'none';
+    if(!needsId) clearFieldError('field-walkin-id');
+  });
+
+  walkinSigninForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const nameEl = document.getElementById('walkinName');
+    const phoneEl = document.getElementById('walkinPhone');
+    const needsId = currentActivity && currentActivity.idRequiredCategories.indexOf(walkinClass.value) !== -1;
+    let valid = true;
+
+    if(!walkinClass.value){ markInvalid('field-walkin-class'); valid = false; } else clearFieldError('field-walkin-class');
+    if(!nameEl.value.trim()){ markInvalid('field-walkin-name'); valid = false; } else clearFieldError('field-walkin-name');
+    if(needsId && !walkinId.value.trim()){ markInvalid('field-walkin-id'); valid = false; } else clearFieldError('field-walkin-id');
+    if(!/^\d{6,}$/.test(phoneEl.value.replace(/\D/g,''))){ markInvalid('field-walkin-phone'); valid = false; } else clearFieldError('field-walkin-phone');
+    if(!valid) return;
+
+    walkinSubmitBtn.disabled = true;
+    walkinSubmitBtn.textContent = "Submitting…";
+
+    const now = new Date();
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "submit",
+        activity: currentActivity.key,
+        class: walkinClass.value,
+        idNo: needsId ? walkinId.value.trim() : "",
+        duration: "Walk-in",
+        name: nameEl.value.trim(),
+        phone: `${walkinPhoneCode.value} ${phoneEl.value.trim()}`,
+        date: formatDateMDY(now),
+        time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Submit Walk-in";
+      if(data.status === "ok"){
+        renderSigninMessage(false, "You're on the list!", "Wait for the front desk to approve your walk-in, then you're good to go — no code needed for a one-off visit.");
+      } else {
+        renderSigninMessage(true, "Couldn't submit", data.message || "Please try again or tell the front desk.");
+      }
+    })
+    .catch(() => {
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Submit Walk-in";
+      renderSigninMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  function parseRegDate(dateStr){
+    if(!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Generalizes "days left" to also cover a session-capped plan (currently
+  // Swimming Lessons' Monthly): expired if the date window has passed OR
+  // the sessions are used up, whichever comes first.
+  function getStatusInfo(member){
+    const cfg = currentActivity ? currentActivity.durations[member.duration] : null;
+    if(!cfg) return { left: null, expired: false, sessionCap: null };
+
+    const regDate = parseRegDate(member.date);
+    let left = null, expired = false;
+    if(regDate){
+      const expiry = new Date(regDate);
+      expiry.setHours(0,0,0,0);
+      expiry.setDate(expiry.getDate() + cfg.days);
+      const today = new Date(); today.setHours(0,0,0,0);
+      left = Math.round((expiry - today) / 86400000);
+      if(left < 0) expired = true;
+    }
+
+    let sessionsUsed = null, sessionsLeft = null;
+    if(cfg.sessionCap){
+      sessionsUsed = Number(member.sessionsUsed) || 0;
+      sessionsLeft = Math.max(0, cfg.sessionCap - sessionsUsed);
+      if(sessionsUsed >= cfg.sessionCap) expired = true;
+    }
+    return { left, expired, sessionCap: cfg.sessionCap || null, sessionsUsed, sessionsLeft };
+  }
+
+  function countdownBoxesHtml(info){
+    let html = '';
+    if(info.sessionCap){
+      const usedUp = info.sessionsUsed >= info.sessionCap;
+      html += `<div class="countdown-box${usedUp ? ' expired' : ''}">
+        <div class="countdown-num"${usedUp ? '' : ' style="font-size:36px;"'}>${usedUp ? 'Used up' : `${info.sessionsLeft} / ${info.sessionCap}`}</div>
+        <div class="countdown-label">${usedUp ? 'all sessions used — see front desk to renew' : 'sessions remaining'}</div>
+      </div>`;
+    }
+    if(info.left !== null){
+      if(info.left < 0){
+        html += `<div class="countdown-box expired"><div class="countdown-num">Expired</div><div class="countdown-label">${Math.abs(info.left)} day${Math.abs(info.left)===1?'':'s'} ago — see front desk to renew</div></div>`;
+      } else if(info.left === 0){
+        html += `<div class="countdown-box"><div class="countdown-num">Today</div><div class="countdown-label">Last day of this window</div></div>`;
+      } else {
+        html += `<div class="countdown-box"><div class="countdown-num">${info.left}</div><div class="countdown-label">day${info.left===1?'':'s'} left in this window</div></div>`;
+      }
+    }
+    if(!html){
+      html = `<div class="countdown-box"><div class="countdown-label">Plan info unavailable</div></div>`;
+    }
+    return html;
+  }
+
+  function renderMemberResult(member, opts){
+    opts = opts || {};
+    const info = getStatusInfo(member);
+    const codeChip = opts.showCode ? `<div class="code-chip">${escapeHtml(member.idNo||'')}</div>` : '';
+
+    document.getElementById('resultBody').innerHTML = `
+      <div class="result-icon">${info.expired ? '⚠' : '✓'}</div>
+      <div class="result-name">${escapeHtml(member.name||'')}</div>
+      <div class="result-sub">${escapeHtml(member.class||'')}${opts.subtitle ? ' · ' + opts.subtitle : ''}</div>
+      ${codeChip}
+      ${countdownBoxesHtml(info)}
+      <button class="btn btn-secondary" id="doneBtn">Done</button>
+    `;
+    document.querySelector('#view-result .result').className = 'result' + (info.expired ? ' expired' : '');
+    showView('result');
+    document.getElementById('doneBtn').addEventListener('click', resetSignIn);
+  }
+
+  function renderMessage(isError, title, message){
+    document.getElementById('resultBody').innerHTML = `
+      <div class="result-icon">${isError ? '✕' : 'ℹ'}</div>
+      <div class="result-name">${escapeHtml(title)}</div>
+      <p class="error-msg">${escapeHtml(message)}</p>
+      <button class="btn btn-secondary" id="doneBtn">Done</button>
+    `;
+    document.querySelector('#view-result .result').className = 'result' + (isError ? ' error' : '');
+    showView('result');
+    document.getElementById('doneBtn').addEventListener('click', resetSignIn);
+  }
+
+  function resetSignIn(){
+    document.getElementById('codeForm').reset();
+    document.getElementById('lookupForm').reset();
+    resetWalkinForm();
+    clearFieldError('field-code');
+    clearFieldError('field-phone-lookup');
+    showView('code');
+  }
+
+  const codeForm = document.getElementById('codeForm');
+  const codeInput = document.getElementById('codeInput');
+  const checkinBtn = document.getElementById('checkinBtn');
+
+  codeForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const code = codeInput.value.trim();
+    if(!code){ markInvalid('field-code'); return; }
+    clearFieldError('field-code');
+
+    checkinBtn.disabled = true;
+    checkinBtn.textContent = "Signing in…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "checkin", activity: currentActivity.key, code: code })
+    })
+    .then(res => res.json())
+    .then(data => {
+      checkinBtn.disabled = false;
+      checkinBtn.textContent = "Sign In";
+      if(data.status === "ok"){
+        renderMemberResult(data.member, { subtitle: "Signed in" });
+      } else {
+        renderMessage(true, "Couldn't sign in", data.message || "Double check the code, or ask the front desk for help.");
+      }
+    })
+    .catch(() => {
+      checkinBtn.disabled = false;
+      checkinBtn.textContent = "Sign In";
+      renderMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  const lookupForm = document.getElementById('lookupForm');
+  const phoneInput = document.getElementById('phoneInput');
+  const lookupBtn = document.getElementById('lookupBtn');
+
+  lookupForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const phoneDigits = phoneInput.value.replace(/[^0-9+]/g, '');
+    if(!phoneDigits || phoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-phone-lookup'); return; }
+    clearFieldError('field-phone-lookup');
+
+    lookupBtn.disabled = true;
+    lookupBtn.textContent = "Looking up…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "lookup", activity: currentActivity.key, phone: `${document.getElementById('phoneInputCode').value} ${phoneInput.value.trim()}` })
+    })
+    .then(res => res.json())
+    .then(data => {
+      lookupBtn.disabled = false;
+      lookupBtn.textContent = "Find My Status";
+      if(data.status !== "ok"){
+        renderMessage(true, "Something went wrong", "Please try again.");
+        return;
+      }
+      if(!data.found){
+        renderMessage(true, "Not found", "We couldn't find a registration with that phone number.");
+      } else if(!data.approved){
+        renderMessage(false, "Still Pending", "Your registration hasn't been approved yet — check back soon.");
+      } else {
+        renderMemberResult(data.member, { showCode: true, subtitle: "Approved" });
+      }
+    })
+    .catch(() => {
+      lookupBtn.disabled = false;
+      lookupBtn.textContent = "Find My Status";
+      renderMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  /* ===================== SIGN OUT ===================== */
+  const outViews = {
+    code: document.getElementById('view-out-code'),
+    phone: document.getElementById('view-out-phone'),
+    result: document.getElementById('view-out-result')
+  };
+  function showOutView(name){
+    Object.values(outViews).forEach(v => v.classList.remove('active'));
+    outViews[name].classList.add('active');
+  }
+
+  document.getElementById('toOutPhoneBtn').addEventListener('click', () => {
+    document.getElementById('codeOutForm').reset();
+    clearFieldError('field-code-out');
+    showOutView('phone');
+  });
+  document.getElementById('toOutCodeBtn').addEventListener('click', () => {
+    document.getElementById('phoneOutForm').reset();
+    clearFieldError('field-phone-out');
+    showOutView('code');
+  });
+
+  function renderOutMemberResult(member){
+    document.getElementById('resultOutBody').innerHTML = `
+      <div class="result-icon">✓</div>
+      <div class="result-name">${escapeHtml(member.name||'')}</div>
+      <div class="result-sub">${escapeHtml(member.class||'')} · Signed out</div>
+      <button class="btn btn-secondary" id="doneOutBtn">Done</button>
+    `;
+    document.querySelector('#view-out-result .result').className = 'result';
+    showOutView('result');
+    document.getElementById('doneOutBtn').addEventListener('click', resetSignOut);
+  }
+
+  function renderOutMessage(isError, title, message){
+    document.getElementById('resultOutBody').innerHTML = `
+      <div class="result-icon">${isError ? '✕' : 'ℹ'}</div>
+      <div class="result-name">${escapeHtml(title)}</div>
+      <p class="error-msg">${escapeHtml(message)}</p>
+      <button class="btn btn-secondary" id="doneOutBtn">Done</button>
+    `;
+    document.querySelector('#view-out-result .result').className = 'result' + (isError ? ' error' : '');
+    showOutView('result');
+    document.getElementById('doneOutBtn').addEventListener('click', resetSignOut);
+  }
+
+  function resetSignOut(){
+    document.getElementById('codeOutForm').reset();
+    clearFieldError('field-code-out');
+    document.getElementById('phoneOutForm').reset();
+    clearFieldError('field-phone-out');
+    showOutView('code');
+  }
+
+  const codeOutForm = document.getElementById('codeOutForm');
+  const codeOutInput = document.getElementById('codeOutInput');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+
+  codeOutForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const code = codeOutInput.value.trim();
+    if(!code){ markInvalid('field-code-out'); return; }
+    clearFieldError('field-code-out');
+
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = "Signing out…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "checkout", activity: currentActivity.key, code: code })
+    })
+    .then(res => res.json())
+    .then(data => {
+      checkoutBtn.disabled = false;
+      checkoutBtn.textContent = "Sign Out";
+      if(data.status === "ok"){
+        renderOutMemberResult(data.member);
+      } else {
+        renderOutMessage(true, "Couldn't sign out", data.message || "Double check the code, or ask the front desk for help.");
+      }
+    })
+    .catch(() => {
+      checkoutBtn.disabled = false;
+      checkoutBtn.textContent = "Sign Out";
+      renderOutMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  const phoneOutForm = document.getElementById('phoneOutForm');
+  const phoneOutInput = document.getElementById('phoneOutInput');
+  const checkoutPhoneBtn = document.getElementById('checkoutPhoneBtn');
+
+  phoneOutForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(!phoneOutInput.value.trim()){ markInvalid('field-phone-out'); return; }
+    clearFieldError('field-phone-out');
+
+    checkoutPhoneBtn.disabled = true;
+    checkoutPhoneBtn.textContent = "Signing out…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "checkoutByPhone",
+        activity: currentActivity.key,
+        phone: `${document.getElementById('phoneOutCode').value} ${phoneOutInput.value.trim()}`
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      checkoutPhoneBtn.disabled = false;
+      checkoutPhoneBtn.textContent = "Sign Out";
+      if(data.status === "ok"){
+        renderOutMemberResult(data.member);
+      } else {
+        renderOutMessage(true, "Couldn't sign out", data.message || "Double check the phone number, or ask the front desk for help.");
+      }
+    })
+    .catch(() => {
+      checkoutPhoneBtn.disabled = false;
+      checkoutPhoneBtn.textContent = "Sign Out";
+      renderOutMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  /* ===================== RENEW SUBSCRIPTION / UPDATE DETAILS ===================== */
+  const renewViews = {
+    code: document.getElementById('view-renew-code'),
+    menu: document.getElementById('view-renew-menu'),
+    duration: document.getElementById('view-renew-duration'),
+    details: document.getElementById('view-renew-details'),
+    result: document.getElementById('view-renew-result')
+  };
+  function showRenewView(name){
+    Object.values(renewViews).forEach(v => v.classList.remove('active'));
+    renewViews[name].classList.add('active');
+  }
+
+  let verifiedCode = null;
+  let verifiedMember = null;
+  let selectedRenewDuration = null;
+
+  const renewCodeForm = document.getElementById('renewCodeForm');
+  const renewCodeInput = document.getElementById('renewCodeInput');
+  const renewVerifyBtn = document.getElementById('renewVerifyBtn');
+
+  renewCodeForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const code = renewCodeInput.value.trim();
+    if(!code){ markInvalid('field-renew-code'); return; }
+    clearFieldError('field-renew-code');
+
+    renewVerifyBtn.disabled = true;
+    renewVerifyBtn.textContent = "Checking…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "verify", activity: currentActivity.key, code: code })
+    })
+    .then(res => res.json())
+    .then(data => {
+      renewVerifyBtn.disabled = false;
+      renewVerifyBtn.textContent = "Continue";
+      if(data.status === "ok"){
+        verifiedCode = code;
+        verifiedMember = data.member;
+        showRenewMenu();
+      } else {
+        renderRenewMessage(true, "Code not recognized", data.message || "Double check the code, or ask the front desk for help.");
+      }
+    })
+    .catch(() => {
+      renewVerifyBtn.disabled = false;
+      renewVerifyBtn.textContent = "Continue";
+      renderRenewMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  function showRenewMenu(){
+    document.getElementById('renewMemberName').textContent = verifiedMember.name || '';
+    const info = getStatusInfo(verifiedMember);
+    let statusText = verifiedMember.class || '';
+    if(info.sessionCap){
+      statusText += info.sessionsUsed >= info.sessionCap
+        ? ' · All sessions used'
+        : ` · ${info.sessionsLeft}/${info.sessionCap} sessions left`;
+    }
+    if(info.left !== null){
+      if(info.left < 0) statusText += ` · Expired ${Math.abs(info.left)} day${Math.abs(info.left)===1?'':'s'} ago`;
+      else if(info.left === 0) statusText += ' · Expires today';
+      else statusText += ` · ${info.left} day${info.left===1?'':'s'} left`;
+    }
+    document.getElementById('renewMemberSub').textContent = statusText;
+    document.getElementById('renewSubStatus').textContent =
+      info.expired
+        ? "Your plan has expired — request a renewal at the front desk"
+        : "Extend your plan — needs front-desk approval";
+    showRenewView('menu');
+  }
+
+  document.getElementById('renewChangeCodeBtn').addEventListener('click', resetRenew);
+
+  const renewDurationGrid = document.getElementById('renewDurationGrid');
+
+  function openRenewDuration(){
+    selectedRenewDuration = null;
+    populateDurationGrid(renewDurationGrid, currentActivity, verifiedMember ? verifiedMember.class : '');
+    clearFieldError('field-renew-duration');
+    showRenewView('duration');
+  }
+  const renewOptionSubscription = document.getElementById('renewOptionSubscription');
+  renewOptionSubscription.addEventListener('click', openRenewDuration);
+  renewOptionSubscription.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openRenewDuration(); } });
+  document.getElementById('toRenewMenuFromDurationBtn').addEventListener('click', () => showRenewView('menu'));
+
+  renewDurationGrid.addEventListener('click', (e) => {
+    const opt = e.target.closest('.duration-opt');
+    if(!opt) return;
+    [...renewDurationGrid.children].forEach(c => c.classList.remove('active'));
+    opt.classList.add('active');
+    selectedRenewDuration = opt.dataset.value;
+    clearFieldError('field-renew-duration');
+  });
+
+  const renewConfirmBtn = document.getElementById('renewConfirmBtn');
+  renewConfirmBtn.addEventListener('click', () => {
+    if(!selectedRenewDuration){ markInvalid('field-renew-duration'); return; }
+    clearFieldError('field-renew-duration');
+
+    renewConfirmBtn.disabled = true;
+    renewConfirmBtn.textContent = "Submitting…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "requestRenewal", activity: currentActivity.key, code: verifiedCode, duration: selectedRenewDuration })
+    })
+    .then(res => res.json())
+    .then(data => {
+      renewConfirmBtn.disabled = false;
+      renewConfirmBtn.textContent = "Submit Renewal Request";
+      if(data.status === "ok"){
+        renderRenewRequestSubmitted(selectedRenewDuration);
+      } else {
+        renderRenewMessage(true, "Couldn't submit request", data.message || "Please try again or ask the front desk.");
+      }
+    })
+    .catch(() => {
+      renewConfirmBtn.disabled = false;
+      renewConfirmBtn.textContent = "Submit Renewal Request";
+      renderRenewMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  function openRenewDetails(){
+    prefillRenewDetails();
+    showRenewView('details');
+  }
+  const renewOptionDetails = document.getElementById('renewOptionDetails');
+  renewOptionDetails.addEventListener('click', openRenewDetails);
+  renewOptionDetails.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openRenewDetails(); } });
+  document.getElementById('toRenewMenuFromDetailsBtn').addEventListener('click', () => showRenewView('menu'));
+
+  const renPhoneCode = document.getElementById('renPhoneCode');
+  const renPhone = document.getElementById('renPhone');
+  const renEmail = document.getElementById('renEmail');
+  const renAddress = document.getElementById('renAddress');
+  const renEmergencySurname = document.getElementById('renEmergencySurname');
+  const renEmergencyOtherNames = document.getElementById('renEmergencyOtherNames');
+  const renEmergencyPhoneCode = document.getElementById('renEmergencyPhoneCode');
+  const renEmergencyPhone = document.getElementById('renEmergencyPhone');
+  const renEmergencyRelationship = document.getElementById('renEmergencyRelationship');
+
+  function splitPhone(full){
+    // Phones are stored as "+233 24 123 4567" — split back into code + number for editing.
+    if(!full) return { code:'+233', number:'' };
+    const match = full.trim().match(/^(\+\d{1,4})\s*(.*)$/);
+    return match ? { code: match[1], number: match[2] } : { code:'+233', number: full };
+  }
+
+  function splitName(full){
+    // Names are stored as "Surname Other Names" — split back apart for editing.
+    if(!full) return { surname:'', otherNames:'' };
+    const parts = full.trim().split(/\s+/);
+    return { surname: parts[0] || '', otherNames: parts.slice(1).join(' ') };
+  }
+
+  function prefillRenewDetails(){
+    const phone = splitPhone(verifiedMember.phone);
+    const emPhone = splitPhone(verifiedMember.emergencyPhone);
+    if([...renPhoneCode.options].some(o => o.value === phone.code)) renPhoneCode.value = phone.code;
+    renPhone.value = phone.number;
+    renEmail.value = verifiedMember.email || '';
+    renAddress.value = verifiedMember.address || '';
+    const emName = splitName(verifiedMember.emergencyName);
+    renEmergencySurname.value = emName.surname;
+    renEmergencyOtherNames.value = emName.otherNames;
+    if([...renEmergencyPhoneCode.options].some(o => o.value === emPhone.code)) renEmergencyPhoneCode.value = emPhone.code;
+    renEmergencyPhone.value = emPhone.number;
+    renEmergencyRelationship.value = verifiedMember.emergencyRelationship || '';
+    ['field-ren-phone','field-ren-email','field-ren-address','field-ren-emergencySurname','field-ren-emergencyOtherNames','field-ren-emergencyPhone','field-ren-emergencyRelationship']
+      .forEach(clearFieldError);
+  }
+
+  const renewDetailsForm = document.getElementById('renewDetailsForm');
+  const renewDetailsSubmitBtn = document.getElementById('renewDetailsSubmitBtn');
+
+  renewDetailsForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    let valid = true;
+    const phoneDigits = renPhone.value.replace(/[^0-9+]/g, '');
+    if(!phoneDigits || phoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-ren-phone'); valid = false; } else clearFieldError('field-ren-phone');
+    if(!isValidEmail(renEmail.value.trim())){ markInvalid('field-ren-email'); valid = false; } else clearFieldError('field-ren-email');
+    if(!renAddress.value.trim()){ markInvalid('field-ren-address'); valid = false; } else clearFieldError('field-ren-address');
+    if(!renEmergencySurname.value.trim()){ markInvalid('field-ren-emergencySurname'); valid = false; } else clearFieldError('field-ren-emergencySurname');
+    if(!renEmergencyOtherNames.value.trim()){ markInvalid('field-ren-emergencyOtherNames'); valid = false; } else clearFieldError('field-ren-emergencyOtherNames');
+    const emPhoneDigits = renEmergencyPhone.value.replace(/[^0-9+]/g, '');
+    if(!emPhoneDigits || emPhoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-ren-emergencyPhone'); valid = false; } else clearFieldError('field-ren-emergencyPhone');
+    if(!renEmergencyRelationship.value.trim()){ markInvalid('field-ren-emergencyRelationship'); valid = false; } else clearFieldError('field-ren-emergencyRelationship');
+    if(!valid) return;
+
+    renewDetailsSubmitBtn.disabled = true;
+    renewDetailsSubmitBtn.textContent = "Saving…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "updateDetails",
+        activity: currentActivity.key,
+        code: verifiedCode,
+        phone: `${renPhoneCode.value} ${renPhone.value.trim()}`,
+        email: renEmail.value.trim(),
+        address: renAddress.value.trim(),
+        emergencyName: `${renEmergencySurname.value.trim()} ${renEmergencyOtherNames.value.trim()}`.trim(),
+        emergencyPhone: `${renEmergencyPhoneCode.value} ${renEmergencyPhone.value.trim()}`,
+        emergencyRelationship: renEmergencyRelationship.value.trim()
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      renewDetailsSubmitBtn.disabled = false;
+      renewDetailsSubmitBtn.textContent = "Save Changes";
+      if(data.status === "ok"){
+        renderRenewMessage(false, "Details updated!", "Your information has been saved.");
+      } else {
+        renderRenewMessage(true, "Couldn't save", data.message || "Please try again or ask the front desk.");
+      }
+    })
+    .catch(() => {
+      renewDetailsSubmitBtn.disabled = false;
+      renewDetailsSubmitBtn.textContent = "Save Changes";
+      renderRenewMessage(true, "No connection", "Check the network and try again.");
+    });
+  });
+
+  function renderRenewRequestSubmitted(duration){
+    document.getElementById('resultRenewBody').innerHTML = `
+      <div class="result-icon">✓</div>
+      <div class="result-name">Request submitted</div>
+      <div class="result-sub">${escapeHtml(verifiedMember && verifiedMember.name || '')} · ${escapeHtml(duration||'')}</div>
+      <div class="countdown-box"><div class="countdown-label">Pending front-desk approval. Your current plan still works until then.</div></div>
+      <button class="btn btn-secondary" id="doneRenewBtn">Done</button>
+    `;
+    document.querySelector('#view-renew-result .result').className = 'result';
+    showRenewView('result');
+    document.getElementById('doneRenewBtn').addEventListener('click', resetRenew);
+  }
+
+  function renderRenewMessage(isError, title, message){
+    document.getElementById('resultRenewBody').innerHTML = `
+      <div class="result-icon">${isError ? '✕' : 'ℹ'}</div>
+      <div class="result-name">${escapeHtml(title)}</div>
+      <p class="error-msg">${escapeHtml(message)}</p>
+      <button class="btn btn-secondary" id="doneRenewBtn">Done</button>
+    `;
+    document.querySelector('#view-renew-result .result').className = 'result' + (isError ? ' error' : '');
+    showRenewView('result');
+    document.getElementById('doneRenewBtn').addEventListener('click', resetRenew);
+  }
+
+  function resetRenew(){
+    verifiedCode = null;
+    verifiedMember = null;
+    selectedRenewDuration = null;
+    renewCodeForm.reset();
+    clearFieldError('field-renew-code');
+    renewDetailsForm.reset();
+    [...renewDurationGrid.children].forEach(c => c.classList.remove('active'));
+    showRenewView('code');
+  }
+
+  function resetAllFlows(){
+    resetRegisterForm();
+    resetSignIn();
+    resetSignOut();
+    resetRenew();
+    topTabs.forEach(b => b.classList.remove('active'));
+    Object.values(topPanels).forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab-bar > .tab-btn[data-tab="register"]').classList.add('active');
+    topPanels.register.classList.add('active');
+  }
+
+  // ---- Restore last-used activity, if any, so returning users land
+  // straight in the app instead of re-picking every time. ----
+  let storedKey = null;
+  try{ storedKey = localStorage.getItem('sportsRegActivityKey'); }catch(e){}
+  if(storedKey && ACTIVITIES[storedKey]){
+    selectActivity(storedKey);
+  }
+})();
+</script>
+</body>
+</html>

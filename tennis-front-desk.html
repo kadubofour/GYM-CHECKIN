@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tennis Front Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --panel:#FFFFFF; --panel-alt:#F2F6FC;
+    --line:#DCE4F0; --line-strong:#B9C7DE;
+    --text:#0F1D3B; --text-dim:#5B6B85; --text-faint:#8B98AC;
+    --blue:#15369E; --blue-dark:#0C2568; --blue-dim:rgba(21,54,158,0.08); --blue-dim-strong:rgba(21,54,158,0.14);
+    --gold:#B8860B; --gold-dark:#8C660A; --gold-dim:rgba(184,134,11,0.12);
+    --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 560px at 88% -8%, var(--blue-dim), transparent 60%),
+      radial-gradient(900px 500px at 8% 108%, var(--gold-dim), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh;
+  }
+  .screen{display:none;}
+  .screen.active{display:block;}
+
+  #pinScreen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px; }
+  .kiosk-card{
+    width:100%; max-width:340px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:34px 30px 30px;
+    box-shadow:0 1px 3px rgba(15,29,59,0.04), 0 10px 30px rgba(15,29,59,0.06);
+  }
+  .brand-eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--blue); margin:0 0 6px; text-align:center;
+  }
+  .kiosk-card h1{
+    font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:0.02em;
+    line-height:0.9; margin:0 0 4px; text-align:center; color:var(--text);
+  }
+  .pin-dots{ display:flex; justify-content:center; gap:10px; margin:20px 0 22px; }
+  .pin-dot{ width:14px; height:14px; border-radius:50%; border:1.5px solid var(--line-strong); transition:all .1s ease; }
+  .pin-dot.filled{ background:var(--blue); border-color:var(--blue); }
+  .pin-pad{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .pin-key{
+    background:var(--panel-alt); border:1px solid var(--line); color:var(--text); border-radius:8px;
+    padding:16px 0; font-size:18px; font-weight:700; cursor:pointer; font-family:'JetBrains Mono',monospace;
+    transition:transform .08s ease, border-color .12s ease, color .12s ease, background .12s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .pin-key:hover{border-color:var(--blue); color:var(--blue);}
+  .pin-key:active{transform:scale(0.94); background:var(--blue-dim);}
+  .pin-key.wide{font-size:13px;}
+  .pin-dots.shake{animation:pinShake .32s ease;}
+  @keyframes pinShake{
+    0%,100%{transform:translateX(0);} 20%{transform:translateX(-7px);}
+    40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(3px);}
+  }
+  .pin-dot.error{border-color:var(--danger);}
+  .pin-error{ text-align:center; color:var(--danger); font-size:12px; margin-top:12px; min-height:16px; }
+  .setup-warning{
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.3); color:var(--danger);
+    font-size:12px; padding:10px 12px; border-radius:8px; margin-bottom:18px; line-height:1.5;
+  }
+
+  .photo-thumb-cell{
+    width:34px; height:34px; border-radius:7px; object-fit:cover; border:1px solid var(--line); display:block;
+  }
+  .photo-thumb-placeholder{
+    width:34px; height:34px; border-radius:7px; background:var(--panel-alt); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--text-faint); font-size:13px;
+  }
+
+  #deskScreen .wrap{ max-width:1100px; margin:0 auto; padding:32px 20px 80px; }
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap;
+    margin-bottom:18px; border-bottom:1px solid var(--line); padding-bottom:22px;
+  }
+  header h1{
+    font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,5.5vw,58px); letter-spacing:0.02em;
+    line-height:0.9; margin:0; color:var(--text);
+  }
+  .header-left .brand-eyebrow{text-align:left; margin-bottom:6px;}
+  .tally{ display:flex; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; box-shadow:0 1px 3px rgba(15,29,59,0.04); flex-wrap:wrap; }
+  .tally-cell{ padding:12px 18px; text-align:center; border-right:1px solid var(--line); min-width:88px; }
+  .tally-cell:last-child{border-right:none;}
+  .tally-num{ font-family:'Bebas Neue',sans-serif; font-size:30px; color:var(--blue); line-height:1; }
+  .tally-label{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-top:4px; }
+
+  .activity-switcher{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  .activity-pill{
+    display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+    color:var(--text-dim); padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:700;
+    font-size:12.5px; font-family:'Inter',sans-serif; transition:all .12s ease;
+  }
+  .activity-pill:hover{ border-color:var(--blue); color:var(--blue); }
+  .activity-pill.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
+  .activity-pill-badge{
+    background:var(--gold); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    font-weight:800; border-radius:20px; padding:1px 7px; min-width:18px; text-align:center;
+  }
+  .activity-pill.active .activity-pill-badge{ background:rgba(255,255,255,0.28); }
+
+  .tab-bar{ display:flex; gap:8px; margin-bottom:22px; background:var(--panel-alt); padding:5px; border-radius:11px; }
+  .tab-btn{
+    flex:1; background:transparent; border:none; color:var(--text-dim);
+    padding:11px 10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:12.5px;
+    font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:0.02em;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .tab-btn.active{ background:var(--panel); color:var(--blue); box-shadow:0 1px 3px rgba(15,29,59,0.08); }
+  .tab-badge{
+    background:var(--blue-dim); color:var(--blue); font-family:'JetBrains Mono',monospace;
+    font-size:11px; font-weight:800; border-radius:20px; padding:2px 8px;
+  }
+  .tab-btn.active .tab-badge{ background:var(--blue); color:#fff; }
+
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block; animation:panelFade .18s ease;}
+  @keyframes panelFade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; box-shadow:0 1px 3px rgba(15,29,59,0.04); }
+  .panel-title{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--text-dim); margin:0 0 18px; display:flex; align-items:center; gap:8px; justify-content:space-between;
+  }
+  .panel-title-label{display:flex;align-items:center;gap:8px;}
+  .panel-title-label::before{ content:""; width:6px; height:6px; background:var(--gold); border-radius:1px; display:inline-block; }
+  .live-dot{ display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text-dim); text-transform:none; letter-spacing:0; }
+  .live-dot .dot{ width:6px; height:6px; border-radius:50%; background:var(--blue); animation:pulse 1.6s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .table-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap; }
+  .search-box{
+    background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238B98AC'%3E%3Cpath fill-rule='evenodd' d='M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.6 4.2l3.6 3.6a.75.75 0 11-1.06 1.06l-3.6-3.6A7 7 0 012 9z' clip-rule='evenodd'/%3E%3C/svg%3E") no-repeat 11px center;
+    background-size:14px; border:1px solid var(--line-strong); border-radius:8px; padding:9px 12px 9px 32px;
+    color:var(--text); font-size:13px; font-family:'Inter',sans-serif; min-width:200px; outline:none;
+    transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .search-box:focus{border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-dim);}
+  .toolbar-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .btn-ghost{
+    background:transparent; border:1px solid var(--line-strong); color:var(--text); font-size:12.5px;
+    padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600; font-family:'Inter',sans-serif;
+  }
+  .btn-ghost:hover{border-color:var(--blue); color:var(--blue);}
+
+  .table-scroll{ overflow-x:auto; }
+  table{width:100%; border-collapse:collapse; font-size:13.5px; min-width:820px;}
+  thead th{
+    text-align:left; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--text-dim); padding:0 10px 10px; border-bottom:1px solid var(--line);
+    white-space:nowrap; user-select:none; position:sticky; top:0; background:var(--panel); z-index:1;
+  }
+  tbody td{ padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; }
+  tbody tr:hover{background:var(--panel-alt);}
+  .name-cell{font-weight:600; color:var(--text);}
+  .id-cell{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--text-dim);}
+  .badge{ display:inline-block; padding:4px 9px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:0.02em; white-space:nowrap; }
+  .badge-c1{background:var(--blue-dim); color:var(--blue);}
+  .badge-c2{background:rgba(30,79,214,0.14); color:var(--blue-dark);}
+  .badge-c3{background:var(--gold-dim); color:var(--gold-dark);}
+  .badge-c4{background:var(--danger-dim); color:var(--danger);}
+  .badge-c5{background:rgba(15,143,120,0.12); color:#0F8F78;}
+  .badge-c6{background:rgba(111,66,193,0.12); color:#6F42C1;}
+  .badge-c7{background:rgba(91,107,133,0.14); color:var(--text-dim);}
+  .empty-state{text-align:center; padding:60px 20px; color:var(--text-dim);}
+  .empty-state .icon{font-size:34px; margin-bottom:10px; opacity:0.5;}
+  .empty-state p{margin:4px 0; font-size:13px;}
+  .foot-note{margin-top:14px; font-size:11.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;}
+  .group-row td{
+    background:var(--panel-alt); font-family:'JetBrains Mono',monospace; font-size:11px;
+    letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);
+    padding:9px 10px; border-bottom:1px solid var(--line); border-top:1px solid var(--line); white-space:normal;
+  }
+  .group-row td span.group-count{ color:var(--text-faint); text-transform:none; letter-spacing:0; }
+  .status-tag{
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+    padding:3px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .status-expired{ background:rgba(192,57,43,0.16); color:var(--danger); }
+  .status-locked{ background:var(--panel-alt); color:var(--text-faint); border:1px solid var(--line); }
+
+  .approval-card{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px; margin-bottom:14px; transition:box-shadow .12s ease, border-color .12s ease;
+  }
+  .approval-card:hover{ border-color:var(--line-strong); box-shadow:0 2px 10px rgba(15,29,59,0.06); }
+  .approval-head{
+    display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .approval-name{ font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:0.02em; color:var(--text); }
+  .approval-sub{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .approval-actions{ display:flex; gap:8px; flex-shrink:0; align-items:center; }
+  .approve-btn, .reject-btn{
+    border:none; border-radius:8px; padding:9px 16px; font-weight:800; font-size:12.5px;
+    text-transform:uppercase; letter-spacing:0.03em; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .approve-btn{ background:var(--blue); color:#fff; }
+  .approve-btn:hover{background:var(--blue-dark);}
+  .reject-btn{ background:transparent; border:1px solid var(--danger); color:var(--danger); }
+  .reject-btn:hover{ background:var(--danger-dim); }
+  .approve-btn[disabled], .reject-btn[disabled]{ opacity:0.4; cursor:not-allowed; }
+  .detail-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px 20px;
+  }
+  .detail-item .dlabel{
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--text-faint); margin-bottom:3px;
+  }
+  .detail-item .dvalue{ font-size:13px; color:var(--text); word-break:break-word; }
+
+  .walkin-card{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px; margin-bottom:18px;
+  }
+  .walkin-title{ font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:0.02em; margin:0 0 2px; color:var(--text); }
+  .walkin-sub{ font-size:12px; color:var(--text-dim); margin:0 0 16px; }
+  .walkin-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .walkin-card .field{ margin-bottom:12px; }
+  .walkin-card label{
+    display:block; font-size:11.5px; font-weight:700; color:var(--text-dim);
+    margin:0 0 5px; text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .walkin-card input[type=text], .walkin-card select{
+    width:100%; background:var(--bg); border:1px solid var(--line-strong); color:var(--text);
+    padding:10px 11px; border-radius:8px; font-family:'Inter',sans-serif; font-size:14px; outline:none;
+  }
+  .walkin-card input:focus, .walkin-card select:focus{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-dim); }
+  .walkin-card .field-error{ font-size:11px; color:var(--danger); margin-top:4px; display:none; }
+  .walkin-card .field.invalid input, .walkin-card .field.invalid select{ border-color:var(--danger); }
+  .walkin-card .field.invalid .field-error{ display:block; }
+  .walkin-card .phone-group{ display:flex; gap:8px; }
+  .walkin-card .phone-group select{ flex:0 0 108px; }
+  .walkin-card .phone-group input{ flex:1; min-width:0; }
+  .walkin-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--blue); color:#fff; padding:12px 22px; border-radius:8px;
+    font-weight:700; font-size:13.5px; opacity:0; transition:all .25s ease; pointer-events:none; z-index:50;
+    box-shadow:0 8px 24px rgba(15,29,59,0.2);
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--danger);}
+  @media (max-width:860px){ header{flex-direction:column; align-items:flex-start;} }
+
+  .pin-key:focus-visible, .tab-btn:focus-visible, .btn-ghost:focus-visible, .activity-pill:focus-visible,
+  .approve-btn:focus-visible, .reject-btn:focus-visible{
+    outline:2px solid var(--blue); outline-offset:2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="screen active" id="pinScreen">
+  <div class="kiosk-card">
+    <p class="brand-eyebrow">Tennis Front Desk</p>
+    <h1>CONFIDENTIAL</h1>
+    <div class="setup-warning" id="setupWarning" style="display:none;">
+      ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL — the SAME one used for the main front desk and registration app.
+    </div>
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" data-k="1">1</button>
+      <button class="pin-key" data-k="2">2</button>
+      <button class="pin-key" data-k="3">3</button>
+      <button class="pin-key" data-k="4">4</button>
+      <button class="pin-key" data-k="5">5</button>
+      <button class="pin-key" data-k="6">6</button>
+      <button class="pin-key" data-k="7">7</button>
+      <button class="pin-key" data-k="8">8</button>
+      <button class="pin-key" data-k="9">9</button>
+      <button class="pin-key wide" id="pinCancel">Clear</button>
+      <button class="pin-key" data-k="0">0</button>
+      <button class="pin-key wide" id="pinClear">⌫</button>
+    </div>
+    <p class="pin-error" id="pinError"></p>
+    <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-faint);margin-top:6px;">Default PIN: 1234</p>
+  </div>
+</div>
+
+<div class="screen" id="deskScreen">
+  <div class="wrap">
+    <header>
+      <div class="header-left">
+        <p class="brand-eyebrow">University of Ghana Sports Directorate — Tennis Front Desk</p>
+        <h1>TENNIS DESK</h1>
+      </div>
+      <div class="tally" id="tally"></div>
+    </header>
+
+    <div class="activity-switcher" id="activitySwitcher"></div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="approvals">
+        Pending <span class="tab-badge" id="pendingBadge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="registrants">Registrants</button>
+      <button class="tab-btn" data-tab="visits">Visit Log</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-approvals">
+      <div class="panel">
+        <p class="panel-title">
+          <span class="panel-title-label">Pending — <span id="approvalsActivityLabel"></span></span>
+          <span class="live-dot"><span class="dot"></span> live from Google Sheet</span>
+        </p>
+        <p class="foot-note" style="margin:-8px 0 16px;">Only walk-ins can be approved or rejected here. New registrations and renewal requests need the main front desk.</p>
+
+        <button class="btn-ghost" id="walkinToggleBtn" style="margin-bottom:14px;">+ Add Walk-in</button>
+
+        <div class="walkin-card" id="walkinCard" style="display:none;">
+          <p class="walkin-title">Quick Walk-in Entry</p>
+          <p class="walkin-sub">Goes into Pending — still needs an Approve click below.</p>
+          <form id="walkinForm" novalidate>
+            <div class="field" id="wf-field-activity">
+              <label for="wfActivity">Program</label>
+              <select id="wfActivity"></select>
+            </div>
+            <div class="walkin-row">
+              <div class="field" id="wf-field-class">
+                <label for="wfClass">Category</label>
+                <select id="wfClass"></select>
+              </div>
+              <div class="field" id="wf-field-id" style="display:none;">
+                <label for="wfId">ID No.</label>
+                <input type="text" id="wfId" placeholder="ID number">
+                <p class="field-error">Required for this category.</p>
+              </div>
+            </div>
+            <div class="field" id="wf-field-name">
+              <label for="wfName">Full Name</label>
+              <input type="text" id="wfName" placeholder="e.g. Kwame Owusu">
+              <p class="field-error">Required.</p>
+            </div>
+            <div class="field" id="wf-field-phone">
+              <label for="wfPhone">Phone Number <span style="text-transform:none;font-weight:400;color:var(--text-dim);">(optional)</span></label>
+              <div class="phone-group">
+                <select id="wfPhoneCode"></select>
+                <input type="text" id="wfPhone" placeholder="24 123 4567" inputmode="tel">
+              </div>
+            </div>
+            <div class="walkin-actions">
+              <button type="button" class="btn-ghost" id="walkinCancelBtn">Cancel</button>
+              <button type="submit" class="approve-btn" id="walkinSubmitBtn" style="padding:9px 18px;">Add to Pending</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="approvalsHost"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-registrants">
+      <div class="panel">
+        <p class="panel-title">
+          <span class="panel-title-label">Registrants — <span id="registrantsActivityLabel"></span></span>
+          <span class="live-dot"><span class="dot"></span> live from Google Sheet</span>
+        </p>
+        <div class="table-toolbar">
+          <input type="text" class="search-box" id="searchBox" placeholder="Search name, phone, or ID/Code…">
+          <div class="toolbar-actions">
+            <button class="btn-ghost" id="refreshBtn">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="registrantsHost"></div>
+        <p class="foot-note" id="footNote"></p>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-visits">
+      <div class="panel">
+        <p class="panel-title">
+          <span class="panel-title-label">Visit Log — <span id="visitsActivityLabel"></span></span>
+          <span class="live-dot"><span class="dot"></span> live from Google Sheet</span>
+        </p>
+        <div class="table-toolbar">
+          <input type="text" class="search-box" id="visitSearchBox" placeholder="Search name, category, or ID/Code…">
+          <div class="toolbar-actions">
+            <button class="btn-ghost" id="visitsRefreshBtn">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="table-scroll"><div id="visitsTableHost"></div></div>
+        <p class="foot-note" id="visitsFootNote"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ---- PASTE YOUR APPS SCRIPT WEB APP URL HERE (same one used everywhere else) ----
+  const SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+  // ----------------------------------------------------------------------------------
+  const STAFF_PIN = "1234";
+  const AUTO_REFRESH_MS = 15000;
+
+  if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
+    document.getElementById('setupWarning').style.display = 'block';
+  }
+
+  function formatDateMDY(d){
+    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  }
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  // This app only ever touches these two activities (mirrors the matching
+  // entries in Code.gs ACTIVITIES — keep in sync).
+  const ACTIVITIES = {
+    leisureTennis: {
+      key: "leisureTennis", label: "Leisure Tennis", icon: "🎾",
+      categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      durations: { "Walk-in": {days:1}, "Monthly": {days:30}, "Semesterly": {days:120,onlyFor:["UG Student"]}, "Quarterly": {days:90,hideFor:["UG Student"]}, "Half-yearly": {days:182}, "Yearly": {days:365} }
+    },
+    tennisLessons: {
+      key: "tennisLessons", label: "Tennis Lessons", icon: "🎾",
+      categories: ["UG Student","UG Staff","UG Staff Relation (Under 17)","UG Staff Relation (17 & Above)","Public Child (Under 17)","Public Adult (17 & Above)","Family Package (Max 4)"],
+      idRequiredCategories: ["UG Student", "UG Staff"],
+      durations: { "Walk-in": {days:1}, "Monthly": {days:30} }
+    }
+  };
+  const BADGE_CLASSES = ['badge-c1','badge-c2','badge-c3','badge-c4','badge-c5','badge-c6','badge-c7'];
+  function badgeClassFor(activity, category){
+    const idx = activity.categories.indexOf(category);
+    return BADGE_CLASSES[idx >= 0 ? idx % BADGE_CLASSES.length : 0];
+  }
+
+  let currentActivity = ACTIVITIES.leisureTennis;
+  try{
+    const stored = localStorage.getItem('tennisDeskActivityKey');
+    if(stored && ACTIVITIES[stored]) currentActivity = ACTIVITIES[stored];
+  }catch(e){}
+
+  let pendingEntries = [];
+  let approvedEntries = [];
+  let pendingCounts = {};
+  let searchTerm = "";
+  let visitSearchTerm = "";
+  let pinBuffer = "";
+  let refreshTimer = null;
+  let busyIds = new Set();
+
+  const screens = { pin: document.getElementById('pinScreen'), desk: document.getElementById('deskScreen') };
+  function showScreen(name){
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  }
+
+  // ---- PIN ----
+  const pinDots = document.querySelectorAll('#pinDots .pin-dot');
+  const pinError = document.getElementById('pinError');
+  document.querySelectorAll('.pin-key[data-k]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(pinBuffer.length >= 4) return;
+      pinBuffer += btn.dataset.k;
+      updatePinDots();
+      if(pinBuffer.length === 4) setTimeout(checkPin, 120);
+    });
+  });
+  document.getElementById('pinCancel').addEventListener('click', () => { pinBuffer=""; updatePinDots(); pinError.textContent=""; });
+  document.getElementById('pinClear').addEventListener('click', () => { pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); });
+  function updatePinDots(){ pinDots.forEach((d,i) => d.classList.toggle('filled', i < pinBuffer.length)); }
+  function checkPin(){
+    if(pinBuffer === STAFF_PIN){
+      pinBuffer = "";
+      showScreen('desk');
+      renderActivitySwitcher();
+      loadAll();
+      loadVisits();
+      refreshTimer = setInterval(() => { loadAll(); loadVisits(); }, AUTO_REFRESH_MS);
+    } else {
+      pinError.textContent = "Incorrect PIN — try again.";
+      pinDots.forEach(d => d.classList.add('error'));
+      document.getElementById('pinDots').classList.add('shake');
+      setTimeout(() => {
+        document.getElementById('pinDots').classList.remove('shake');
+        pinDots.forEach(d => d.classList.remove('error'));
+        pinBuffer = ""; updatePinDots();
+      }, 320);
+    }
+  }
+
+  function renderActivitySwitcher(){
+    const host = document.getElementById('activitySwitcher');
+    host.innerHTML = Object.values(ACTIVITIES).map(a => {
+      const count = pendingCounts[a.key];
+      const badge = count ? `<span class="activity-pill-badge">${count}</span>` : '';
+      return `<div class="activity-pill${a.key === currentActivity.key ? ' active' : ''}" data-key="${a.key}" tabindex="0" role="button">
+        <span>${a.icon} ${escapeHtml(a.label)}</span>${badge}
+      </div>`;
+    }).join('');
+    host.querySelectorAll('.activity-pill').forEach(el => {
+      el.addEventListener('click', () => switchActivity(el.dataset.key));
+      el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); switchActivity(el.dataset.key); } });
+    });
+    ['approvalsActivityLabel','registrantsActivityLabel','visitsActivityLabel'].forEach(id => {
+      document.getElementById(id).textContent = currentActivity.label;
+    });
+  }
+
+  function switchActivity(key){
+    if(key === currentActivity.key) return;
+    currentActivity = ACTIVITIES[key];
+    try{ localStorage.setItem('tennisDeskActivityKey', key); }catch(e){}
+    searchTerm = ""; document.getElementById('searchBox').value = "";
+    visitSearchTerm = ""; document.getElementById('visitSearchBox').value = "";
+    renderActivitySwitcher();
+    loadAll();
+    loadVisits();
+  }
+
+  document.querySelectorAll('.tab-bar > .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar > .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  const toast = document.getElementById('toast');
+  function showToast(msg, isError, duration){
+    toast.textContent = msg;
+    toast.classList.toggle('error', !!isError);
+    toast.classList.add('show');
+    setTimeout(()=> toast.classList.remove('show'), duration || 2200);
+  }
+
+  function loadAll(){
+    const activity = currentActivity;
+    Promise.all(Object.values(ACTIVITIES).map(a =>
+      fetch(SCRIPT_URL + "?activity=" + a.key + "&view=pending&t=" + Date.now())
+        .then(r => r.json()).then(res => ({ key: a.key, rows: res.status === "ok" ? res.rows : [] }))
+        .catch(() => ({ key: a.key, rows: null }))
+    )).then(results => {
+      results.forEach(r => { if(r.rows !== null) pendingCounts[r.key] = r.rows.length; });
+      if(activity.key === currentActivity.key){
+        const mine = results.find(r => r.key === activity.key);
+        if(mine && mine.rows !== null) pendingEntries = mine.rows;
+      }
+      renderActivitySwitcher();
+      renderApprovals();
+    }).catch(() => {});
+
+    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now())
+      .then(r => r.json())
+      .then(res => {
+        if(activity.key !== currentActivity.key) return;
+        if(res.status === "ok") approvedEntries = res.rows;
+        renderTally();
+        renderRegistrants();
+      })
+      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+  }
+  document.getElementById('refreshBtn').addEventListener('click', loadAll);
+
+  // ---- Add Walk-in (program-scoped: this desk covers 2 activities, so
+  // the walk-in form has its own Program selector separate from the page's
+  // activity switcher, since staff might be viewing one activity's pending
+  // list while a walk-in belongs to the other). ----
+  const COUNTRY_CODES = [
+    { code:"+233", label:"🇬🇭 +233", def:true },{ code:"+234", label:"🇳🇬 +234" },{ code:"+225", label:"🇨🇮 +225" },
+    { code:"+228", label:"🇹🇬 +228" },{ code:"+229", label:"🇧🇯 +229" },{ code:"+226", label:"🇧🇫 +226" },
+    { code:"+223", label:"🇲🇱 +223" },{ code:"+221", label:"🇸🇳 +221" },{ code:"+232", label:"🇸🇱 +232" },
+    { code:"+231", label:"🇱🇷 +231" },{ code:"+27",  label:"🇿🇦 +27" }, { code:"+254", label:"🇰🇪 +254" },
+    { code:"+1",   label:"🇺🇸 +1" },  { code:"+44",  label:"🇬🇧 +44" }, { code:"+91",  label:"🇮🇳 +91" },
+    { code:"+86",  label:"🇨🇳 +86" }
+  ];
+  const wfPhoneCode = document.getElementById('wfPhoneCode');
+  wfPhoneCode.innerHTML = COUNTRY_CODES.map(c => `<option value="${c.code}"${c.def ? ' selected' : ''}>${c.label}</option>`).join('');
+
+  const wfActivity = document.getElementById('wfActivity');
+  wfActivity.innerHTML = Object.values(ACTIVITIES).map(a => `<option value="${a.key}">${a.icon} ${escapeHtml(a.label)}</option>`).join('');
+
+  function populateCategorySelect(selectEl, activity){
+    selectEl.innerHTML = activity.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
+
+  const walkinCard = document.getElementById('walkinCard');
+  const walkinToggleBtn = document.getElementById('walkinToggleBtn');
+  const walkinCancelBtn = document.getElementById('walkinCancelBtn');
+  const walkinForm = document.getElementById('walkinForm');
+  const wfClass = document.getElementById('wfClass');
+  const wfIdField = document.getElementById('wf-field-id');
+  const wfId = document.getElementById('wfId');
+  const wfName = document.getElementById('wfName');
+  const wfPhone = document.getElementById('wfPhone');
+  const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
+
+  function setFieldInvalid(el, invalid){ el.classList.toggle('invalid', !!invalid); }
+
+  function walkinActivity(){ return ACTIVITIES[wfActivity.value]; }
+
+  function openWalkinCard(){
+    wfActivity.value = currentActivity.key;
+    populateCategorySelect(wfClass, walkinActivity());
+    walkinCard.style.display = 'block';
+    walkinToggleBtn.style.display = 'none';
+  }
+  function closeWalkinCard(){
+    walkinCard.style.display = 'none';
+    walkinToggleBtn.style.display = 'inline-block';
+    walkinForm.reset();
+    wfIdField.style.display = 'none';
+    [wfIdField, document.getElementById('wf-field-name')].forEach(f => setFieldInvalid(f, false));
+  }
+  walkinToggleBtn.addEventListener('click', openWalkinCard);
+  walkinCancelBtn.addEventListener('click', closeWalkinCard);
+
+  wfActivity.addEventListener('change', () => {
+    populateCategorySelect(wfClass, walkinActivity());
+    wfIdField.style.display = 'none';
+  });
+
+  wfClass.addEventListener('change', () => {
+    const needsId = walkinActivity().idRequiredCategories.indexOf(wfClass.value) !== -1;
+    wfIdField.style.display = needsId ? 'block' : 'none';
+    if(!needsId) setFieldInvalid(wfIdField, false);
+  });
+
+  walkinForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    let valid = true;
+    const activity = walkinActivity();
+    const needsId = activity.idRequiredCategories.indexOf(wfClass.value) !== -1;
+
+    const nameField = document.getElementById('wf-field-name');
+    if(!wfName.value.trim()){ setFieldInvalid(nameField, true); valid = false; } else setFieldInvalid(nameField, false);
+    if(needsId && !wfId.value.trim()){ setFieldInvalid(wfIdField, true); valid = false; } else setFieldInvalid(wfIdField, false);
+    if(!valid) return;
+
+    const now = new Date();
+    const payload = {
+      action: "submit",
+      activity: activity.key,
+      class: wfClass.value,
+      name: wfName.value.trim(),
+      idNo: needsId ? wfId.value.trim() : "",
+      duration: "Walk-in",
+      phone: wfPhone.value.trim() ? `${wfPhoneCode.value} ${wfPhone.value.trim()}` : "",
+      date: formatDateMDY(now),
+      time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+    };
+
+    walkinSubmitBtn.disabled = true;
+    walkinSubmitBtn.textContent = "Adding…";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Add to Pending";
+      if(data.status === "ok"){
+        showToast(`Walk-in added to ${activity.label} — approve it below ✓`);
+        closeWalkinCard();
+        if(activity.key !== currentActivity.key) switchActivity(activity.key); else loadAll();
+      } else {
+        showToast(data.message || "Couldn't add walk-in", true);
+      }
+    })
+    .catch(() => {
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Add to Pending";
+      showToast("Couldn't reach the sheet — check connection", true);
+    });
+  });
+
+  // ---- Approvals (walk-ins actionable, everything else read-only) ----
+  function planLabel(entry){
+    const cfg = currentActivity.durations[entry.duration];
+    let label = (entry.duration || '').replace('/', ' / ');
+    if(cfg && cfg.sessionCap){
+      const used = Number(entry.sessionsUsed) || 0;
+      label += ` (${used}/${cfg.sessionCap} sessions used)`;
+    }
+    return label;
+  }
+
+  function renderApprovals(){
+    const host = document.getElementById('approvalsHost');
+    document.getElementById('pendingBadge').textContent = pendingEntries.length;
+    if(pendingEntries.length === 0){
+      host.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>Nothing pending for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      return;
+    }
+    host.innerHTML = pendingEntries.map(e => {
+      const busy = busyIds.has(e.idNo);
+      const isWalkin = String(e.duration||'').trim() === "Walk-in";
+      const isRenewal = String(e.isRenewal||'').trim().toUpperCase() === "TRUE";
+      const actions = isWalkin
+        ? `<button class="reject-btn" data-idno="${escapeHtml(e.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject</button>
+           <button class="approve-btn" data-idno="${escapeHtml(e.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve</button>`
+        : `<span class="status-tag status-locked">Needs main front desk</span>`;
+      const familyRow = e.familyMembersCount ? `<div class="detail-item"><div class="dlabel">Family Members</div><div class="dvalue">${escapeHtml(e.familyMembersCount)}</div></div>` : '';
+      return `
+      <div class="approval-card">
+        <div class="approval-head">
+          <div style="display:flex; align-items:center; gap:12px;">
+            ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+            <div>
+              <div class="approval-name">${escapeHtml(e.name)}${isWalkin ? '' : (isRenewal ? ' <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">RENEWAL</span>' : ' <span class="status-tag" style="background:var(--blue-dim);color:var(--blue);font-size:10px;vertical-align:middle;">NEW</span>')}</div>
+              <div class="approval-sub">${isRenewal ? 'Requested' : 'Submitted'} ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
+            </div>
+          </div>
+          <div class="approval-actions">${actions}</div>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
+          <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
+          ${familyRow}
+          <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(e.phone||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${e.idNo ? escapeHtml(e.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>'}</div></div>
+          <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${planLabel(e)}</div></div>
+          <div class="detail-item"><div class="dlabel">Emergency Contact</div><div class="dvalue">${e.emergencyName ? escapeHtml(e.emergencyName) : '—'}</div></div>
+          <div class="detail-item"><div class="dlabel">Emergency Phone</div><div class="dvalue">${e.emergencyPhone ? escapeHtml(e.emergencyPhone) : '—'}</div></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    host.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => handleApprovalAction(btn.dataset.idno, btn.dataset.action));
+    });
+  }
+
+  function handleApprovalAction(idNo, action){
+    const entry = pendingEntries.find(e => e.idNo === idNo);
+    const activity = currentActivity;
+    busyIds.add(idNo);
+    renderApprovals();
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: action, activity: activity.key, idNo: idNo })
+    })
+    .then(res => res.json())
+    .then(data => {
+      busyIds.delete(idNo);
+      if(data.status === "ok"){
+        showToast(action === "approveWalkin" ? "Walk-in checked in ✓" : "Rejected");
+        loadAll();
+      } else {
+        showToast(data.message || "Couldn't update — try again", true);
+        renderApprovals();
+      }
+    })
+    .catch(() => {
+      busyIds.delete(idNo);
+      showToast("No connection", true);
+      renderApprovals();
+    });
+  }
+
+  // ---- Registrants (full detail, read-only) ----
+  const searchBox = document.getElementById('searchBox');
+  searchBox.addEventListener('input', function(){ searchTerm = this.value.trim().toLowerCase(); renderRegistrants(); });
+
+  function parseRegDate(dateStr){
+    if(!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function getExpiryDate(entry){
+    const regDate = parseRegDate(entry.date);
+    const cfg = currentActivity.durations[entry.duration];
+    if(!regDate || !cfg) return null;
+    const expiry = new Date(regDate);
+    expiry.setHours(0,0,0,0);
+    expiry.setDate(expiry.getDate() + cfg.days);
+    return expiry;
+  }
+  function isExpired(entry){
+    const cfg = currentActivity.durations[entry.duration];
+    if(!cfg) return false;
+    const expiry = getExpiryDate(entry);
+    if(expiry){
+      const today = new Date(); today.setHours(0,0,0,0);
+      if(expiry < today) return true;
+    }
+    if(cfg.sessionCap && (Number(entry.sessionsUsed)||0) >= cfg.sessionCap) return true;
+    return false;
+  }
+  function formatExpiry(entry){
+    const expiry = getExpiryDate(entry);
+    return expiry ? formatDateMDY(expiry) : '—';
+  }
+
+  function filteredRegistrants(){
+    return approvedEntries.filter(e => {
+      if(!searchTerm) return true;
+      return (e.name||'').toLowerCase().includes(searchTerm)
+        || (e.phone||'').toLowerCase().includes(searchTerm)
+        || (e.idNo||'').toLowerCase().includes(searchTerm)
+        || (e.email||'').toLowerCase().includes(searchTerm);
+    });
+  }
+
+  function renderRegistrants(){
+    const host = document.getElementById('registrantsHost');
+    const footNote = document.getElementById('footNote');
+    const list = filteredRegistrants();
+
+    if(approvedEntries.length === 0){
+      host.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No approved registrants yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      footNote.textContent = ""; return;
+    }
+    if(list.length === 0){
+      host.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No matches for "${escapeHtml(searchTerm)}".</p></div>`;
+      footNote.textContent = ""; return;
+    }
+
+    host.innerHTML = list.map(e => {
+      const expired = isExpired(e);
+      const cfg = currentActivity.durations[e.duration];
+      const planText = cfg && cfg.sessionCap
+        ? `${(e.duration||'').replace('/', ' / ')} (${Number(e.sessionsUsed)||0}/${cfg.sessionCap} sessions used)`
+        : (e.duration||'').replace('/', ' / ');
+      return `
+      <div class="approval-card">
+        <div class="approval-head">
+          <div style="display:flex; align-items:center; gap:12px;">
+            ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+            <div>
+              <div class="approval-name">${escapeHtml(e.name)}</div>
+              <div class="approval-sub">Registered ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
+            </div>
+          </div>
+          <div class="approval-actions">${expired ? '<span class="status-tag status-expired">Expired / Used Up</span>' : ''}</div>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
+          <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
+          ${e.familyMembersCount ? `<div class="detail-item"><div class="dlabel">Family Members</div><div class="dvalue">${escapeHtml(e.familyMembersCount)}</div></div>` : ''}
+          <div class="detail-item"><div class="dlabel">Date of Birth</div><div class="dvalue">${escapeHtml(e.dob||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Gender</div><div class="dvalue">${escapeHtml(e.gender||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Nationality</div><div class="dvalue">${escapeHtml(e.nationality||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Medical Conditions</div><div class="dvalue">${e.hasMedicalCondition === 'Yes' ? escapeHtml(e.medicalConditionDetails || '(stated yes, no details given)') : (e.hasMedicalCondition === 'No' ? 'None reported' : '—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(e.phone||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Email</div><div class="dvalue">${escapeHtml(e.email||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${escapeHtml(e.idNo||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Address</div><div class="dvalue">${escapeHtml(e.address||'—')}</div></div>
+          <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${escapeHtml(planText)}</div></div>
+          <div class="detail-item"><div class="dlabel">Expires</div><div class="dvalue">${escapeHtml(formatExpiry(e))}</div></div>
+          <div class="detail-item"><div class="dlabel">Photo</div><div class="dvalue">${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener" style="color:var(--blue);">View photo →</a>` : '—'}</div></div>
+          <div class="detail-item"><div class="dlabel">Signature</div><div class="dvalue">${e.signatureUrl ? `<a href="${escapeHtml(e.signatureUrl)}" target="_blank" rel="noopener" style="color:var(--blue);">View signature →</a>` : '—'}</div></div>
+          <div class="detail-item"><div class="dlabel">Emergency Contact</div><div class="dvalue">${e.emergencyName ? escapeHtml(e.emergencyName) : '—'}</div></div>
+          <div class="detail-item"><div class="dlabel">Emergency Phone</div><div class="dvalue">${e.emergencyPhone ? escapeHtml(e.emergencyPhone) : '—'}</div></div>
+          <div class="detail-item"><div class="dlabel">Relationship</div><div class="dvalue">${e.emergencyRelationship ? escapeHtml(e.emergencyRelationship) : '—'}</div></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const expiredCount = list.filter(isExpired).length;
+    footNote.textContent = `Showing ${list.length} of ${approvedEntries.length} registrant(s) · ${expiredCount} expired/used up. Auto-refreshes every ${AUTO_REFRESH_MS/1000}s.`;
+  }
+
+  function renderTally(){
+    const counts = {};
+    currentActivity.categories.forEach(c => counts[c] = 0);
+    approvedEntries.forEach(e => { if(counts[e.class] !== undefined) counts[e.class]++; });
+    let html = `<div class="tally-cell"><div class="tally-num">${approvedEntries.length}</div><div class="tally-label">Total</div></div>`;
+    currentActivity.categories.forEach(c => {
+      html += `<div class="tally-cell"><div class="tally-num">${counts[c]}</div><div class="tally-label">${escapeHtml(c)}</div></div>`;
+    });
+    document.getElementById('tally').innerHTML = html;
+  }
+
+  // ---- Visit Log tab ----
+  let visitEntries = [];
+
+  function loadVisits(){
+    const activity = currentActivity;
+    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
+      .then(r => r.json())
+      .then(res => {
+        if(activity.key !== currentActivity.key) return;
+        if(res.status === "ok") visitEntries = res.rows;
+        renderVisitsTable();
+      })
+      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+  }
+  document.getElementById('visitsRefreshBtn').addEventListener('click', loadVisits);
+  document.getElementById('visitSearchBox').addEventListener('input', function(){
+    visitSearchTerm = this.value.trim().toLowerCase();
+    renderVisitsTable();
+  });
+
+  function groupByDate(list){
+    const map = new Map();
+    list.forEach(e => {
+      const key = e.date || 'Unknown date';
+      if(!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    });
+    const keys = [...map.keys()].sort((a,b) => {
+      const da = parseRegDate(a), db = parseRegDate(b);
+      if(!da || !db) return 0;
+      return db - da;
+    });
+    return keys.map(k => ({ date: k, rows: map.get(k) }));
+  }
+  function dateLabel(dateStr){
+    const d = parseRegDate(dateStr);
+    if(!d) return escapeHtml(dateStr);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const cmp = new Date(d); cmp.setHours(0,0,0,0);
+    const diffDays = Math.round((today - cmp) / 86400000);
+    if(diffDays === 0) return `Today — ${dateStr}`;
+    if(diffDays === 1) return `Yesterday — ${dateStr}`;
+    return dateStr;
+  }
+
+  function sortedFilteredVisits(){
+    let list = visitEntries.filter(v => {
+      if(!visitSearchTerm) return true;
+      return (v.name||'').toLowerCase().includes(visitSearchTerm)
+        || (v.idNo||'').toLowerCase().includes(visitSearchTerm)
+        || (v.class||'').toLowerCase().includes(visitSearchTerm);
+    });
+    list.sort((a,b) => (b.timeIn||'').localeCompare(a.timeIn||''));
+    return list;
+  }
+
+  function renderVisitsTable(){
+    const host = document.getElementById('visitsTableHost');
+    const footNote = document.getElementById('visitsFootNote');
+    const list = sortedFilteredVisits();
+
+    if(visitEntries.length === 0){
+      host.innerHTML = `<div class="empty-state"><div class="icon">🕒</div><p>No visits logged yet for ${escapeHtml(currentActivity.label)}.</p></div>`;
+      footNote.textContent = ""; return;
+    }
+    if(list.length === 0){
+      host.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No matches for "${escapeHtml(visitSearchTerm)}".</p></div>`;
+      footNote.textContent = ""; return;
+    }
+
+    const photoByIdNo = {};
+    approvedEntries.forEach(e => { if(e.idNo) photoByIdNo[e.idNo] = e.photoUrl; });
+
+    const groups = groupByDate(list);
+    let rows = groups.map(g => {
+      const groupRows = g.rows.map(v => {
+        const photoUrl = photoByIdNo[v.idNo];
+        return `
+        <tr>
+          <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(photoUrl)}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
+          <td class="name-cell">${escapeHtml(v.name)}</td>
+          <td><span class="badge ${badgeClassFor(currentActivity, v.class)}">${escapeHtml(v.class||'')}</span></td>
+          <td class="id-cell">${escapeHtml(v.idNo||'')}</td>
+          <td class="id-cell">${escapeHtml(v.timeIn||'—')}</td>
+          <td class="id-cell">${v.timeOut ? escapeHtml(v.timeOut) : '<span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);">Still in</span>'}</td>
+        </tr>`;
+      }).join('');
+      return `
+        <tr class="group-row">
+          <td colspan="6">${dateLabel(g.date)} <span class="group-count">— ${g.rows.length} visit${g.rows.length===1?'':'s'}</span></td>
+        </tr>
+        ${groupRows}`;
+    }).join('');
+
+    host.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Photo</th><th>Name</th><th>Category</th><th>ID No. / Code</th><th>Time In</th><th>Time Out</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    const openCount = list.filter(v => !v.timeOut).length;
+    footNote.textContent = `Showing ${list.length} of ${visitEntries.length} visit(s) across ${groups.length} day${groups.length===1?'':'s'} · ${openCount} still signed in.`;
+  }
+})();
+</script>
+</body>
+</html>
