@@ -1056,9 +1056,13 @@
     populateCategorySelect(walkinClass, currentActivity);
     updateConditionalFields();
     // Swimming Lessons has no Walk-in plan — members must register for
-    // the 12-session package, so hide the walk-in path entirely.
+    // the 12-session package, so hide the walk-in path entirely (both
+    // the Sign In tab's walk-in entry and the Sign Out tab's walk-in
+    // sign-out-by-phone, since a Walk-in is the only kind of visit that
+    // ever needs signing out by phone instead of by code).
     const hasWalkin = !!(currentActivity && currentActivity.durations['Walk-in']);
     document.getElementById('toWalkinBtn').style.display = hasWalkin ? 'block' : 'none';
+    document.getElementById('toOutPhoneBtn').style.display = hasWalkin ? 'block' : 'none';
   }
 
   /* ===================== Top-level tabs (inside the app screen) ===================== */
