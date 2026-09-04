@@ -410,8 +410,17 @@ function getOrCreateSheet(name, headers) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
+    // Only needed once, right when the sheet is created — this used to
+    // run on every single call (getOrCreateSheet fires on every
+    // request, often several times per request), and setNumberFormat
+    // across the sheet's whole row capacity is expensive enough that
+    // doing it every time was making every sync slow. The apostrophe-
+    // prefix trick (sheetSafeText/forceLiteralText, used on every
+    // write) is what actually keeps phone/ID/date/time values literal
+    // — this format pass is just an extra safety net for a brand-new
+    // sheet, not something that needs re-checking on every read.
+    ensureTextFormatForPhoneColumns(sheet, headers);
   }
-  ensureTextFormatForPhoneColumns(sheet, headers);
   return sheet;
 }
 
@@ -1475,7 +1484,8 @@ function repairPhoneNumbers() {
   Object.keys(ACTIVITIES).forEach(key => {
     const activity = ACTIVITIES[key];
     [activity.pendingSheet, activity.registrationsSheet].forEach(name => {
-      const sheet = getOrCreateSheet(name, HEADERS); // also (re)applies text formatting
+      const sheet = getOrCreateSheet(name, HEADERS);
+      ensureTextFormatForPhoneColumns(sheet, HEADERS); // re-applied here on purpose — this is the manual repair path
       const lastRow = sheet.getLastRow();
       if (lastRow < 2) return;
 
@@ -1518,7 +1528,8 @@ function repairDateTimeColumns() {
   });
 
   sheetsToRepair.forEach(({ name, headers }) => {
-    const sheet = getOrCreateSheet(name, headers); // also (re)applies text formatting
+    const sheet = getOrCreateSheet(name, headers);
+    ensureTextFormatForPhoneColumns(sheet, headers); // re-applied here on purpose — this is the manual repair path
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return;
 
