@@ -265,6 +265,11 @@ const EXPORT_FOLDER_NAME = "Registration Exports";
 // so members are completely unaffected by a clear.
 const VIEW_CLEARED_AT_PREFIX = "VIEW_CLEARED_AT_";
 
+// Which Drive file a given activity's Excel export is linked to, if
+// any — see saveExportFile()/parseDriveFileId() and the
+// setExportFileId/exportLink/exportFile doPost/doGet actions below.
+const EXPORT_FILE_ID_PREFIX = "EXPORT_FILE_ID_";
+
 // Marker written as a NOTE (not the cell value) on the idNo cell of a
 // synthetic "date header" row in a Registrations sheet, so the app
 // can tell it apart from a real member row. It's a note rather than a
@@ -675,16 +680,40 @@ function saveExportFile(activity, base64Data) {
   const blob = Utilities.newBlob(bytes, mimeType, fileName);
 
   const props = PropertiesService.getScriptProperties();
-  const propKey = "EXPORT_FILE_ID_" + activity.key;
+  const propKey = EXPORT_FILE_ID_PREFIX + activity.key;
   const storedFileId = props.getProperty(propKey);
 
-  if (driveApiIsEnabled() && storedFileId) {
+  if (storedFileId) {
+    if (!driveApiIsEnabled()) {
+      // A file is linked, but without the Drive API advanced service
+      // there's no way to overwrite an arbitrary file's binary content
+      // in place — say so plainly instead of silently exporting
+      // somewhere else, which would look like the link isn't working.
+      return {
+        url: null,
+        usedLinkedFile: false,
+        warning: "A file is linked, but the Drive API advanced service isn't enabled in Apps Script (Services → Drive API), so it can't be updated in place. Nothing was written to it this time."
+      };
+    }
     try {
       Drive.Files.update({}, storedFileId, blob);
-      return "https://drive.google.com/file/d/" + storedFileId + "/view";
+      return { url: "https://drive.google.com/file/d/" + storedFileId + "/view", usedLinkedFile: true };
     } catch (err) {
       // The stored file was probably deleted/moved outside the app —
-      // fall through and create a fresh one below.
+      // fall through and create a fresh one below, but say so, since
+      // the export otherwise silently lands somewhere the user didn't
+      // expect.
+      const folder = getExportFolder();
+      const existing = folder.getFilesByName(fileName);
+      while (existing.hasNext()) existing.next().setTrashed(true);
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      props.deleteProperty(propKey);
+      return {
+        url: file.getUrl(),
+        usedLinkedFile: false,
+        warning: "The linked file couldn't be reached (it may have been deleted or moved) — exported to a new file instead, and the link was cleared. Please re-link."
+      };
     }
   }
 
@@ -698,7 +727,17 @@ function saveExportFile(activity, base64Data) {
   if (driveApiIsEnabled()) {
     props.setProperty(propKey, file.getId());
   }
-  return file.getUrl();
+  return { url: file.getUrl(), usedLinkedFile: false };
+}
+
+// Parses either a bare Drive file ID or a full Drive URL
+// (".../file/d/<ID>/view", "...?id=<ID>", etc.) into just the ID.
+function parseDriveFileId(input) {
+  const s = String(input || "").trim();
+  if (!s) return "";
+  const m = s.match(/\/d\/([-\w]{10,})/) || s.match(/[?&]id=([-\w]{10,})/);
+  if (m) return m[1];
+  return /^[-\w]{10,}$/.test(s) ? s : "";
 }
 
 
@@ -820,6 +859,29 @@ function doGet(e) {
     if (view === 'visits') {
       const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       return ok({ rows: sheetToObjects(sheet) });
+    }
+    if (view === 'exportLink') {
+      const fileId = PropertiesService.getScriptProperties().getProperty(EXPORT_FILE_ID_PREFIX + activity.key);
+      if (!fileId) return ok({ linked: false });
+      try {
+        const f = DriveApp.getFileById(fileId);
+        return ok({ linked: true, fileId: fileId, fileName: f.getName(), fileUrl: f.getUrl(), driveApiEnabled: driveApiIsEnabled() });
+      } catch (err) {
+        return ok({ linked: true, fileId: fileId, fileName: null, fileUrl: null, driveApiEnabled: driveApiIsEnabled() });
+      }
+    }
+    if (view === 'exportFile') {
+      // Lets the export button read back whatever's currently in the
+      // linked file (if any) so it can merge in only genuinely new
+      // rows instead of duplicating members already recorded there.
+      const fileId = PropertiesService.getScriptProperties().getProperty(EXPORT_FILE_ID_PREFIX + activity.key);
+      if (!fileId) return ok({ exists: false });
+      try {
+        const blob = DriveApp.getFileById(fileId).getBlob();
+        return ok({ exists: true, base64: Utilities.base64Encode(blob.getBytes()) });
+      } catch (err) {
+        return ok({ exists: false });
+      }
     }
     if (view === 'pending') {
       const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
@@ -1255,8 +1317,26 @@ function doPost(e) {
 
     if (action === "saveExport") {
       if (!data.fileBase64) return errorMsg("No file data received.");
-      const url = saveExportFile(activity, data.fileBase64);
-      return ok({ url: url });
+      const result = saveExportFile(activity, data.fileBase64);
+      return ok(result);
+    }
+
+    if (action === "setExportFileId") {
+      const fileId = parseDriveFileId(data.fileId);
+      if (!fileId) return errorMsg("Couldn't find a valid Drive file ID in that link.");
+      let fileName;
+      try {
+        fileName = DriveApp.getFileById(fileId).getName();
+      } catch (err) {
+        return errorMsg("Couldn't open that file — check the link and make sure it's shared with this app's Google account.");
+      }
+      PropertiesService.getScriptProperties().setProperty(EXPORT_FILE_ID_PREFIX + activity.key, fileId);
+      return ok({ fileId: fileId, fileName: fileName, driveApiEnabled: driveApiIsEnabled() });
+    }
+
+    if (action === "clearExportFileId") {
+      PropertiesService.getScriptProperties().deleteProperty(EXPORT_FILE_ID_PREFIX + activity.key);
+      return ok({});
     }
 
 
