@@ -345,6 +345,16 @@
   .confirm-overlay h2{ font-family:'Bebas Neue',sans-serif; font-size:28px; margin:0 0 6px; letter-spacing:0.02em; }
   .confirm-overlay p{ color:var(--text-dim); font-size:13.5px; margin:0; max-width:320px; }
 
+  .approval-wait-overlay{ overflow-y:auto; }
+  .approval-wait-overlay .btn{ margin-top:20px; width:auto; padding-left:24px; padding-right:24px; }
+  .approval-wait-spinner{
+    width:40px; height:40px; border-radius:50%; border:3px solid var(--blue-dim); border-top-color:var(--blue);
+    margin:0 auto 16px; animation:approvalWaitSpin .8s linear infinite;
+  }
+  @keyframes approvalWaitSpin{ to{ transform:rotate(360deg); } }
+  .approval-wait-codes{ display:flex; flex-direction:column; gap:10px; width:100%; margin:14px 0 0; text-align:left; }
+  .approval-wait-member-name{ font-size:12.5px; color:var(--text-dim); margin-bottom:4px; text-align:center; }
+
   /* Sign-in result */
   .result{ text-align:center; }
   .result-icon{
@@ -684,6 +694,25 @@
       <div class="confirm-icon" id="confirmIcon">✓</div>
       <h2 id="confirmTitle">Submitted!</h2>
       <p id="confirmDetail"></p>
+    </div>
+
+    <!-- Shown right after a fresh (non-renewal) submission — stays up and
+         polls in the background so the code pops up here automatically
+         the moment the front desk approves, instead of making the
+         registrant come back and look themselves up. -->
+    <div class="confirm-overlay approval-wait-overlay" id="approvalWaitOverlay">
+      <div id="approvalWaitPending">
+        <div class="approval-wait-spinner"></div>
+        <h2>Submitted!</h2>
+        <p id="approvalWaitPendingDetail">Waiting for front desk approval…</p>
+      </div>
+      <div id="approvalWaitApproved" style="display:none;">
+        <div class="confirm-icon">✓</div>
+        <h2>Approved!</h2>
+        <p id="approvalWaitApprovedDetail"></p>
+        <div class="approval-wait-codes" id="approvalWaitCodes"></div>
+      </div>
+      <button type="button" class="btn btn-secondary" id="approvalWaitDoneBtn">Done</button>
     </div>
 
     <div class="photo-sheet-overlay" id="photoSheetOverlay">
@@ -1593,6 +1622,93 @@
     setTimeout(() => confirmOverlay.classList.remove('show'), 4200);
   }
 
+  // ---- Post-submission approval wait: pop the code up automatically
+  // the moment the front desk approves, instead of making the
+  // registrant come back and look themselves up by phone. That phone
+  // lookup (Sign In tab) still exists as the fallback — for a
+  // different device, a closed tab, or if this wait times out. ----
+  const approvalWaitOverlay = document.getElementById('approvalWaitOverlay');
+  const approvalWaitPending = document.getElementById('approvalWaitPending');
+  const approvalWaitApproved = document.getElementById('approvalWaitApproved');
+  const approvalWaitPendingDetail = document.getElementById('approvalWaitPendingDetail');
+  const approvalWaitApprovedDetail = document.getElementById('approvalWaitApprovedDetail');
+  const approvalWaitCodes = document.getElementById('approvalWaitCodes');
+  const APPROVAL_POLL_INTERVAL_MS = 6000;
+  const APPROVAL_POLL_MAX_ATTEMPTS = 100; // ~10 minutes, then fall back to telling them to check later
+  let approvalPollTimer = null;
+
+  function stopApprovalPoll(){
+    if(approvalPollTimer){ clearInterval(approvalPollTimer); approvalPollTimer = null; }
+  }
+  document.getElementById('approvalWaitDoneBtn').addEventListener('click', () => {
+    stopApprovalPoll();
+    approvalWaitOverlay.classList.remove('show');
+  });
+
+  // members: [{ idNo, name }, ...] — everyone from this one submission
+  // (just the applicant, or the whole Family Package).
+  function startApprovalWait(members, activityForPoll){
+    stopApprovalPoll();
+    let attempts = 0;
+    let stillPending = members.slice();
+    const approvedSoFar = [];
+
+    approvalWaitPending.style.display = 'block';
+    approvalWaitApproved.style.display = 'none';
+    approvalWaitPendingDetail.textContent = stillPending.length > 1
+      ? `Waiting for the front desk to approve ${stillPending.length} people — this updates automatically.`
+      : "Waiting for the front desk to approve your registration — this updates automatically.";
+    approvalWaitOverlay.classList.remove('error');
+    approvalWaitOverlay.classList.add('show');
+
+    function renderApprovedCodes(){
+      approvalWaitCodes.innerHTML = approvedSoFar.map(m => `
+        <div>
+          <div class="approval-wait-member-name">${escapeHtml(m.name||'')}</div>
+          ${codeChipWithCopyHtml(m.idNo)}
+        </div>`).join('');
+      attachCopyButtons(approvalWaitCodes);
+    }
+
+    function poll(){
+      if(stillPending.length === 0){ stopApprovalPoll(); return; }
+      attempts++;
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "checkApproved", activity: activityForPoll.key, idNos: stillPending.map(m => m.idNo) })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if(data.status !== "ok") return;
+        const approvedNow = data.approvedMembers || [];
+        if(approvedNow.length === 0){
+          if(attempts >= APPROVAL_POLL_MAX_ATTEMPTS){
+            stopApprovalPoll();
+            approvalWaitPendingDetail.textContent = "Still waiting on approval — use the Sign In tab with your phone number to check back later.";
+          }
+          return;
+        }
+        const approvedIds = new Set(approvedNow.map(m => String(m.idNo).trim()));
+        approvedNow.forEach(m => approvedSoFar.push(m));
+        stillPending = stillPending.filter(m => !approvedIds.has(String(m.idNo).trim()));
+
+        approvalWaitPending.style.display = stillPending.length ? 'block' : 'none';
+        approvalWaitApproved.style.display = 'block';
+        approvalWaitApprovedDetail.textContent = stillPending.length
+          ? `${approvedSoFar.length} approved so far — still waiting on ${stillPending.length} more.`
+          : (approvedSoFar.length > 1 ? "Everyone's approved — here are your codes:" : "Copy your code below and use it to sign in.");
+        renderApprovedCodes();
+
+        if(stillPending.length === 0) stopApprovalPoll();
+      })
+      .catch(() => { /* a network blip shouldn't stop the wait — just try again next tick */ });
+    }
+
+    poll();
+    approvalPollTimer = setInterval(poll, APPROVAL_POLL_INTERVAL_MS);
+  }
+
   /* ---- Per-step validation (also used by the wizard's Continue button) ---- */
   function validateStep1(){
     let valid = true;
@@ -1794,11 +1910,12 @@
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
       if(data.status === "ok"){
-        const familyNote = (data.familyMembers && data.familyMembers.length > 1)
-          ? ` This covers ${data.familyMembers.length} people — once approved, look up your phone number on the Sign In tab to see every family member's code at once.`
-          : '';
-        showConfirm(false, "Submitted!", `${fullName} — waiting on front desk approval for ${currentActivity.label}. Once approved, use the Sign In tab with your phone number to find your code.${familyNote}`);
+        const members = (data.familyMembers && data.familyMembers.length)
+          ? data.familyMembers
+          : [{ idNo: data.idNo, name: fullName }];
+        const activityForPoll = currentActivity;
         resetRegisterForm();
+        startApprovalWait(members, activityForPoll);
       } else {
         showConfirm(true, "Couldn't submit", data.message || "Please try again or tell the front desk.");
       }

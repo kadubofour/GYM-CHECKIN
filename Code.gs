@@ -1279,6 +1279,24 @@ function doPost(e) {
     }
 
 
+    if (action === "checkApproved") {
+      // Lets the registration app poll right after a fresh submission
+      // and pop the code up automatically the moment the front desk
+      // approves it, instead of making the registrant come back later
+      // and look themselves up by phone. Takes the idNo(s) handed back
+      // by "submit" (one per family member for a Family Package) and
+      // reports back whichever of those are now approved — the rest
+      // may still be pending, so the caller keeps polling for those.
+      const codes = Array.isArray(data.idNos)
+        ? data.idNos.map(c => String(c || "").trim()).filter(Boolean)
+        : [];
+      if (codes.length === 0) return errorMsg("No codes to check.");
+      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+      const approvedMembers = sheetToObjects(registrations).filter(r => codes.indexOf(String(r.idNo).trim()) !== -1);
+      return ok({ approvedMembers: approvedMembers });
+    }
+
+
     if (action === "verify") {
       // Looks a member up by code for the Renew tab's gate — deliberately
       // does NOT log a Visits row (unlike "checkin"). Approved members only.
