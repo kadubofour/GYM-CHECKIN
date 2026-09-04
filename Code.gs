@@ -594,6 +594,14 @@ function dateLabelFor(dateStr) {
 // header row above it. Safe to call any time; it re-derives everything
 // from the real member rows (ignoring any existing header rows) so
 // it's idempotent.
+//
+// NOT called automatically from doApprove() (it used to run after
+// every single approval) — it rewrites and reformats the ENTIRE sheet
+// every time, which got slow as the sheet grew and made approvals
+// (especially approving a Family Package's several members back to
+// back) time out with "check the connection". Run regroupAllRegistrations()
+// below by hand (Apps Script editor's function dropdown -> Run)
+// whenever you want the Registrations sheets tidied.
 function regroupRegistrationsByDate(activity) {
   const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
   const lastCol = HEADERS.length;
@@ -673,6 +681,14 @@ function regroupRegistrationsByDate(activity) {
     range.setHorizontalAlignment("left");
     sheet.getRange(rowNum, idColIndex + 1, 1, 1).setNote(DATE_HEADER_MARKER);
   });
+}
+
+// Run this by hand (Apps Script editor's function dropdown -> Run)
+// whenever you want every activity's Registrations sheet tidied into
+// dated, banner-grouped blocks. Takes a while on a large sheet — that's
+// exactly why it's no longer run automatically on every approval.
+function regroupAllRegistrations() {
+  Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
 }
 
 
@@ -840,7 +856,6 @@ function doApprove(activity, idNo) {
       registrations.getRange(regIdx, HEADERS.indexOf("time") + 1).setValue(rowValues[HEADERS.indexOf("time")]);
       registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue("");
       pending.deleteRow(idx);
-      regroupRegistrationsByDate(activity);
       return ok({ idNo: idNo });
     }
     // Member's row is gone somehow (e.g. deleted by hand) — fall
@@ -850,7 +865,6 @@ function doApprove(activity, idNo) {
 
   registrations.appendRow(rowValues);
   pending.deleteRow(idx);
-  regroupRegistrationsByDate(activity);
   return ok({ idNo: idNo });
 }
 
