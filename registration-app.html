@@ -115,6 +115,10 @@
   }
   .family-member-top{ display:flex; gap:8px; margin-bottom:8px; }
   .family-member-top input{ flex:1; min-width:0; }
+  .family-member-fields-row{ display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .family-member-gender-row{ display:flex; gap:6px; flex:0 0 auto; }
+  .family-member-gender{ padding:8px 12px; font-size:12.5px; }
+  .family-member-relationship{ flex:1; min-width:160px; }
   .family-member-medical{ width:100%; }
   .family-member-remove{
     flex:0 0 auto; background:transparent; border:1px solid var(--line-strong); color:var(--text-dim);
@@ -596,7 +600,7 @@
         <p class="renew-option-sub" style="margin:-6px 0 10px;">Enter each name surname first.</p>
         <div id="familyMembersList"></div>
         <button type="button" class="btn btn-secondary" id="addFamilyMemberBtn" style="margin-top:2px;">+ Add Family Member</button>
-        <p class="field-error" id="familyMembersError">Enter a full name (surname first) for each family member, or remove the row.</p>
+        <p class="field-error" id="familyMembersError">Enter a full name (surname first), gender, and relationship to you for each family member, or remove the row.</p>
       </div>
 
       </div>
@@ -1282,10 +1286,24 @@
         <input type="text" class="family-member-name" placeholder="Surname first, e.g. Owusu Kwame">
         <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>
       </div>
+      <div class="family-member-fields-row">
+        <div class="family-member-gender-row" role="group" aria-label="Gender">
+          <div class="tick-box family-member-gender" data-value="Male"><span class="box"></span> Male</div>
+          <div class="tick-box family-member-gender" data-value="Female"><span class="box"></span> Female</div>
+        </div>
+        <input type="text" class="family-member-relationship" placeholder="Relationship to you (e.g. Spouse, Child)">
+      </div>
       <input type="text" class="family-member-medical" placeholder="Medical conditions (leave blank if none)">`;
     row.querySelector('.family-member-remove').addEventListener('click', () => {
       row.remove();
       updateAddFamilyMemberBtn();
+    });
+    row.querySelectorAll('.family-member-gender').forEach(opt => {
+      opt.addEventListener('click', () => {
+        row.querySelectorAll('.family-member-gender').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        clearFieldError('field-familyMembers');
+      });
     });
     familyMembersList.appendChild(row);
     updateAddFamilyMemberBtn();
@@ -1300,10 +1318,15 @@
     clearFieldError('field-familyMembers');
   }
   function collectFamilyMembers(){
-    return [...familyMembersList.children].map(row => ({
-      name: row.querySelector('.family-member-name').value.trim(),
-      medicalConditions: row.querySelector('.family-member-medical').value.trim()
-    }));
+    return [...familyMembersList.children].map(row => {
+      const activeGender = row.querySelector('.family-member-gender.active');
+      return {
+        name: row.querySelector('.family-member-name').value.trim(),
+        gender: activeGender ? activeGender.dataset.value : '',
+        relationship: row.querySelector('.family-member-relationship').value.trim(),
+        medicalConditions: row.querySelector('.family-member-medical').value.trim()
+      };
+    });
   }
   addFamilyMemberBtn.addEventListener('click', addFamilyMemberRow);
 
@@ -1609,7 +1632,7 @@
     if(!selectedDuration){ markInvalid('field-duration'); valid = false; } else clearFieldError('field-duration');
     if(classField.value === FAMILY_CATEGORY){
       const members = collectFamilyMembers();
-      if(members.some(m => !m.name)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
+      if(members.some(m => !m.name || !m.gender || !m.relationship)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
     }
     return valid;
   }

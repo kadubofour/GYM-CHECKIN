@@ -293,11 +293,21 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 // see the "submit" handler below: the person filling the form becomes
 // one full row (dob/gender/medical/photo/etc. all captured normally),
 // and each additional family member they list by name becomes its own
-// lightweight row (name + shared phone/email/address/emergency contact
-// only — no separate dob/gender/medical/photo). All rows in one family
+// lightweight row (name + gender + shared phone/email/address/emergency
+// contact only — no separate dob/medical/photo, except each member can
+// still state their own medical conditions). All rows in one family
 // share the same phone number, which is how "lookup" (the Sign In tab's
 // phone-number code retrieval) returns every family member's code at
 // once — there's no separate "family group" column needed for that.
+// "familyRelationship" ("relationship to you") is likewise only ever
+// populated for an additional family member's row.
+//
+// NOTE: HEADERS is positional — every existing Pending/Registrations
+// sheet already has its physical columns laid out in this exact order,
+// and the header row itself is only (re)written for a brand-new sheet
+// (see getOrCreateSheet). A new field must always be appended at the
+// END of this array, never inserted in the middle, or every column
+// after it will silently misalign with already-written sheets.
 const HEADERS = [
   "idNo", "name", "dob", "gender", "nationality", "hasMedicalCondition",
   "medicalConditionDetails", "address",
@@ -305,7 +315,8 @@ const HEADERS = [
   "relatedStaffName", "relatedStaffIdNo", "staffRelationship",
   "duration", "sessionsUsed",
   "date", "time", "emergencyName", "emergencyPhone", "emergencyRelationship",
-  "photoUrl", "signatureUrl", "isRenewal"
+  "photoUrl", "signatureUrl", "isRenewal",
+  "familyRelationship"
 ];
 const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
 // One row per expired/used-up-membership sign-in attempt, so the
@@ -978,6 +989,8 @@ function doPost(e) {
         const members = rawMembers
           .map(m => ({
             name: String((m && m.name) || "").trim(),
+            gender: String((m && m.gender) || "").trim(),
+            relationship: String((m && m.relationship) || "").trim(),
             medicalConditions: String((m && m.medicalConditions) || "").trim()
           }))
           .filter(m => m.name !== "");
@@ -992,6 +1005,8 @@ function doPost(e) {
           extraFamilyMembers.push({
             name: m.name,
             idNo: extraIdNo,
+            gender: m.gender,
+            familyRelationship: m.relationship,
             hasMedicalCondition: m.medicalConditions ? "Yes" : "No",
             medicalConditionDetails: m.medicalConditions
           });
@@ -1015,6 +1030,8 @@ function doPost(e) {
         sheet.appendRow(HEADERS.map(h => {
           if (h === "idNo") return sheetSafeText(member.idNo);
           if (h === "name") return member.name;
+          if (h === "gender") return member.gender;
+          if (h === "familyRelationship") return member.familyRelationship;
           if (h === "class") return data.class;
           if (h === "duration") return data.duration;
           if (h === "hasMedicalCondition") return member.hasMedicalCondition;
@@ -1022,10 +1039,11 @@ function doPost(e) {
           if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
           if (h === "email" || h === "address" || h === "emergencyName" || h === "emergencyRelationship") return data[h] || "";
           if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
-          // dob/gender/nationality/department/photo/signature/
-          // sessionsUsed/isRenewal are all left blank for an additional
-          // family member — only their name, optional medical
-          // conditions, and the shared contact details are collected.
+          // dob/nationality/department/photo/signature/sessionsUsed/
+          // isRenewal are all left blank for an additional family
+          // member — only their name, gender, relationship to the
+          // primary registrant, optional medical conditions, and the
+          // shared contact details are collected.
           return "";
         }));
       });

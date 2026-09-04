@@ -1123,7 +1123,8 @@
       // number (see Code.gs) — the primary registrant has full details,
       // each additional family member is a lightweight name-only row.
       const familyRow = e.class === FAMILY_CATEGORY
-        ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
+        ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>` +
+          (!e.dob && e.familyRelationship ? `<div class="detail-item"><div class="dlabel">Relationship to Primary</div><div class="dvalue">${escapeHtml(e.familyRelationship)}</div></div>` : '')
         : '';
       const staffRelationRow = UG_STAFF_RELATION_CATEGORIES.indexOf(e.class) !== -1
         ? `<div class="detail-item"><div class="dlabel">Related UG Staff</div><div class="dvalue">${e.relatedStaffName ? escapeHtml(e.relatedStaffName) : '—'} (${e.relatedStaffIdNo ? escapeHtml(e.relatedStaffIdNo) : '—'})</div></div>
