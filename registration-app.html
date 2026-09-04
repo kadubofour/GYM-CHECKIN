@@ -1238,6 +1238,7 @@
   const addressField = document.getElementById('regAddress');
   const durationGrid = document.getElementById('durationGrid');
   const planDisclaimerEl = document.getElementById('planDisclaimer');
+  const signatureFieldWrap = document.getElementById('field-signature');
   const familyMembersField = document.getElementById('field-familyMembers');
   const familyMembersList = document.getElementById('familyMembersList');
   const addFamilyMemberBtn = document.getElementById('addFamilyMemberBtn');
@@ -1264,6 +1265,10 @@
   // give, so those two sections are hidden entirely for them rather
   // than shown-but-optional.
   function isPublicCategory(){ return classField.value.indexOf('Public') !== -1; }
+  // A minor can't legally sign the membership declaration themselves,
+  // so the signature pad is skipped entirely for these categories.
+  const MINOR_CATEGORIES = ["UG Staff Relation (Under 17)", "Public Child (Under 17)"];
+  function isMinorCategory(){ return MINOR_CATEGORIES.indexOf(classField.value) !== -1; }
 
   /* ---- Additional family member name rows (Family Package) ---- */
   const MAX_EXTRA_FAMILY_MEMBERS = 4; // + the person filling the form = 5 total
@@ -1334,6 +1339,10 @@
       clearFieldError('field-relatedStaffIdNo');
       clearFieldError('field-staffRelationship');
     }
+
+    const isMinor = isMinorCategory();
+    signatureFieldWrap.style.display = isMinor ? 'none' : 'block';
+    if(isMinor){ resetSignaturePad(); clearFieldError('field-signature'); }
 
     updateDurationOptions();
   }
@@ -1617,7 +1626,7 @@
     let valid = true;
     if(selectedDeclaration !== 'Yes'){ markInvalid('field-declaration'); valid = false; } else clearFieldError('field-declaration');
     if(!infoCorrectAgreed){ markInvalid('field-infoCorrect'); valid = false; } else clearFieldError('field-infoCorrect');
-    if(!hasSignature){ markInvalid('field-signature'); valid = false; } else clearFieldError('field-signature');
+    if(!isMinorCategory() && !hasSignature){ markInvalid('field-signature'); valid = false; } else clearFieldError('field-signature');
     return valid;
   }
   const stepValidators = { 1:validateStep1, 2:validateStep2, 3:validateStep3, 4:validateStep4, 5:validateStep5, 6:validateStep6 };
