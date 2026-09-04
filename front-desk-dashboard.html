@@ -93,8 +93,12 @@
   .tally-num{ font-family:'Bebas Neue',sans-serif; font-size:30px; color:var(--blue); line-height:1; }
   .tally-label{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-top:4px; }
 
-  /* Activity switcher */
-  .activity-switcher{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  /* Activity switcher — a section row (Gym / Tennis / Swimming) and,
+     when the active section is Tennis or Swimming, a second row to
+     choose between its Leisure and Lessons activity. */
+  .activity-switcher{ display:flex; flex-direction:column; gap:8px; margin-bottom:22px; }
+  .activity-switcher-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .activity-switcher-subrow{ padding-left:6px; }
   .activity-pill{
     display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
     color:var(--text-dim); padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:700;
@@ -102,6 +106,7 @@
   }
   .activity-pill:hover{ border-color:var(--blue); color:var(--blue); }
   .activity-pill.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
+  .activity-pill-sub{ background:var(--panel-alt); font-size:11.5px; padding:8px 14px; }
   .activity-pill-badge{
     background:var(--gold); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10.5px;
     font-weight:800; border-radius:20px; padding:1px 7px; min-width:18px; text-align:center;
@@ -638,19 +643,56 @@
   }
 
   // ---- Activity switcher ----
+  // Gym is its own section; Tennis and Swimming each combine a Leisure
+  // activity and a Lessons activity into one section with a second-row
+  // toggle between the two.
+  const SWITCHER_SECTIONS = [
+    { key: 'gym', label: 'Gym Membership', activityKey: 'gym' },
+    { key: 'tennis', label: 'Tennis', options: ['leisureTennis', 'tennisLessons'] },
+    { key: 'swimming', label: 'Swimming', options: ['leisureSwimming', 'swimmingLessons'] }
+  ];
+  function sectionForActivity(key){
+    return SWITCHER_SECTIONS.find(s => s.activityKey === key || (s.options && s.options.indexOf(key) !== -1));
+  }
+  function sectionPendingCount(section){
+    const keys = section.options || [section.activityKey];
+    return keys.reduce((sum, k) => sum + (pendingCounts[k] || 0), 0);
+  }
+
   function renderActivitySwitcher(){
     const host = document.getElementById('activitySwitcher');
-    host.innerHTML = Object.values(ACTIVITIES).map(a => {
-      const count = pendingCounts[a.key];
+    const activeSection = sectionForActivity(currentActivity.key);
+
+    let html = '<div class="activity-switcher-row">' + SWITCHER_SECTIONS.map(s => {
+      const count = sectionPendingCount(s);
       const badge = count ? `<span class="activity-pill-badge">${count}</span>` : '';
-      return `<div class="activity-pill${a.key === currentActivity.key ? ' active' : ''}" data-key="${a.key}" tabindex="0" role="button">
-        <span>${escapeHtml(a.label)}</span>${badge}
+      const isActive = activeSection && activeSection.key === s.key;
+      return `<div class="activity-pill${isActive ? ' active' : ''}" data-section="${s.key}" tabindex="0" role="button">
+        <span>${escapeHtml(s.label)}</span>${badge}
       </div>`;
-    }).join('');
-    host.querySelectorAll('.activity-pill').forEach(el => {
+    }).join('') + '</div>';
+
+    if(activeSection && activeSection.options){
+      html += '<div class="activity-switcher-row activity-switcher-subrow">' + activeSection.options.map(key => {
+        const a = ACTIVITIES[key];
+        const count = pendingCounts[key];
+        const badge = count ? `<span class="activity-pill-badge">${count}</span>` : '';
+        return `<div class="activity-pill activity-pill-sub${key === currentActivity.key ? ' active' : ''}" data-key="${key}" tabindex="0" role="button">
+          <span>${escapeHtml(a.label)}</span>${badge}
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    host.innerHTML = html;
+    host.querySelectorAll('.activity-pill[data-section]').forEach(el => {
+      el.addEventListener('click', () => handleSectionSwitcherClick(el.dataset.section));
+      el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); handleSectionSwitcherClick(el.dataset.section); } });
+    });
+    host.querySelectorAll('.activity-pill[data-key]').forEach(el => {
       el.addEventListener('click', () => switchActivity(el.dataset.key));
       el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); switchActivity(el.dataset.key); } });
     });
+
     ['approvalsActivityLabel','tableActivityLabel','visitsActivityLabel'].forEach(id => {
       document.getElementById(id).textContent = currentActivity.label;
     });
@@ -663,6 +705,18 @@
     document.getElementById('walkinToggleBtn').style.display = hasWalkin ? 'inline-block' : 'none';
     document.getElementById('walkinUnavailableNote').style.display = hasWalkin ? 'none' : 'block';
     if(!hasWalkin) closeWalkinCard();
+  }
+
+  function handleSectionSwitcherClick(sectionKey){
+    const section = SWITCHER_SECTIONS.find(s => s.key === sectionKey);
+    if(!section) return;
+    if(!section.options){
+      switchActivity(section.activityKey);
+      return;
+    }
+    const activeSection = sectionForActivity(currentActivity.key);
+    if(activeSection && activeSection.key === section.key) return; // already in this section
+    switchActivity(section.options[0]); // default to Leisure
   }
 
   function switchActivity(key){

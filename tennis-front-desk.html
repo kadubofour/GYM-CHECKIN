@@ -90,7 +90,14 @@
   .tally-num{ font-family:'Bebas Neue',sans-serif; font-size:30px; color:var(--blue); line-height:1; }
   .tally-label{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-top:4px; }
 
-  .activity-switcher{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  /* One section (Tennis) combining Leisure Tennis + Tennis Lessons —
+     a fixed label plus a Leisure/Lessons toggle row underneath. */
+  .activity-switcher{ margin-bottom:22px; }
+  .activity-switcher-section-label{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--text-faint); margin:0 0 8px;
+  }
+  .activity-switcher-row{ display:flex; gap:8px; flex-wrap:wrap; }
   .activity-pill{
     display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
     color:var(--text-dim); padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:700;
@@ -517,13 +524,14 @@
 
   function renderActivitySwitcher(){
     const host = document.getElementById('activitySwitcher');
-    host.innerHTML = Object.values(ACTIVITIES).map(a => {
+    const pills = Object.values(ACTIVITIES).map(a => {
       const count = pendingCounts[a.key];
       const badge = count ? `<span class="activity-pill-badge">${count}</span>` : '';
       return `<div class="activity-pill${a.key === currentActivity.key ? ' active' : ''}" data-key="${a.key}" tabindex="0" role="button">
         <span>${escapeHtml(a.label)}</span>${badge}
       </div>`;
     }).join('');
+    host.innerHTML = `<p class="activity-switcher-section-label">Tennis</p><div class="activity-switcher-row">${pills}</div>`;
     host.querySelectorAll('.activity-pill').forEach(el => {
       el.addEventListener('click', () => switchActivity(el.dataset.key));
       el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); switchActivity(el.dataset.key); } });

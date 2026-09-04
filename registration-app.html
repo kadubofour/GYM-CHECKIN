@@ -396,8 +396,9 @@
 <div class="screen active" id="screen-picker">
   <div class="card">
     <p class="brand-eyebrow">University of Ghana Sports Directorate</p>
-    <h1>CHOOSE YOUR PROGRAM</h1>
-    <p class="subhead">Pick what you're registering for, signing in to, or renewing.</p>
+    <button type="button" class="switch-link back-link" id="activityPickerBack" style="display:none;margin:0 0 8px;">← Back</button>
+    <h1 id="activityPickerTitle">CHOOSE YOUR PROGRAM</h1>
+    <p class="subhead" id="activityPickerSub">Pick what you're registering for, signing in to, or renewing.</p>
     <div class="setup-warning" id="setupWarningPicker" style="display:none;">
       ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL.
     </div>
@@ -1068,19 +1069,64 @@
     screens[name].classList.add('active');
   }
 
+  // Gym is its own section (its section key IS the activity key).
+  // Tennis and Swimming are each a Leisure activity + a Lessons
+  // activity combined into one section — picking the section reveals
+  // a second step to choose between the two.
+  const PICKER_SECTIONS = [
+    { key: 'gym', label: 'Gym Membership' },
+    { key: 'tennis', label: 'Tennis', options: ['leisureTennis', 'tennisLessons'] },
+    { key: 'swimming', label: 'Swimming', options: ['leisureSwimming', 'swimmingLessons'] }
+  ];
+  let pickerSection = null; // null = top-level section list; else the chosen section object
+
   function renderActivityPicker(){
     const grid = document.getElementById('activityGrid');
-    grid.innerHTML = Object.values(ACTIVITIES).map(a => `
-      <div class="activity-card" data-key="${a.key}" tabindex="0" role="button">
-        <div class="activity-card-label">${escapeHtml(a.label)}</div>
-      </div>`).join('');
-    grid.querySelectorAll('.activity-card').forEach(el => {
-      el.addEventListener('click', () => selectActivity(el.dataset.key));
-      el.addEventListener('keydown', (e) => {
-        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectActivity(el.dataset.key); }
+    document.getElementById('activityPickerTitle').textContent = pickerSection ? pickerSection.label : 'CHOOSE YOUR PROGRAM';
+    document.getElementById('activityPickerSub').textContent = pickerSection
+      ? 'Leisure play, or structured lessons?'
+      : "Pick what you're registering for, signing in to, or renewing.";
+    document.getElementById('activityPickerBack').style.display = pickerSection ? 'block' : 'none';
+
+    if(pickerSection){
+      grid.innerHTML = pickerSection.options.map(key => `
+        <div class="activity-card" data-key="${key}" tabindex="0" role="button">
+          <div class="activity-card-label">${escapeHtml(ACTIVITIES[key].label)}</div>
+        </div>`).join('');
+      grid.querySelectorAll('.activity-card').forEach(el => {
+        el.addEventListener('click', () => selectActivity(el.dataset.key));
+        el.addEventListener('keydown', (e) => {
+          if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectActivity(el.dataset.key); }
+        });
       });
-    });
+    } else {
+      grid.innerHTML = PICKER_SECTIONS.map(s => `
+        <div class="activity-card" data-section="${s.key}" tabindex="0" role="button">
+          <div class="activity-card-label">${escapeHtml(s.label)}</div>
+          ${s.options ? '<div class="activity-card-sub">Leisure or Lessons</div>' : ''}
+        </div>`).join('');
+      grid.querySelectorAll('.activity-card').forEach(el => {
+        el.addEventListener('click', () => handleSectionClick(el.dataset.section));
+        el.addEventListener('keydown', (e) => {
+          if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); handleSectionClick(el.dataset.section); }
+        });
+      });
+    }
   }
+  function handleSectionClick(sectionKey){
+    const section = PICKER_SECTIONS.find(s => s.key === sectionKey);
+    if(!section) return;
+    if(section.options){
+      pickerSection = section;
+      renderActivityPicker();
+    } else {
+      selectActivity(sectionKey);
+    }
+  }
+  document.getElementById('activityPickerBack').addEventListener('click', () => {
+    pickerSection = null;
+    renderActivityPicker();
+  });
   renderActivityPicker();
 
   function selectActivity(key){
@@ -1094,7 +1140,11 @@
     resetAllFlows();
     showScreen('app');
   }
-  document.getElementById('changeActivityBtn').addEventListener('click', () => showScreen('picker'));
+  document.getElementById('changeActivityBtn').addEventListener('click', () => {
+    pickerSection = null;
+    renderActivityPicker();
+    showScreen('picker');
+  });
 
   function populateCategorySelect(selectEl, activity){
     selectEl.innerHTML = '<option value="" disabled selected>Select category</option>' +
