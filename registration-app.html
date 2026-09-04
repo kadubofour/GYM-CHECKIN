@@ -1133,7 +1133,6 @@
     const activity = ACTIVITIES[key];
     if(!activity) return;
     currentActivity = activity;
-    try{ localStorage.setItem('sportsRegActivityKey', key); }catch(e){}
     document.getElementById('activeActivityChip').textContent = activity.label;
     document.getElementById('mainTitle').textContent = activity.label.toUpperCase();
     applyActivityEverywhere();
@@ -2521,13 +2520,6 @@
     topPanels.register.classList.add('active');
   }
 
-  // ---- Restore last-used activity, if any, so returning users land
-  // straight in the app instead of re-picking every time. ----
-  let storedKey = null;
-  try{ storedKey = localStorage.getItem('sportsRegActivityKey'); }catch(e){}
-  if(storedKey && ACTIVITIES[storedKey]){
-    selectActivity(storedKey);
-  }
 })();
 </script>
 </body>
