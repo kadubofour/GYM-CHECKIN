@@ -671,7 +671,7 @@
       loadVisits();
       loadExportLink();
       refreshAllPendingCounts();
-      refreshTimer = setInterval(() => { loadAll(); loadVisits(); refreshAllPendingCounts(); }, AUTO_REFRESH_MS);
+      scheduleAutoRefresh();
     } else {
       pinError.textContent = "Incorrect PIN — try again.";
       pinDots.forEach(d => d.classList.add('error'));
@@ -823,7 +823,7 @@
 
   function loadAll(){
     const activity = currentActivity;
-    Promise.all([
+    return Promise.all([
       fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=pending&t=" + Date.now()).then(r => r.json()),
       fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now()).then(r => r.json()),
       fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now()).then(r => r.json())
@@ -840,8 +840,11 @@
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
 
+  // Skips the currently-selected activity — loadAll() already fetches
+  // its pending count (renderTally() feeds it into pendingCounts), so
+  // fetching it again here would just be a duplicate request every cycle.
   function refreshAllPendingCounts(){
-    Promise.all(Object.values(ACTIVITIES).map(a =>
+    return Promise.all(Object.values(ACTIVITIES).filter(a => a.key !== currentActivity.key).map(a =>
       fetch(SCRIPT_URL + "?activity=" + a.key + "&view=pending&t=" + Date.now())
         .then(r => r.json()).then(res => ({ key: a.key, count: res.status === "ok" ? res.rows.length : null }))
         .catch(() => ({ key: a.key, count: null }))
@@ -849,6 +852,22 @@
       results.forEach(r => { if(r.count !== null) pendingCounts[r.key] = r.count; });
       renderActivitySwitcher();
     });
+  }
+
+  // Self-rescheduling instead of setInterval: the next cycle is only
+  // queued once the current one (and everything it fetched) has fully
+  // settled. A plain setInterval keeps firing a fresh batch of ~9
+  // requests every AUTO_REFRESH_MS regardless of whether the previous
+  // batch ever finished — during any slow patch that piles requests up
+  // faster than Apps Script can drain them, which then makes
+  // everything slower still. Also skips the cycle entirely while the
+  // tab is hidden/backgrounded, since a front desk device is often
+  // left open all day.
+  function scheduleAutoRefresh(){
+    refreshTimer = setTimeout(() => {
+      if(document.hidden){ scheduleAutoRefresh(); return; }
+      Promise.allSettled([loadAll(), loadVisits(), refreshAllPendingCounts()]).then(scheduleAutoRefresh);
+    }, AUTO_REFRESH_MS);
   }
 
   function renderAlerts(){
@@ -1005,7 +1024,7 @@
 
   function loadVisits(){
     const activity = currentActivity;
-    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
+    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
         if(activity.key !== currentActivity.key) return;

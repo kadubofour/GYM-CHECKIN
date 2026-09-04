@@ -1638,7 +1638,7 @@
   let approvalPollTimer = null;
 
   function stopApprovalPoll(){
-    if(approvalPollTimer){ clearInterval(approvalPollTimer); approvalPollTimer = null; }
+    if(approvalPollTimer){ clearTimeout(approvalPollTimer); approvalPollTimer = null; }
   }
   document.getElementById('approvalWaitDoneBtn').addEventListener('click', () => {
     stopApprovalPoll();
@@ -1670,6 +1670,9 @@
       attachCopyButtons(approvalWaitCodes);
     }
 
+    // Self-rescheduling instead of setInterval: the next check is only
+    // queued once this one's fetch has fully settled, so a slow
+    // response never stacks up overlapping requests behind it.
     function poll(){
       if(stillPending.length === 0){ stopApprovalPoll(); return; }
       attempts++;
@@ -1699,14 +1702,17 @@
           ? `${approvedSoFar.length} approved so far — still waiting on ${stillPending.length} more.`
           : (approvedSoFar.length > 1 ? "Everyone's approved — here are your codes:" : "Copy your code below and use it to sign in.");
         renderApprovedCodes();
-
-        if(stillPending.length === 0) stopApprovalPoll();
       })
-      .catch(() => { /* a network blip shouldn't stop the wait — just try again next tick */ });
+      .catch(() => { /* a network blip shouldn't stop the wait — just try again next tick */ })
+      .finally(() => {
+        if(stillPending.length > 0 && approvalPollTimer !== null){
+          approvalPollTimer = setTimeout(poll, APPROVAL_POLL_INTERVAL_MS);
+        }
+      });
     }
 
+    approvalPollTimer = -1; // truthy placeholder so stopApprovalPoll()/finally() work before the first real timer id lands
     poll();
-    approvalPollTimer = setInterval(poll, APPROVAL_POLL_INTERVAL_MS);
   }
 
   /* ---- Per-step validation (also used by the wizard's Continue button) ---- */

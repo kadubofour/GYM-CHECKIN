@@ -549,7 +549,7 @@
       renderActivitySwitcher();
       loadAll();
       loadVisits();
-      refreshTimer = setInterval(() => { loadAll(); loadVisits(); }, AUTO_REFRESH_MS);
+      scheduleAutoRefresh();
     } else {
       pinError.textContent = "Incorrect PIN — try again.";
       pinDots.forEach(d => d.classList.add('error'));
@@ -611,7 +611,7 @@
 
   function loadAll(){
     const activity = currentActivity;
-    Promise.all(Object.values(ACTIVITIES).map(a =>
+    const pendingPromise = Promise.all(Object.values(ACTIVITIES).map(a =>
       fetch(SCRIPT_URL + "?activity=" + a.key + "&view=pending&t=" + Date.now())
         .then(r => r.json()).then(res => ({ key: a.key, rows: res.status === "ok" ? res.rows : [] }))
         .catch(() => ({ key: a.key, rows: null }))
@@ -625,7 +625,7 @@
       renderApprovals();
     }).catch(() => {});
 
-    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now())
+    const registrationsPromise = fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
         if(activity.key !== currentActivity.key) return;
@@ -635,7 +635,7 @@
       })
       .catch(() => showToast("Couldn't reach the sheet — check connection", true));
 
-    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now())
+    const alertsPromise = fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
         if(activity.key !== currentActivity.key) return;
@@ -643,8 +643,24 @@
         renderAlerts();
       })
       .catch(() => {});
+
+    return Promise.allSettled([pendingPromise, registrationsPromise, alertsPromise]);
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
+
+  // Self-rescheduling instead of setInterval: the next cycle is only
+  // queued once the current one has fully settled, and is skipped
+  // entirely while the tab is hidden/backgrounded. A plain setInterval
+  // keeps firing a fresh batch of requests every AUTO_REFRESH_MS
+  // regardless of whether the previous batch ever finished — during
+  // any slow patch that piles requests up faster than Apps Script can
+  // drain them, which then makes everything slower still.
+  function scheduleAutoRefresh(){
+    refreshTimer = setTimeout(() => {
+      if(document.hidden){ scheduleAutoRefresh(); return; }
+      Promise.allSettled([loadAll(), loadVisits()]).then(scheduleAutoRefresh);
+    }, AUTO_REFRESH_MS);
+  }
 
   function renderAlerts(){
     const banner = document.getElementById('alertBanner');
@@ -1027,7 +1043,7 @@
 
   function loadVisits(){
     const activity = currentActivity;
-    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
+    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
         if(activity.key !== currentActivity.key) return;
