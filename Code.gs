@@ -135,7 +135,6 @@ const ACTIVITIES = {
     pendingSheet: "Pending - Gym",
     registrationsSheet: "Registrations - Gym",
     visitsSheet: "Visits - Gym",
-    alertsSheet: "Alerts - Gym",
     categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -161,7 +160,6 @@ const ACTIVITIES = {
     pendingSheet: "Pending - Leisure Tennis",
     registrationsSheet: "Registrations - Leisure Tennis",
     visitsSheet: "Visits - Leisure Tennis",
-    alertsSheet: "Alerts - Leisure Tennis",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -179,7 +177,6 @@ const ACTIVITIES = {
     pendingSheet: "Pending - Leisure Swimming",
     registrationsSheet: "Registrations - Leisure Swimming",
     visitsSheet: "Visits - Leisure Swimming",
-    alertsSheet: "Alerts - Leisure Swimming",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -199,7 +196,6 @@ const ACTIVITIES = {
     pendingSheet: "Pending - Tennis Lessons",
     registrationsSheet: "Registrations - Tennis Lessons",
     visitsSheet: "Visits - Tennis Lessons",
-    alertsSheet: "Alerts - Tennis Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -215,7 +211,6 @@ const ACTIVITIES = {
     pendingSheet: "Pending - Swimming Lessons",
     registrationsSheet: "Registrations - Swimming Lessons",
     visitsSheet: "Visits - Swimming Lessons",
-    alertsSheet: "Alerts - Swimming Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -319,14 +314,42 @@ const HEADERS = [
   "familyRelationship"
 ];
 const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
-// One row per expired/used-up-membership sign-in attempt, so the
-// front-desk apps can be alerted even though they aren't watching
-// that screen. "acknowledged" is empty until a staff member dismisses
-// it — doGet's "alerts" view only returns rows where it's still empty.
-const ALERT_HEADERS = [
-  "alertId", "idNo", "name", "class", "duration",
-  "expiredOn", "date", "time", "acknowledged"
-];
+
+// Expired/used-up-membership sign-in attempts, so every front desk for
+// that activity (main and satellite alike) can be alerted even when
+// they aren't the one watching that sign-in. These are deliberately
+// NOT a sheet — there's no per-activity "Alerts" tab — they're a
+// short-lived script property instead: a small JSON array, keyed per
+// activity, that a staff member's "Dismiss" click removes an alert
+// from. See getAlerts()/addAlert()/dismissAlert() below.
+const ALERTS_PROPERTY_PREFIX = "ALERTS_";
+// A front desk only ever needs to see recent, still-unacknowledged
+// alerts — this bounds how many are kept per activity, well under
+// PropertiesService's 9KB-per-value limit.
+const MAX_STORED_ALERTS = 50;
+
+function getAlerts(activity) {
+  const raw = PropertiesService.getScriptProperties().getProperty(ALERTS_PROPERTY_PREFIX + activity.key);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function addAlert(activity, alert) {
+  const alerts = getAlerts(activity);
+  alerts.push(alert);
+  const trimmed = alerts.slice(-MAX_STORED_ALERTS);
+  PropertiesService.getScriptProperties().setProperty(ALERTS_PROPERTY_PREFIX + activity.key, JSON.stringify(trimmed));
+}
+
+function dismissAlert(activity, alertId) {
+  const alerts = getAlerts(activity).filter(a => a.alertId !== alertId);
+  PropertiesService.getScriptProperties().setProperty(ALERTS_PROPERTY_PREFIX + activity.key, JSON.stringify(alerts));
+}
 
 
 function getDurationConfig(activity, duration) {
@@ -377,7 +400,6 @@ function setup() {
     getOrCreateSheet(activity.pendingSheet, HEADERS);
     getOrCreateSheet(activity.registrationsSheet, HEADERS);
     getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-    getOrCreateSheet(activity.alertsSheet, ALERT_HEADERS);
   });
 }
 
@@ -863,9 +885,7 @@ function doGet(e) {
 
     const view = e.parameter.view;
     if (view === 'alerts') {
-      const sheet = getOrCreateSheet(activity.alertsSheet, ALERT_HEADERS);
-      const rows = sheetToObjects(sheet).filter(r => !r.acknowledged);
-      return ok({ rows: rows });
+      return ok({ rows: getAlerts(activity) });
     }
     if (view === 'visits') {
       const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
@@ -1098,18 +1118,16 @@ function doPost(e) {
       if (isExpired(activity, match.date, match.duration, match.sessionsUsed)) {
         const expiry = getExpiryDate(activity, match.date, match.duration);
         const expiredOnLabel = expiry ? Utilities.formatDate(expiry, Session.getScriptTimeZone(), DATE_FORMAT) : "";
-        const alerts = getOrCreateSheet(activity.alertsSheet, ALERT_HEADERS);
-        alerts.appendRow([
-          Utilities.getUuid(),
-          sheetSafeText(match.idNo),
-          match.name,
-          match.class,
-          match.duration,
-          forceLiteralText(expiredOnLabel),
-          forceLiteralText(formatDateMDY(now)),
-          forceLiteralText(now.toLocaleTimeString()),
-          ""
-        ]);
+        addAlert(activity, {
+          alertId: Utilities.getUuid(),
+          idNo: match.idNo,
+          name: match.name,
+          class: match.class,
+          duration: match.duration,
+          expiredOn: expiredOnLabel,
+          date: formatDateMDY(now),
+          time: now.toLocaleTimeString()
+        });
         const cfg = getDurationConfig(activity, match.duration);
         const usedUp = cfg && cfg.sessionCap && (Number(match.sessionsUsed) || 0) >= cfg.sessionCap;
         return errorMsg(usedUp
@@ -1361,18 +1379,7 @@ function doPost(e) {
     if (action === "acknowledgeAlert") {
       const alertId = String(data.alertId || "").trim();
       if (!alertId) return errorMsg("Missing alert id.");
-      const alerts = getOrCreateSheet(activity.alertsSheet, ALERT_HEADERS);
-      const idColIndex = ALERT_HEADERS.indexOf("alertId") + 1; // 1-based
-      const lastRow = alerts.getLastRow();
-      if (lastRow >= 2) {
-        const ids = alerts.getRange(2, idColIndex, lastRow - 1, 1).getValues();
-        for (let i = 0; i < ids.length; i++) {
-          if (String(ids[i][0]).trim() === alertId) {
-            alerts.getRange(i + 2, ALERT_HEADERS.indexOf("acknowledged") + 1).setValue("TRUE");
-            break;
-          }
-        }
-      }
+      dismissAlert(activity, alertId);
       return ok({});
     }
 
@@ -1476,7 +1483,6 @@ function repairDateTimeColumns() {
     sheetsToRepair.push({ name: activity.pendingSheet, headers: HEADERS });
     sheetsToRepair.push({ name: activity.registrationsSheet, headers: HEADERS });
     sheetsToRepair.push({ name: activity.visitsSheet, headers: VISIT_HEADERS });
-    sheetsToRepair.push({ name: activity.alertsSheet, headers: ALERT_HEADERS });
   });
 
   sheetsToRepair.forEach(({ name, headers }) => {

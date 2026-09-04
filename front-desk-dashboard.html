@@ -27,6 +27,10 @@
   }
   .screen{display:none;}
   .screen.active{display:block;}
+  .screen-out{animation:screenFadeOut .22s ease forwards;}
+  .screen-in{animation:screenFadeIn .3s ease;}
+  @keyframes screenFadeOut{ from{opacity:1; transform:scale(1);} to{opacity:0; transform:scale(0.98);} }
+  @keyframes screenFadeIn{ from{opacity:0; transform:scale(1.015);} to{opacity:1; transform:scale(1);} }
 
   /* PIN gate */
   #pinScreen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px; }
@@ -629,8 +633,19 @@
     desk: document.getElementById('deskScreen')
   };
   function showScreen(name){
-    Object.values(screens).forEach(s => s.classList.remove('active'));
-    screens[name].classList.add('active');
+    const next = screens[name];
+    const current = Object.values(screens).find(s => s.classList.contains('active'));
+    if(!current || current === next){
+      Object.values(screens).forEach(s => s.classList.remove('active', 'screen-out', 'screen-in'));
+      next.classList.add('active');
+      return;
+    }
+    current.classList.add('screen-out');
+    setTimeout(() => {
+      current.classList.remove('active', 'screen-out');
+      next.classList.add('active', 'screen-in');
+      setTimeout(() => next.classList.remove('screen-in'), 300);
+    }, 220);
   }
 
   // ---- PIN ----

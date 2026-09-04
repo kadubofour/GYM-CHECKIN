@@ -26,6 +26,10 @@
   }
   .screen{display:none;}
   .screen.active{display:block;}
+  .screen-out{animation:screenFadeOut .22s ease forwards;}
+  .screen-in{animation:screenFadeIn .3s ease;}
+  @keyframes screenFadeOut{ from{opacity:1; transform:scale(1);} to{opacity:0; transform:scale(0.98);} }
+  @keyframes screenFadeIn{ from{opacity:0; transform:scale(1.015);} to{opacity:1; transform:scale(1);} }
 
   #pinScreen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px; }
   .kiosk-card{
@@ -258,6 +262,27 @@
   .walkin-card .phone-group input{ flex:1; min-width:0; }
   .walkin-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
 
+  .pending-toolbar{
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+    flex-wrap:wrap; margin-bottom:16px;
+  }
+  .pending-toolbar .foot-note{ margin:0; }
+
+  .alert-banner{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .alert-item{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.3); border-radius:10px;
+    padding:12px 14px;
+  }
+  .alert-item-text{ font-size:13px; color:var(--text); }
+  .alert-item-text strong{ color:var(--danger); }
+  .alert-item-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+  .alert-dismiss-btn{
+    flex-shrink:0; background:transparent; border:1px solid var(--danger); color:var(--danger);
+    border-radius:7px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .alert-dismiss-btn:hover{ background:var(--danger-dim); }
+
   .toast{
     position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
     background:var(--blue); color:#fff; padding:12px 22px; border-radius:8px;
@@ -317,6 +342,8 @@
 
     <div class="activity-switcher" id="activitySwitcher"></div>
 
+    <div class="alert-banner" id="alertBanner" style="display:none;"></div>
+
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="approvals">
         Pending <span class="tab-badge" id="pendingBadge">0</span>
@@ -331,9 +358,10 @@
           <span class="panel-title-label">Pending — <span id="approvalsActivityLabel"></span></span>
           <span class="live-dot"><span class="dot"></span> live from Google Sheet</span>
         </p>
-        <p class="foot-note" style="margin:-8px 0 16px;">Only walk-ins can be approved or rejected here. New registrations and renewal requests need the main front desk.</p>
-
-        <button class="btn-ghost" id="walkinToggleBtn" style="margin-bottom:14px;">+ Add Walk-in</button>
+        <div class="pending-toolbar">
+          <p class="foot-note">Only walk-ins can be approved or rejected here. New registrations and renewal requests need the main front desk.</p>
+          <button class="btn-ghost" id="walkinToggleBtn">+ Add Walk-in</button>
+        </div>
 
         <div class="walkin-card" id="walkinCard" style="display:none;">
           <p class="walkin-title">Quick Walk-in Entry</p>
@@ -475,6 +503,8 @@
 
   let pendingEntries = [];
   let approvedEntries = [];
+  let alertEntries = [];
+  const toastedAlertIds = new Set();
   let pendingCounts = {};
   let searchTerm = "";
   let visitSearchTerm = "";
@@ -484,8 +514,19 @@
 
   const screens = { pin: document.getElementById('pinScreen'), desk: document.getElementById('deskScreen') };
   function showScreen(name){
-    Object.values(screens).forEach(s => s.classList.remove('active'));
-    screens[name].classList.add('active');
+    const next = screens[name];
+    const current = Object.values(screens).find(s => s.classList.contains('active'));
+    if(!current || current === next){
+      Object.values(screens).forEach(s => s.classList.remove('active', 'screen-out', 'screen-in'));
+      next.classList.add('active');
+      return;
+    }
+    current.classList.add('screen-out');
+    setTimeout(() => {
+      current.classList.remove('active', 'screen-out');
+      next.classList.add('active', 'screen-in');
+      setTimeout(() => next.classList.remove('screen-in'), 300);
+    }, 220);
   }
 
   // ---- PIN ----
@@ -594,8 +635,57 @@
         renderRegistrants();
       })
       .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+
+    fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now())
+      .then(r => r.json())
+      .then(res => {
+        if(activity.key !== currentActivity.key) return;
+        if(res.status === "ok") alertEntries = res.rows;
+        renderAlerts();
+      })
+      .catch(() => {});
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
+
+  function renderAlerts(){
+    const banner = document.getElementById('alertBanner');
+    if(alertEntries.length === 0){
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+      return;
+    }
+    banner.style.display = 'flex';
+    banner.innerHTML = alertEntries.map(a => `
+      <div class="alert-item" data-alert-id="${escapeHtml(a.alertId||'')}">
+        <div class="alert-item-text">
+          <strong>⚠ ${escapeHtml(a.name||'Someone')}</strong> tried to sign in with an expired/used-up ${escapeHtml(currentActivity.label)} plan${a.expiredOn ? ` (expired ${escapeHtml(a.expiredOn)})` : ''}.
+          <div class="alert-item-sub">${escapeHtml(a.class||'')}${a.duration ? ' · ' + escapeHtml(a.duration) : ''} · attempted ${escapeHtml(a.date||'')} ${escapeHtml(a.time||'')}</div>
+        </div>
+        <button type="button" class="alert-dismiss-btn" data-alert-id="${escapeHtml(a.alertId||'')}">Dismiss</button>
+      </div>`).join('');
+
+    alertEntries.forEach(a => {
+      if(a.alertId && !toastedAlertIds.has(a.alertId)){
+        toastedAlertIds.add(a.alertId);
+        showToast(`⚠ ${a.name||'Someone'}'s ${currentActivity.label} plan expired — they just tried to sign in`, true, 5000);
+      }
+    });
+
+    banner.querySelectorAll('.alert-dismiss-btn').forEach(btn => {
+      btn.addEventListener('click', () => dismissAlert(btn.dataset.alertId));
+    });
+  }
+
+  function dismissAlert(alertId){
+    if(!alertId) return;
+    alertEntries = alertEntries.filter(a => a.alertId !== alertId);
+    renderAlerts();
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "acknowledgeAlert", activity: currentActivity.key, alertId: alertId })
+    }).catch(() => showToast("Couldn't reach the sheet — check connection", true));
+  }
 
   // ---- Add Walk-in (program-scoped: this desk covers 2 activities, so
   // the walk-in form has its own Program selector separate from the page's
