@@ -483,12 +483,18 @@ function cellToDisplayValue(v, headerName) {
 function sheetToObjects(sheet) {
   const range = sheet.getDataRange();
   const values = range.getValues();
-  const notes = range.getNotes();
   const headers = values.shift();
-  notes.shift();
   const idIdx = headers.indexOf("idNo");
+  // The §DATE_HEADER§ banner-row marker (written by the manual
+  // regroupRegistrationsByDate tidy-up) only ever lives as a note on
+  // the idNo column — fetching notes for every column via
+  // range.getNotes() is much more expensive than this single column,
+  // for something almost every sheet never has at all.
+  const idNotes = (idIdx === -1 || values.length === 0)
+    ? []
+    : sheet.getRange(2, idIdx + 1, values.length, 1).getNotes();
   return values
-    .map((row, i) => ({ row, note: idIdx === -1 ? "" : notes[i][idIdx] }))
+    .map((row, i) => ({ row, note: idIdx === -1 ? "" : (idNotes[i] ? idNotes[i][0] : "") }))
     .filter(({ row }) => row.join("") !== "")
     .filter(({ note }) => note !== DATE_HEADER_MARKER)
     .map(({ row }) => {
