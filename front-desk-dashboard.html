@@ -183,6 +183,15 @@
   .empty-state .icon{font-size:34px; margin-bottom:10px; opacity:0.5;}
   .empty-state p{margin:4px 0; font-size:13px;}
   .foot-note{margin-top:14px; font-size:11.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;}
+  .cleared-note{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.28); color:var(--danger);
+    font-size:12px; padding:10px 14px; border-radius:9px; margin-bottom:14px; line-height:1.5;
+  }
+  .cleared-note button{
+    background:none; border:none; color:var(--danger); font-weight:700; font-size:12px; cursor:pointer;
+    text-decoration:underline; font-family:'Inter',sans-serif; padding:0; flex-shrink:0;
+  }
   .group-row td{
     background:var(--panel-alt); font-family:'JetBrains Mono',monospace; font-size:11px;
     letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);
@@ -460,8 +469,10 @@
             <span class="legend"><span class="swatch"></span> expired / used up</span>
             <button class="btn-ghost" id="refreshBtn">↻ Refresh</button>
             <button class="btn-ghost" id="exportBtn" style="border-color:var(--gold); color:var(--gold-dark);">⬇ Export to Excel</button>
+            <button class="btn-ghost" id="clearListBtn" style="border-color:var(--danger); color:var(--danger);">🧹 Clear List</button>
           </div>
         </div>
+        <div class="cleared-note" id="clearedNote" style="display:none;"></div>
         <div class="table-scroll"><div id="tableHost"></div></div>
         <p class="foot-note" id="footNote"></p>
       </div>
@@ -590,6 +601,7 @@
   let pendingEntries = [];
   let approvedEntries = [];
   let alertEntries = [];
+  let registrationsClearedAt = null;
   let pendingCounts = {};
   let sortKey = "class";
   let sortDir = 1;
@@ -787,7 +799,7 @@
     ]).then(([pendingRes, regRes, alertsRes]) => {
       if(activity.key !== currentActivity.key) return; // switched while in flight
       if(pendingRes.status === "ok") pendingEntries = pendingRes.rows;
-      if(regRes.status === "ok") approvedEntries = regRes.rows;
+      if(regRes.status === "ok"){ approvedEntries = regRes.rows; registrationsClearedAt = regRes.clearedAt || null; }
       if(alertsRes.status === "ok") alertEntries = alertsRes.rows;
       renderTally();
       renderApprovals();
@@ -1279,13 +1291,68 @@
     return dateStr;
   }
 
+  function renderClearedNote(){
+    const note = document.getElementById('clearedNote');
+    if(!registrationsClearedAt){ note.style.display = 'none'; note.innerHTML = ''; return; }
+    const when = new Date(registrationsClearedAt);
+    const whenLabel = isNaN(when.getTime()) ? '' : (formatDateMDY(when) + ' ' + when.toLocaleTimeString());
+    note.style.display = 'flex';
+    note.innerHTML = `<span>List cleared${whenLabel ? ' as of ' + escapeHtml(whenLabel) : ''} — nothing was deleted, everyone before this point is still in the Google Sheet.</span>`;
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.textContent = 'Restore full list';
+    restoreBtn.addEventListener('click', restoreRegistrationsView);
+    note.appendChild(restoreBtn);
+  }
+
+  function restoreRegistrationsView(){
+    const activity = currentActivity;
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "restoreRegistrationsView", activity: activity.key })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if(res.status !== "ok"){ showToast(res.message || "Couldn't restore the list", true); return; }
+      showToast("Full list restored ✓");
+      loadAll();
+    })
+    .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+  }
+
+  document.getElementById('clearListBtn').addEventListener('click', function(){
+    const activity = currentActivity;
+    const confirmed = confirm(
+      `Clear the Registration Table for ${activity.label}?\n\n` +
+      `This only hides the current list from this app (and future Excel exports) — every entry stays exactly as-is in the Google Sheet, and members can still sign in/out and renew normally. You can restore the full list here anytime.`
+    );
+    if(!confirmed) return;
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "clearRegistrationsView", activity: activity.key })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if(res.status !== "ok"){ showToast(res.message || "Couldn't clear the list", true); return; }
+      showToast("Registration table cleared ✓ (still in the Google Sheet)");
+      loadAll();
+    })
+    .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+  });
+
   function renderTable(){
     const tableHost = document.getElementById('tableHost');
     const footNote = document.getElementById('footNote');
     const list = sortedFiltered();
 
+    renderClearedNote();
+
     if(approvedEntries.length === 0){
-      tableHost.innerHTML = `<div class="empty-state"><p>No approved registrations yet for ${escapeHtml(currentActivity.label)}.</p><p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);">Approve entries in the Approvals tab to see them here.</p></div>`;
+      tableHost.innerHTML = registrationsClearedAt
+        ? `<div class="empty-state"><p>List cleared for ${escapeHtml(currentActivity.label)}.</p><p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);">Nothing new since the clear — the previous entries are still safe in the Google Sheet.</p></div>`
+        : `<div class="empty-state"><p>No approved registrations yet for ${escapeHtml(currentActivity.label)}.</p><p style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);">Approve entries in the Approvals tab to see them here.</p></div>`;
       footNote.textContent = ""; return;
     }
     if(list.length === 0){

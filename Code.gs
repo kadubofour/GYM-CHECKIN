@@ -256,6 +256,15 @@ function formatDateMDY(d) {
 const PHOTOS_FOLDER_NAME = "Registration Photos";
 const EXPORT_FOLDER_NAME = "Registration Exports";
 
+// A "Clear List" on the front desk's Registration Table doesn't touch
+// the Google Sheet at all — it just records a per-activity cutoff
+// timestamp here, and the Registration Table view (and therefore the
+// Excel export, which is built from that same view) hides any
+// registration approved at or before it. Sign-in/out/verify/lookup
+// all read the Registrations sheet directly, not through this filter,
+// so members are completely unaffected by a clear.
+const VIEW_CLEARED_AT_PREFIX = "VIEW_CLEARED_AT_";
+
 // Marker written as a NOTE (not the cell value) on the idNo cell of a
 // synthetic "date header" row in a Registrations sheet, so the app
 // can tell it apart from a real member row. It's a note rather than a
@@ -786,6 +795,17 @@ function doReject(activity, idNo) {
 // HTTP handlers
 // ------------------------------------------------------------------
 
+// Registration rows are stamped with "date"/"time" at the moment
+// they're approved (see doApprove) — that pair is what a Clear List
+// cutoff compares against. Unparseable values are treated as "new"
+// (kept visible) rather than silently hidden.
+function registrationTimestampMs(row) {
+  const raw = `${row.date || ""} ${row.time || ""}`.trim();
+  if (!raw) return Infinity;
+  const ms = new Date(raw).getTime();
+  return isNaN(ms) ? Infinity : ms;
+}
+
 function doGet(e) {
   try {
     const activity = getActivity(e.parameter.activity);
@@ -801,10 +821,18 @@ function doGet(e) {
       const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       return ok({ rows: sheetToObjects(sheet) });
     }
-    const sheetName = (view === 'pending') ? activity.pendingSheet : activity.registrationsSheet;
-    const sheet = getOrCreateSheet(sheetName, HEADERS);
-    const rows = sheetToObjects(sheet);
-    return ok({ rows: rows });
+    if (view === 'pending') {
+      const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
+      return ok({ rows: sheetToObjects(sheet) });
+    }
+    const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+    let rows = sheetToObjects(sheet);
+    const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
+    if (clearedAt) {
+      const cutoffMs = new Date(clearedAt).getTime();
+      rows = rows.filter(r => registrationTimestampMs(r) > cutoffMs);
+    }
+    return ok({ rows: rows, clearedAt: clearedAt || null });
   } catch (err) {
     return errorOut(err);
   }
@@ -1247,6 +1275,24 @@ function doPost(e) {
           }
         }
       }
+      return ok({});
+    }
+
+
+    // "Clear List" only records a cutoff timestamp — see
+    // registrationTimestampMs()/doGet above. Nothing is deleted from
+    // the Registrations sheet, so sign-in/out/verify/lookup and the
+    // sheet itself are completely unaffected; only the front desk's
+    // Registration Table view (and Excel exports built from it) hide
+    // anything approved at or before the cutoff.
+    if (action === "clearRegistrationsView") {
+      const clearedAt = new Date().toISOString();
+      PropertiesService.getScriptProperties().setProperty(VIEW_CLEARED_AT_PREFIX + activity.key, clearedAt);
+      return ok({ clearedAt: clearedAt });
+    }
+
+    if (action === "restoreRegistrationsView") {
+      PropertiesService.getScriptProperties().deleteProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
       return ok({});
     }
 
