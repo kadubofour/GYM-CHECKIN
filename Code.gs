@@ -14,16 +14,28 @@
  *                                  WALK-INS, enforced server-side below)
  *   - swimming-front-desk.html   (same, for Leisure Swimming + Swimming Lessons)
  *
+ * SHEET LAYOUT: everything lives in THREE shared sheets — "Pending",
+ * "Registrations", "Visits" — not one set per activity. Every row in
+ * each carries an "activity" column (gym / leisureTennis / etc.)
+ * saying which activity it belongs to. Anywhere the code needs "just
+ * this activity's rows", it filters the shared sheet by that column
+ * (see getVisibleRegistrations(), findRowIndexByIdNo(), and every
+ * doGet/doPost handler below) rather than reading a separate sheet —
+ * so isolating one activity is a filter, not a different tab. Each
+ * shared sheet also gets a basic Sheets filter (the little dropdown
+ * arrows on the header row) automatically, so isolating one activity
+ * by hand in the Sheets UI itself needs no setup either.
+ *
  * SETUP (fresh sheet):
  * 1. Create a new Google Sheet (sheets.new).
  * 2. Extensions -> Apps Script. Delete any starter code, paste this
  *    whole file in, save (disk icon / Ctrl+S / Cmd+S).
  * 3. From the function dropdown (next to Run/Debug), select "setup",
  *    click Run. Authorize when asked (Advanced -> "Go to (project)
- *    (unsafe)" -> Allow). This creates a Pending/Registrations/Visits/
- *    Alerts tab for EACH of the 5 activities (20 tabs total), each
- *    with the right headers. (The photo folder and export folder in
- *    Drive are created automatically the first time they're needed.)
+ *    (unsafe)" -> Allow). This creates the Pending/Registrations/Visits
+ *    sheets, each with the right headers. (The photo folder and export
+ *    folder in Drive are created automatically the first time they're
+ *    needed.)
  * 4. Deploy -> New deployment -> gear icon -> Web app.
  *      - Execute as: Me
  *      - Who has access: Anyone
@@ -36,20 +48,33 @@
  *    -> pencil icon -> Version: New version -> Deploy, or the live
  *    URL won't see your change.
  *
+ * UPGRADING AN EXISTING SHEET (one that still has the old per-activity
+ * "Pending - Gym" / "Registrations - Leisure Tennis" / etc. tabs):
+ * 1. Paste this file in, save, redeploy (step 6 above).
+ * 2. Run migrateToSharedSheets() ONCE from the function dropdown. It
+ *    copies every row out of the old per-activity sheets into the new
+ *    shared Pending/Registrations/Visits sheets, tagged with the right
+ *    activity. It's additive and safe to re-run (it skips anything
+ *    already present), and it never touches or deletes the old sheets.
+ * 3. Once you've checked the shared sheets look right, you can run
+ *    organizeSheets() to tidy the tab bar, and, whenever you're ready,
+ *    deleteLegacyPerActivitySheets() to remove the old 15 tabs for
+ *    good (that one's a real, permanent delete — see its comment).
+ *
  * HOW ACTIVITIES WORK:
  * - ACTIVITIES (below) is the single source of truth for the 5
- *   activities: which sheets they use, which member-code prefix,
- *   which categories are offered, which categories must supply their
- *   own ID vs get an auto-generated code, and which duration/plan
- *   options exist (with day-length and, for Swimming Lessons, a
- *   session cap).
+ *   activities: member-code prefix, which categories are offered,
+ *   which categories must supply their own ID vs get an
+ *   auto-generated code, and which duration/plan options exist (with
+ *   day-length and, for Swimming Lessons, a session cap).
  * - EVERY request (doGet view= and doPost action=) carries an
  *   "activity" key (gym / leisureTennis / leisureSwimming /
- *   tennisLessons / swimmingLessons) that selects which set of
- *   sheets to read/write. There is no cross-activity data — a member
- *   registered for the gym and for tennis lessons is two entirely
- *   separate rows (possibly with the same raw ID, if they used their
- *   student/staff ID both times) in two different sheets.
+ *   tennisLessons / swimmingLessons) that scopes which rows of the
+ *   shared sheets to read/write. There is no cross-activity data — a
+ *   member registered for the gym and for tennis lessons is two
+ *   entirely separate rows (possibly with the same raw ID, if they
+ *   used their student/staff ID both times), each tagged with its own
+ *   activity.
  *
  * HOW IDENTITY / MEMBER CODES WORK:
  * - idNo is the one field that identifies a member within an
@@ -58,15 +83,19 @@
  *   submit — a random unique code shaped "<prefix><7 digits>", e.g.
  *   G1234567 (Gym), T1234567 (Leisure Tennis), S1234567 (Leisure
  *   Swimming), TL1234567 (Tennis Lessons), SL1234567 (Swimming
- *   Lessons). idNo is also the row's unique key for approve/reject,
- *   and it's the "code" a member later types into Sign In / Sign Out.
+ *   Lessons). idNo is also the row's unique key for approve/reject
+ *   (paired with activity, since the shared sheets can hold the same
+ *   manually-typed ID for two different activities), and it's the
+ *   "code" a member later types into Sign In / Sign Out.
  * - Because an auto-generated idNo is created at submission (not at
  *   approval), it can serve as the pending row's key right away — but
  *   the app never shows it to the member until their registration is
  *   actually approved, via the Sign In tab's phone-number lookup.
  * - A manually-entered ID (UG Student / UG Staff) is never prefixed —
- *   it's stored exactly as typed, same as before this multi-activity
- *   version.
+ *   it's stored exactly as typed. The SAME ID number can legitimately
+ *   appear on two rows for two different activities (one person, two
+ *   memberships) — that's why every lookup below filters by activity
+ *   as well as idNo, never idNo alone.
  *
  * HOW SWIMMING LESSONS' SESSION CAP WORKS:
  * - Swimming Lessons has exactly ONE plan (no Walk-in): the
@@ -84,21 +113,23 @@
  *   row (dob/gender/medical/photo/etc. all captured normally, exactly
  *   like any other registration); every additional family member they
  *   list (up to 4 more, so 5 people total) becomes its own lightweight
- *   row — full name, and optionally that person's OWN medical
- *   conditions (stored in the same hasMedicalCondition/
- *   medicalConditionDetails columns the primary registrant uses), plus
- *   the SAME shared phone/email/address/emergency-contact — but no
- *   separate dob/gender/photo — each with its own auto-generated
- *   member code. See the "submit" handler below.
+ *   row — full name, gender, their relationship to the primary
+ *   registrant, and optionally that person's OWN medical conditions
+ *   (stored in the same hasMedicalCondition/medicalConditionDetails
+ *   columns the primary registrant uses), plus the SAME shared
+ *   phone/email/address/emergency-contact — but no separate
+ *   dob/photo — each with its own auto-generated member code. See the
+ *   "submit" handler below.
  * - Because every row in the family shares one phone number, the Sign
  *   In tab's "lookup" action (phone-number code retrieval) naturally
  *   returns every family member's code at once when the head enters
  *   that shared number — see "lookup" below.
  *
- * (Photo upload, e-signature, date-grouped Registrations sheet, the
- * Excel export, walk-ins, and renew/update-details all work exactly
- * as in the original single-activity version — see the inline
- * comments near each function below — just scoped per-activity now.)
+ * (Photo upload, e-signature, the Excel export, walk-ins, and
+ * renew/update-details all work exactly as in the original
+ * single-activity version — see the inline comments near each
+ * function below — just scoped per-activity now, via the "activity"
+ * column instead of a separate sheet.)
  */
 
 
@@ -132,9 +163,12 @@ const ACTIVITIES = {
     key: "gym",
     label: "Gym Membership",
     prefix: "G",
-    pendingSheet: "Pending - Gym",
-    registrationsSheet: "Registrations - Gym",
-    visitsSheet: "Visits - Gym",
+    // Old per-activity sheet names — only ever read by
+    // migrateToSharedSheets()/deleteLegacyPerActivitySheets() below,
+    // never by normal request handling anymore.
+    legacyPendingSheet: "Pending - Gym",
+    legacyRegistrationsSheet: "Registrations - Gym",
+    legacyVisitsSheet: "Visits - Gym",
     categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -157,9 +191,9 @@ const ACTIVITIES = {
     key: "leisureTennis",
     label: "Leisure Tennis",
     prefix: "T",
-    pendingSheet: "Pending - Leisure Tennis",
-    registrationsSheet: "Registrations - Leisure Tennis",
-    visitsSheet: "Visits - Leisure Tennis",
+    legacyPendingSheet: "Pending - Leisure Tennis",
+    legacyRegistrationsSheet: "Registrations - Leisure Tennis",
+    legacyVisitsSheet: "Visits - Leisure Tennis",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -174,9 +208,9 @@ const ACTIVITIES = {
     key: "leisureSwimming",
     label: "Leisure Swimming",
     prefix: "S",
-    pendingSheet: "Pending - Leisure Swimming",
-    registrationsSheet: "Registrations - Leisure Swimming",
-    visitsSheet: "Visits - Leisure Swimming",
+    legacyPendingSheet: "Pending - Leisure Swimming",
+    legacyRegistrationsSheet: "Registrations - Leisure Swimming",
+    legacyVisitsSheet: "Visits - Leisure Swimming",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -193,9 +227,9 @@ const ACTIVITIES = {
     key: "tennisLessons",
     label: "Tennis Lessons",
     prefix: "TL",
-    pendingSheet: "Pending - Tennis Lessons",
-    registrationsSheet: "Registrations - Tennis Lessons",
-    visitsSheet: "Visits - Tennis Lessons",
+    legacyPendingSheet: "Pending - Tennis Lessons",
+    legacyRegistrationsSheet: "Registrations - Tennis Lessons",
+    legacyVisitsSheet: "Visits - Tennis Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -208,9 +242,9 @@ const ACTIVITIES = {
     key: "swimmingLessons",
     label: "Swimming Lessons",
     prefix: "SL",
-    pendingSheet: "Pending - Swimming Lessons",
-    registrationsSheet: "Registrations - Swimming Lessons",
-    visitsSheet: "Visits - Swimming Lessons",
+    legacyPendingSheet: "Pending - Swimming Lessons",
+    legacyRegistrationsSheet: "Registrations - Swimming Lessons",
+    legacyVisitsSheet: "Visits - Swimming Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -265,16 +299,26 @@ const VIEW_CLEARED_AT_PREFIX = "VIEW_CLEARED_AT_";
 // setExportFileId/exportLink/exportFile doPost/doGet actions below.
 const EXPORT_FILE_ID_PREFIX = "EXPORT_FILE_ID_";
 
+// The three shared sheet names — every activity's data lives in these,
+// distinguished by the "activity" column (see HEADERS/VISIT_HEADERS).
+const PENDING_SHEET_NAME = "Pending";
+const REGISTRATIONS_SHEET_NAME = "Registrations";
+const VISITS_SHEET_NAME = "Visits";
+
 // Marker written as a NOTE (not the cell value) on the idNo cell of a
-// synthetic "date header" row in a Registrations sheet, so the app
-// can tell it apart from a real member row. It's a note rather than a
-// value because that row's cells get merged into one wide banner, and
-// a merge keeps the top-left cell's VALUE as the visible text — that
-// cell needs to show the human-readable date label, not this marker.
+// synthetic banner row, from back when each activity had its own
+// Registrations sheet and rows could be grouped into dated, merged
+// banner blocks. Nothing writes this anymore (that per-activity-sheet
+// feature doesn't carry over to the shared-sheet model), but
+// sheetToObjects() still filters it out in case an old sheet still
+// has leftover banner rows from before you migrated.
 const DATE_HEADER_MARKER = "§DATE_HEADER§";
 
 
-// Columns shared by every activity's Pending/Registrations sheets.
+// Columns in the shared Pending/Registrations sheets. "activity" comes
+// first so it's the first thing you see scanning a row, and so every
+// lookup below can filter on it before ever comparing idNo.
+//
 // "sessionsUsed" is only ever populated for a duration with a
 // sessionCap (currently just Swimming Lessons' package) — it sits
 // blank/unused otherwise.
@@ -297,13 +341,14 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 // "familyRelationship" ("relationship to you") is likewise only ever
 // populated for an additional family member's row.
 //
-// NOTE: HEADERS is positional — every existing Pending/Registrations
-// sheet already has its physical columns laid out in this exact order,
-// and the header row itself is only (re)written for a brand-new sheet
-// (see getOrCreateSheet). A new field must always be appended at the
-// END of this array, never inserted in the middle, or every column
-// after it will silently misalign with already-written sheets.
+// NOTE: HEADERS is positional — every sheet already has its physical
+// columns laid out in this exact order, and the header row itself is
+// only (re)written for a brand-new sheet (see getOrCreateSheet). A new
+// field must always be appended at the END of this array, never
+// inserted in the middle, or every column after it will silently
+// misalign with already-written rows.
 const HEADERS = [
+  "activity",
   "idNo", "name", "dob", "gender", "nationality", "hasMedicalCondition",
   "medicalConditionDetails", "address",
   "email", "phone", "department", "class",
@@ -313,15 +358,15 @@ const HEADERS = [
   "photoUrl", "signatureUrl", "isRenewal",
   "familyRelationship"
 ];
-const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
+const VISIT_HEADERS = ["activity", "visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
 
 // Expired/used-up-membership sign-in attempts, so every front desk for
 // that activity (main and satellite alike) can be alerted even when
 // they aren't the one watching that sign-in. These are deliberately
-// NOT a sheet — there's no per-activity "Alerts" tab — they're a
-// short-lived script property instead: a small JSON array, keyed per
-// activity, that a staff member's "Dismiss" click removes an alert
-// from. See getAlerts()/addAlert()/dismissAlert() below.
+// NOT a sheet — they're a short-lived script property instead: a
+// small JSON array, keyed per activity, that a staff member's
+// "Dismiss" click removes an alert from. See
+// getAlerts()/addAlert()/dismissAlert() below.
 const ALERTS_PROPERTY_PREFIX = "ALERTS_";
 // A front desk only ever needs to see recent, still-unacknowledged
 // alerts — this bounds how many are kept per activity, well under
@@ -395,12 +440,9 @@ function durationAllowedForCategory(cfg, category) {
 
 
 function setup() {
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    getOrCreateSheet(activity.pendingSheet, HEADERS);
-    getOrCreateSheet(activity.registrationsSheet, HEADERS);
-    getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-  });
+  getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
 }
 
 function getOrCreateSheet(name, headers) {
@@ -421,6 +463,13 @@ function getOrCreateSheet(name, headers) {
     // sheet, not something that needs re-checking on every read.
     ensureTextFormatForPhoneColumns(sheet, headers);
   }
+  // A basic Sheets filter (the dropdown arrows on the header row) so
+  // isolating one activity by hand — Data > filter by the "activity"
+  // column — needs no setup. getFilter() is cheap, and createFilter()
+  // only ever actually runs once per sheet.
+  if (!sheet.getFilter()) {
+    try { sheet.getDataRange().createFilter(); } catch (err) { /* cosmetic convenience — never block on it */ }
+  }
   return sheet;
 }
 
@@ -432,8 +481,7 @@ function getOrCreateSheet(name, headers) {
 // "timeIn"/"timeOut" have the same underlying problem for a different
 // reason: Sheets recognizes those strings as dates/times and silently
 // converts the cell. Forcing all of these columns to Plain Text format
-// stops it, for every sheet this script touches (called on every
-// request, not just at setup).
+// stops it.
 function ensureTextFormatForPhoneColumns(sheet, headers) {
   const cols = ["idNo", "phone", "emergencyPhone", "date", "time", "timeIn", "timeOut"]
     .map(h => headers.indexOf(h) + 1)
@@ -485,8 +533,7 @@ function sheetToObjects(sheet) {
   const values = range.getValues();
   const headers = values.shift();
   const idIdx = headers.indexOf("idNo");
-  // The §DATE_HEADER§ banner-row marker (written by the manual
-  // regroupRegistrationsByDate tidy-up) only ever lives as a note on
+  // The §DATE_HEADER§ banner-row marker only ever lives as a note on
   // the idNo column — fetching notes for every column via
   // range.getNotes() is much more expensive than this single column,
   // for something almost every sheet never has at all.
@@ -505,22 +552,31 @@ function sheetToObjects(sheet) {
 }
 
 
-function findRowIndexByIdNo(sheet, idNo) {
+// idNo alone isn't a safe key on a shared sheet — a manually-typed UG
+// Student/Staff ID can legitimately appear on two rows for two
+// different activities (one person, two memberships) — so every
+// lookup is idNo AND activity together.
+function findRowIndexByIdNo(sheet, idNo, activityKey) {
   const idColIndex = HEADERS.indexOf("idNo") + 1; // 1-based
+  const activityColIndex = HEADERS.indexOf("activity") + 1;
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   const ids = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
+  const activities = sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues();
+  const targetId = String(idNo).trim();
   for (let i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]).trim() === String(idNo).trim()) return i + 2;
+    if (String(ids[i][0]).trim() === targetId && String(activities[i][0]).trim() === activityKey) {
+      return i + 2;
+    }
   }
   return -1;
 }
 
 
 function idNoExists(activity, idNo) {
-  const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-  const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-  return findRowIndexByIdNo(pending, idNo) !== -1 || findRowIndexByIdNo(registrations, idNo) !== -1;
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  return findRowIndexByIdNo(pending, idNo, activity.key) !== -1 || findRowIndexByIdNo(registrations, idNo, activity.key) !== -1;
 }
 
 
@@ -589,121 +645,13 @@ function savePhotoAndGetUrl(filenameBase, base64Data, mimeType) {
 
 
 // ------------------------------------------------------------------
-// Date-grouped Registrations sheet
+// Date helpers
 // ------------------------------------------------------------------
 
 function parseDateSafe(v) {
   if (!v) return null;
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d;
-}
-
-function dateLabelFor(dateStr) {
-  const d = parseDateSafe(dateStr);
-  if (!d) return String(dateStr || "Unknown date");
-  return Utilities.formatDate(d, Session.getScriptTimeZone(), "EEEE, MMM d, yyyy");
-}
-
-// Rebuilds one activity's Registrations sheet so rows are sorted
-// newest-date-first and each date's block has a bold, shaded, merged
-// header row above it. Safe to call any time; it re-derives everything
-// from the real member rows (ignoring any existing header rows) so
-// it's idempotent.
-//
-// NOT called automatically from doApprove() (it used to run after
-// every single approval) — it rewrites and reformats the ENTIRE sheet
-// every time, which got slow as the sheet grew and made approvals
-// (especially approving a Family Package's several members back to
-// back) time out with "check the connection". Run regroupAllRegistrations()
-// below by hand (Apps Script editor's function dropdown -> Run)
-// whenever you want the Registrations sheets tidied.
-function regroupRegistrationsByDate(activity) {
-  const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-  const lastCol = HEADERS.length;
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-
-  const idColIndex = HEADERS.indexOf("idNo");
-  const dateColIndex = HEADERS.indexOf("date");
-
-  const allValues = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  const allNotes = sheet.getRange(2, 1, lastRow - 1, lastCol).getNotes();
-  const memberRows = allValues.filter((row, i) =>
-    row.join("") !== "" && allNotes[i][idColIndex] !== DATE_HEADER_MARKER
-  );
-
-  // Self-healing: normalize the date cell to plain text before grouping,
-  // in case a row still holds a real Date object.
-  memberRows.forEach(row => {
-    row[dateColIndex] = cellToDisplayValue(row[dateColIndex], "date");
-  });
-
-  // Clear everything below the header row — content and formatting —
-  // before rewriting, and unmerge any previous date-header rows.
-  const clearRange = sheet.getRange(2, 1, sheet.getMaxRows() - 1, lastCol);
-  try { clearRange.breakApart(); } catch (e) { /* nothing merged yet */ }
-  clearRange.clearContent();
-  clearRange.clearNote();
-  clearRange.setBackground(null).setFontWeight("normal").setFontColor(null);
-
-  if (memberRows.length === 0) return;
-
-  const groups = new Map();
-  memberRows.forEach(row => {
-    const key = row[dateColIndex] || "Unknown date";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
-  });
-
-  const dateKeys = [...groups.keys()].sort((a, b) => {
-    const da = parseDateSafe(a), db = parseDateSafe(b);
-    if (!da || !db) return 0;
-    return db - da; // newest date first
-  });
-
-  // Same guard as elsewhere: getValues() already stripped any leading
-  // apostrophe from idNo/phone/emergencyPhone/date/time, so re-apply it
-  // before writing these rows back with setValues() below.
-  const phoneGuardCols = ["idNo", "phone", "emergencyPhone"].map(h => HEADERS.indexOf(h));
-  const dateTimeGuardCols = ["date", "time"].map(h => HEADERS.indexOf(h));
-  memberRows.forEach(row => {
-    phoneGuardCols.forEach(i => { row[i] = sheetSafeText(row[i]); });
-    dateTimeGuardCols.forEach(i => { row[i] = forceLiteralText(row[i]); });
-  });
-
-  const outRows = [];
-  const headerRowOffsets = []; // 0-based offsets into outRows
-
-  dateKeys.forEach(key => {
-    const rowsForDate = groups.get(key);
-    const headerRow = new Array(lastCol).fill("");
-    headerRow[idColIndex] =
-      `${dateLabelFor(key)}  —  ${rowsForDate.length} registration${rowsForDate.length === 1 ? "" : "s"}`;
-    headerRowOffsets.push(outRows.length);
-    outRows.push(headerRow);
-    rowsForDate.forEach(r => outRows.push(r));
-  });
-
-  sheet.getRange(2, 1, outRows.length, lastCol).setValues(outRows);
-
-  headerRowOffsets.forEach(offset => {
-    const rowNum = offset + 2; // +2: row 1 is the column header, outRows is 0-based
-    const range = sheet.getRange(rowNum, 1, 1, lastCol);
-    range.merge();
-    range.setFontWeight("bold");
-    range.setBackground("#DCE4F0");
-    range.setFontColor("#0F1D3B");
-    range.setHorizontalAlignment("left");
-    sheet.getRange(rowNum, idColIndex + 1, 1, 1).setNote(DATE_HEADER_MARKER);
-  });
-}
-
-// Run this by hand (Apps Script editor's function dropdown -> Run)
-// whenever you want every activity's Registrations sheet tidied into
-// dated, banner-grouped blocks. Takes a while on a large sheet — that's
-// exactly why it's no longer run automatically on every approval.
-function regroupAllRegistrations() {
-  Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
 }
 
 
@@ -818,22 +766,25 @@ function parseDriveFileId(input) {
 // Registrations row (new duration, expiry restarted from right now,
 // sessionsUsed reset to blank) instead of appending a duplicate row.
 function doApprove(activity, idNo) {
-  const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-  const idx = findRowIndexByIdNo(pending, idNo);
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
   const rowValues = pending.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
 
   if (String(rowValues[HEADERS.indexOf("duration")]).trim() === "Walk-in") {
-    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+    const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
     const now = new Date();
-    visits.appendRow([
-      Utilities.getUuid(),
-      sheetSafeText(rowValues[HEADERS.indexOf("idNo")]),
-      rowValues[HEADERS.indexOf("name")],
-      rowValues[HEADERS.indexOf("class")],
-      formatDateMDY(now), now.toLocaleTimeString(), "",
-      sheetSafeText(rowValues[HEADERS.indexOf("phone")])
-    ]);
+    visits.appendRow(VISIT_HEADERS.map(h => {
+      if (h === "activity") return activity.key;
+      if (h === "visitId") return Utilities.getUuid();
+      if (h === "idNo") return sheetSafeText(rowValues[HEADERS.indexOf("idNo")]);
+      if (h === "name") return rowValues[HEADERS.indexOf("name")];
+      if (h === "class") return rowValues[HEADERS.indexOf("class")];
+      if (h === "date") return formatDateMDY(now);
+      if (h === "timeIn") return now.toLocaleTimeString();
+      if (h === "phone") return sheetSafeText(rowValues[HEADERS.indexOf("phone")]);
+      return ""; // timeOut
+    }));
     pending.deleteRow(idx);
     return ok({ idNo: idNo });
   }
@@ -848,8 +799,7 @@ function doApprove(activity, idNo) {
   });
 
   // Stamp "date"/"time" with the actual moment of approval — that's
-  // what the expiry countdown is based on, and it's also the date the
-  // header-grouping below groups rows under.
+  // what the expiry countdown is based on.
   const approvedNow = new Date();
   rowValues[HEADERS.indexOf("date")] = forceLiteralText(formatDateMDY(approvedNow));
   rowValues[HEADERS.indexOf("time")] = forceLiteralText(approvedNow.toLocaleTimeString());
@@ -860,11 +810,11 @@ function doApprove(activity, idNo) {
   const isRenewal = String(rowValues[isRenewalIdx]).trim().toUpperCase() === "TRUE";
   rowValues[isRenewalIdx] = ""; // flag is spent once applied — never carried into Registrations
 
-  const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
 
   if (isRenewal) {
     const idNoVal = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
-    const regIdx = findRowIndexByIdNo(registrations, idNoVal);
+    const regIdx = findRowIndexByIdNo(registrations, idNoVal, activity.key);
     if (regIdx !== -1) {
       registrations.getRange(regIdx, HEADERS.indexOf("duration") + 1).setValue(rowValues[HEADERS.indexOf("duration")]);
       registrations.getRange(regIdx, HEADERS.indexOf("date") + 1).setValue(rowValues[HEADERS.indexOf("date")]);
@@ -884,8 +834,8 @@ function doApprove(activity, idNo) {
 }
 
 function doReject(activity, idNo) {
-  const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-  const idx = findRowIndexByIdNo(pending, idNo);
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
   pending.deleteRow(idx);
   return ok({});
@@ -912,8 +862,8 @@ function registrationTimestampMs(row) {
 // the combined "dashboard" view so the filtering logic lives in one
 // place.
 function getVisibleRegistrations(activity) {
-  const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-  let rows = sheetToObjects(sheet);
+  const sheet = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  let rows = sheetToObjects(sheet).filter(r => r.activity === activity.key);
   const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
   if (clearedAt) {
     const cutoffMs = new Date(clearedAt).getTime();
@@ -924,15 +874,14 @@ function getVisibleRegistrations(activity) {
 
 function doGet(e) {
   try {
-    // No specific activity needed — one execution, one sheet read per
-    // activity, instead of the front desk making a separate request
-    // per activity just to populate the pending-count badges.
+    // No specific activity needed — one sheet read total, instead of
+    // the front desk making a separate request per activity just to
+    // populate the pending-count badges.
     if (e.parameter.view === 'allPendingCounts') {
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
       const counts = {};
-      Object.keys(ACTIVITIES).forEach(key => {
-        const sheet = getOrCreateSheet(ACTIVITIES[key].pendingSheet, HEADERS);
-        counts[key] = sheetToObjects(sheet).length;
-      });
+      Object.keys(ACTIVITIES).forEach(key => { counts[key] = 0; });
+      sheetToObjects(sheet).forEach(r => { if (counts[r.activity] !== undefined) counts[r.activity]++; });
       return ok({ counts: counts });
     }
 
@@ -944,8 +893,8 @@ function doGet(e) {
       return ok({ rows: getAlerts(activity) });
     }
     if (view === 'visits') {
-      const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-      return ok({ rows: sheetToObjects(sheet) });
+      const sheet = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      return ok({ rows: sheetToObjects(sheet).filter(r => r.activity === activity.key) });
     }
     if (view === 'exportLink') {
       const fileId = PropertiesService.getScriptProperties().getProperty(EXPORT_FILE_ID_PREFIX + activity.key);
@@ -971,8 +920,8 @@ function doGet(e) {
       }
     }
     if (view === 'pending') {
-      const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      return ok({ rows: sheetToObjects(sheet) });
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      return ok({ rows: sheetToObjects(sheet).filter(r => r.activity === activity.key) });
     }
     if (view === 'dashboard') {
       // Everything a front desk's auto-refresh cycle needs for one
@@ -980,14 +929,14 @@ function doGet(e) {
       // (pending/registrations/visits/alerts each cost their own
       // request overhead — spreadsheet open, auth — on top of the
       // actual read).
-      const pendingSheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      const visitsSheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const pendingSheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const visitsSheet = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
       const registrations = getVisibleRegistrations(activity);
       return ok({
-        pending: sheetToObjects(pendingSheet),
+        pending: sheetToObjects(pendingSheet).filter(r => r.activity === activity.key),
         registrations: registrations.rows,
         clearedAt: registrations.clearedAt,
-        visits: sheetToObjects(visitsSheet),
+        visits: sheetToObjects(visitsSheet).filter(r => r.activity === activity.key),
         alerts: getAlerts(activity)
       });
     }
@@ -1100,8 +1049,9 @@ function doPost(e) {
         }
       }
 
-      const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
       sheet.appendRow(HEADERS.map(h => {
+        if (h === "activity") return activity.key;
         if (h === "idNo") return sheetSafeText(idNo);
         if (h === "photoUrl") return photoUrl;
         if (h === "signatureUrl") return signatureUrl;
@@ -1115,6 +1065,7 @@ function doPost(e) {
 
       extraFamilyMembers.forEach(member => {
         sheet.appendRow(HEADERS.map(h => {
+          if (h === "activity") return activity.key;
           if (h === "idNo") return sheetSafeText(member.idNo);
           if (h === "name") return member.name;
           if (h === "gender") return member.gender;
@@ -1158,8 +1109,8 @@ function doPost(e) {
     // enforced here server-side (not just by hiding the button in the
     // satellite UI) since both apps call the same backend URL. ----
     if (action === "approveWalkin" || action === "rejectWalkin") {
-      const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      const idx = findRowIndexByIdNo(pending, data.idNo);
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const idx = findRowIndexByIdNo(pending, data.idNo, activity.key);
       if (idx === -1) return ok({ message: "Already handled" });
       const duration = String(pending.getRange(idx, HEADERS.indexOf("duration") + 1).getValue()).trim();
       if (duration !== "Walk-in") {
@@ -1170,8 +1121,8 @@ function doPost(e) {
 
 
     if (action === "checkin") {
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const rows = sheetToObjects(registrations);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const rows = sheetToObjects(registrations).filter(r => r.activity === activity.key);
       const code = String(data.code || "").trim();
       const match = rows.find(r => String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
@@ -1202,26 +1153,33 @@ function doPost(e) {
           : ("Your membership expired" + (expiredOnLabel ? ` on ${expiredOnLabel}` : "") + ". Please see the front desk to renew."));
       }
 
-      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-      visits.appendRow([
-        Utilities.getUuid(), match.idNo, match.name, match.class,
-        formatDateMDY(now), now.toLocaleTimeString(), "",
-      ]);
+      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      visits.appendRow(VISIT_HEADERS.map(h => {
+        if (h === "activity") return activity.key;
+        if (h === "visitId") return Utilities.getUuid();
+        if (h === "idNo") return sheetSafeText(match.idNo);
+        if (h === "name") return match.name;
+        if (h === "class") return match.class;
+        if (h === "date") return formatDateMDY(now);
+        if (h === "timeIn") return now.toLocaleTimeString();
+        return ""; // timeOut, phone stay blank at check-in
+      }));
       return ok({ member: match });
     }
 
 
     if (action === "checkout") {
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const rows = sheetToObjects(registrations);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const rows = sheetToObjects(registrations).filter(r => r.activity === activity.key);
       const code = String(data.code || "").trim();
       const match = rows.find(r => String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
 
-      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
       if (lastRow < 2) return errorMsg("No sign-in found for this code today. Please sign in first.");
 
+      const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const idColIndex = VISIT_HEADERS.indexOf("idNo");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
       const dateColIndex = VISIT_HEADERS.indexOf("date");
@@ -1231,7 +1189,8 @@ function doPost(e) {
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
-        if (String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
+        if (String(row[activityColIndex]).trim() === activity.key &&
+            String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -1247,7 +1206,7 @@ function doPost(e) {
       // doesn't burn a session at all).
       const cfg = getDurationConfig(activity, match.duration);
       if (cfg && cfg.sessionCap) {
-        const regIdx = findRowIndexByIdNo(registrations, match.idNo);
+        const regIdx = findRowIndexByIdNo(registrations, match.idNo, activity.key);
         if (regIdx !== -1) {
           const newUsed = (Number(match.sessionsUsed) || 0) + 1;
           registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
@@ -1266,10 +1225,11 @@ function doPost(e) {
       const phone = String(data.phone || "").trim();
       if (!phone) return errorMsg("Enter the phone number you signed in with.");
 
-      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
       if (lastRow < 2) return errorMsg("No sign-in found for this phone number today. Please sign in first.");
 
+      const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const phoneColIndex = VISIT_HEADERS.indexOf("phone");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
       const dateColIndex = VISIT_HEADERS.indexOf("date");
@@ -1279,7 +1239,8 @@ function doPost(e) {
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
-        if (String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
+        if (String(row[activityColIndex]).trim() === activity.key &&
+            String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -1304,14 +1265,14 @@ function doPost(e) {
       const photoColIndex = HEADERS.indexOf("photoUrl") + 1;
       const nameColIndex = HEADERS.indexOf("name") + 1;
 
-      const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      let idx = findRowIndexByIdNo(pending, idNo);
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      let idx = findRowIndexByIdNo(pending, idNo, activity.key);
       let targetSheet = null;
       if (idx !== -1) {
         targetSheet = pending;
       } else {
-        const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-        idx = findRowIndexByIdNo(registrations, idNo);
+        const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+        idx = findRowIndexByIdNo(registrations, idNo, activity.key);
         if (idx !== -1) targetSheet = registrations;
       }
       if (!targetSheet) return errorMsg("Code not recognized");
@@ -1332,14 +1293,16 @@ function doPost(e) {
       // every family member's code at once (each family member is its
       // own row — see the HEADERS comment above), and anyone else who
       // happens to share a phone number with another registrant sees
-      // all of theirs too.
+      // all of theirs too. Scoped to this activity, same as everything
+      // else — a shared phone number on a different activity's row is
+      // never returned here.
       const phone = String(data.phone || "").trim();
 
-      const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      const pendingCount = sheetToObjects(pending).filter(r => String(r.phone).trim() === phone).length;
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const pendingCount = sheetToObjects(pending).filter(r => r.activity === activity.key && String(r.phone).trim() === phone).length;
 
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const approvedMembers = sheetToObjects(registrations).filter(r => String(r.phone).trim() === phone);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const approvedMembers = sheetToObjects(registrations).filter(r => r.activity === activity.key && String(r.phone).trim() === phone);
 
       if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
       return ok({ found: true, approvedMembers: approvedMembers, pendingCount: pendingCount });
@@ -1358,8 +1321,9 @@ function doPost(e) {
         ? data.idNos.map(c => String(c || "").trim()).filter(Boolean)
         : [];
       if (codes.length === 0) return errorMsg("No codes to check.");
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const approvedMembers = sheetToObjects(registrations).filter(r => codes.indexOf(String(r.idNo).trim()) !== -1);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const approvedMembers = sheetToObjects(registrations)
+        .filter(r => r.activity === activity.key && codes.indexOf(String(r.idNo).trim()) !== -1);
       return ok({ approvedMembers: approvedMembers });
     }
 
@@ -1367,10 +1331,10 @@ function doPost(e) {
     if (action === "verify") {
       // Looks a member up by code for the Renew tab's gate — deliberately
       // does NOT log a Visits row (unlike "checkin"). Approved members only.
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
       const code = String(data.code || "").trim();
       if (!code) return errorMsg("Enter your code or ID number.");
-      const match = sheetToObjects(registrations).find(r => String(r.idNo).trim() === code);
+      const match = sheetToObjects(registrations).find(r => r.activity === activity.key && String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
       return ok({ member: match });
     }
@@ -1382,8 +1346,8 @@ function doPost(e) {
       if (!code) return errorMsg("Enter your code or ID number.");
       if (!duration) return errorMsg("Please choose a plan.");
 
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const idx = findRowIndexByIdNo(registrations, code);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const idx = findRowIndexByIdNo(registrations, code, activity.key);
       if (idx === -1) return errorMsg("Code not recognized");
 
       const currentClass = registrations.getRange(idx, HEADERS.indexOf("class") + 1).getValue();
@@ -1392,8 +1356,8 @@ function doPost(e) {
         return errorMsg("That plan isn't available for your category.");
       }
 
-      const pending = getOrCreateSheet(activity.pendingSheet, HEADERS);
-      if (findRowIndexByIdNo(pending, code) !== -1) {
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      if (findRowIndexByIdNo(pending, code, activity.key) !== -1) {
         return errorMsg("You already have a request awaiting approval at the front desk.");
       }
 
@@ -1405,7 +1369,7 @@ function doPost(e) {
         if (h === "time") return forceLiteralText(now.toLocaleTimeString());
         if (h === "isRenewal") return "TRUE";
         if (h === "idNo" || h === "phone" || h === "emergencyPhone") return sheetSafeText(rowValues[i]);
-        return rowValues[i];
+        return rowValues[i]; // includes "activity", already correct on the found row
       });
       pending.appendRow(pendingRow);
       return ok({});
@@ -1416,8 +1380,8 @@ function doPost(e) {
       const code = String(data.code || "").trim();
       if (!code) return errorMsg("Enter your code or ID number.");
 
-      const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-      const idx = findRowIndexByIdNo(registrations, code);
+      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const idx = findRowIndexByIdNo(registrations, code, activity.key);
       if (idx === -1) return errorMsg("Code not recognized");
 
       // Only these fields are editable from the Renew tab's form —
@@ -1516,8 +1480,153 @@ function errorOut(err) {
 
 
 // ------------------------------------------------------------------
-// ONE-TIME REPAIR utilities (same fixes as the original single-activity
-// version, just looped across every activity's sheets)
+// Migrating from the old per-activity sheets, and tidying the tabs
+// ------------------------------------------------------------------
+
+// Run this ONCE (Run > migrateToSharedSheets) after deploying this
+// version of Code.gs, to copy every row out of the old per-activity
+// "Pending - Gym" / "Registrations - Leisure Tennis" / etc. sheets
+// into the new shared Pending/Registrations/Visits sheets, tagged with
+// which activity each row belongs to. Additive and safe to re-run —
+// it only appends a row if one for that idNo (or, for Visits, that
+// visitId) isn't already present in the shared sheet for that
+// activity, so running it twice (or after new data has already been
+// added post-migration) never duplicates anything. Never touches or
+// deletes the old per-activity sheets — see deleteLegacyPerActivitySheets()
+// below once you're ready to remove them for good.
+function migrateToSharedSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let migratedPending = 0, migratedRegistrations = 0, migratedVisits = 0;
+
+  const sharedPending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  const sharedRegistrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  const sharedVisits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+
+  const existingPendingKeys = new Set(sheetToObjects(sharedPending).map(r => r.activity + "|" + String(r.idNo).trim()));
+  const existingRegistrationKeys = new Set(sheetToObjects(sharedRegistrations).map(r => r.activity + "|" + String(r.idNo).trim()));
+  const existingVisitIds = new Set(sheetToObjects(sharedVisits).map(r => String(r.visitId).trim()));
+
+  function copyMemberRow(headers, row, activityKey) {
+    return headers.map(h => {
+      if (h === "activity") return activityKey;
+      if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
+      if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
+      return row[h] || "";
+    });
+  }
+
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+
+    const legacyPending = ss.getSheetByName(activity.legacyPendingSheet);
+    if (legacyPending) {
+      sheetToObjects(legacyPending).forEach(row => {
+        const dedupeKey = activity.key + "|" + String(row.idNo).trim();
+        if (existingPendingKeys.has(dedupeKey)) return;
+        existingPendingKeys.add(dedupeKey);
+        sharedPending.appendRow(copyMemberRow(HEADERS, row, activity.key));
+        migratedPending++;
+      });
+    }
+
+    const legacyRegistrations = ss.getSheetByName(activity.legacyRegistrationsSheet);
+    if (legacyRegistrations) {
+      sheetToObjects(legacyRegistrations).forEach(row => {
+        const dedupeKey = activity.key + "|" + String(row.idNo).trim();
+        if (existingRegistrationKeys.has(dedupeKey)) return;
+        existingRegistrationKeys.add(dedupeKey);
+        sharedRegistrations.appendRow(copyMemberRow(HEADERS, row, activity.key));
+        migratedRegistrations++;
+      });
+    }
+
+    const legacyVisits = ss.getSheetByName(activity.legacyVisitsSheet);
+    if (legacyVisits) {
+      sheetToObjects(legacyVisits).forEach(row => {
+        const visitId = String(row.visitId || "").trim();
+        if (!visitId || existingVisitIds.has(visitId)) return;
+        existingVisitIds.add(visitId);
+        sharedVisits.appendRow(VISIT_HEADERS.map(h => {
+          if (h === "activity") return activity.key;
+          if (h === "idNo" || h === "phone") return sheetSafeText(row[h] || "");
+          if (h === "date" || h === "timeIn" || h === "timeOut") return forceLiteralText(row[h] || "");
+          return row[h] || "";
+        }));
+        migratedVisits++;
+      });
+    }
+  });
+
+  Logger.log(`Migrated ${migratedPending} pending, ${migratedRegistrations} registration(s), and ${migratedVisits} visit(s) into the shared sheets.`);
+}
+
+// Reorders and color-codes the shared sheet tabs — purely cosmetic,
+// doesn't touch any data. Run by hand (Run > organizeSheets) any time.
+function organizeSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const order = [PENDING_SHEET_NAME, REGISTRATIONS_SHEET_NAME, VISITS_SHEET_NAME];
+  order.forEach((name, i) => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(i + 1);
+  });
+
+  const ROLE_COLORS = { [PENDING_SHEET_NAME]: "#EDA100", [REGISTRATIONS_SHEET_NAME]: "#15369E", [VISITS_SHEET_NAME]: "#1BAF7A" };
+  order.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) sheet.setTabColor(ROLE_COLORS[name]);
+  });
+
+  Logger.log("Sheet tabs reordered and color-coded.");
+}
+
+// The old per-activity sheets (e.g. "Pending - Gym", "Registrations -
+// Leisure Tennis") are unused dead weight once migrateToSharedSheets()
+// has copied everything into the shared Pending/Registrations/Visits
+// sheets. This PERMANENTLY DELETES all 15 of them. Run by hand only
+// (Run > deleteLegacyPerActivitySheets) once you've checked the shared
+// sheets look right — Google Sheets' own version history (File >
+// Version history) can still recover a deleted sheet for a while
+// after, but this script can't undo it.
+function deleteLegacyPerActivitySheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let deleted = 0;
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    [activity.legacyPendingSheet, activity.legacyRegistrationsSheet, activity.legacyVisitsSheet].forEach(name => {
+      const sheet = ss.getSheetByName(name);
+      if (sheet) { ss.deleteSheet(sheet); deleted++; }
+    });
+  });
+  Logger.log(`Deleted ${deleted} legacy per-activity sheet(s).`);
+}
+
+// Alerts moved off sheets entirely a while back (see
+// getAlerts()/addAlert() above) — any "Alerts - X" tabs left over from
+// before that change are unused dead weight too. This PERMANENTLY
+// DELETES them. Run by hand only (Run > deleteUnusedAlertSheets) once
+// you're sure you don't need their history.
+function deleteUnusedAlertSheets() {
+  const NAMES = [
+    "Alerts - Gym",
+    "Alerts - Leisure Tennis",
+    "Alerts - Leisure Swimming",
+    "Alerts - Tennis Lessons",
+    "Alerts - Swimming Lessons"
+  ];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let deleted = 0;
+  NAMES.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) { ss.deleteSheet(sheet); deleted++; }
+  });
+  Logger.log(`Deleted ${deleted} unused Alerts sheet(s).`);
+}
+
+
+// ------------------------------------------------------------------
+// ONE-TIME REPAIR utilities
 // ------------------------------------------------------------------
 
 // Run once from the function dropdown (Run > repairPhoneNumbers), then
@@ -1525,37 +1634,34 @@ function errorOut(err) {
 // so "#ERROR!" can't happen again, and recovers what it can from cells
 // currently showing that error.
 function repairPhoneNumbers() {
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    [activity.pendingSheet, activity.registrationsSheet].forEach(name => {
-      const sheet = getOrCreateSheet(name, HEADERS);
-      ensureTextFormatForPhoneColumns(sheet, HEADERS); // re-applied here on purpose — this is the manual repair path
-      const lastRow = sheet.getLastRow();
-      if (lastRow < 2) return;
+  [PENDING_SHEET_NAME, REGISTRATIONS_SHEET_NAME].forEach(name => {
+    const sheet = getOrCreateSheet(name, HEADERS);
+    ensureTextFormatForPhoneColumns(sheet, HEADERS); // re-applied here on purpose — this is the manual repair path
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
 
-      ["idNo", "phone", "emergencyPhone"].forEach(h => {
-        const col = HEADERS.indexOf(h) + 1;
-        if (col < 1) return;
-        const range = sheet.getRange(2, col, lastRow - 1, 1);
-        const formulas = range.getFormulas();
-        const values = range.getValues();
-        let changed = false;
+    ["idNo", "phone", "emergencyPhone"].forEach(h => {
+      const col = HEADERS.indexOf(h) + 1;
+      if (col < 1) return;
+      const range = sheet.getRange(2, col, lastRow - 1, 1);
+      const formulas = range.getFormulas();
+      const values = range.getValues();
+      let changed = false;
 
-        const fixed = values.map((row, i) => {
-          const formula = formulas[i][0];
-          if (formula && formula.toString().indexOf("=") === 0) {
-            changed = true;
-            return [formula.toString().slice(1)]; // drop the leading "="
-          }
-          return [row[0]];
-        });
-
-        if (changed) range.setValues(fixed);
+      const fixed = values.map((row, i) => {
+        const formula = formulas[i][0];
+        if (formula && formula.toString().indexOf("=") === 0) {
+          changed = true;
+          return [formula.toString().slice(1)]; // drop the leading "="
+        }
+        return [row[0]];
       });
+
+      if (changed) range.setValues(fixed);
     });
   });
 
-  Logger.log("Phone/ID number formatting repaired across all activities. If any cells still show #ERROR!, " +
+  Logger.log("Phone/ID number formatting repaired. If any cells still show #ERROR!, " +
     "the original text couldn't be recovered automatically — retype those by hand in the sheet.");
 }
 
@@ -1563,13 +1669,11 @@ function repairPhoneNumbers() {
 // then redeploy. Switches date/time columns to Plain Text and rewrites
 // any cell that's still a real Date object as clean formatted text.
 function repairDateTimeColumns() {
-  const sheetsToRepair = [];
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    sheetsToRepair.push({ name: activity.pendingSheet, headers: HEADERS });
-    sheetsToRepair.push({ name: activity.registrationsSheet, headers: HEADERS });
-    sheetsToRepair.push({ name: activity.visitsSheet, headers: VISIT_HEADERS });
-  });
+  const sheetsToRepair = [
+    { name: PENDING_SHEET_NAME, headers: HEADERS },
+    { name: REGISTRATIONS_SHEET_NAME, headers: HEADERS },
+    { name: VISITS_SHEET_NAME, headers: VISIT_HEADERS }
+  ];
 
   sheetsToRepair.forEach(({ name, headers }) => {
     const sheet = getOrCreateSheet(name, headers);
@@ -1595,7 +1699,7 @@ function repairDateTimeColumns() {
     });
   });
 
-  Logger.log("Date/time formatting repaired across all activities. Any date or time cells that had been " +
+  Logger.log("Date/time formatting repaired. Any date or time cells that had been " +
     "auto-converted by Sheets are now plain text, formatted as " + DATE_FORMAT + " / " + TIME_FORMAT + ".");
 }
 
@@ -1604,70 +1708,70 @@ function repairDateTimeColumns() {
 // Automatic 9pm sign-out
 // ------------------------------------------------------------------
 
-// Closes out every still-open visit (no timeOut yet) across every
-// activity, as if that member had signed out at closing time — for
-// anyone who used the facility but forgot to sign out themselves.
-// Meant to run automatically once a day via a time-driven trigger —
-// see installNightlyMaintenanceTrigger() below, which sets that up.
-// Safe to run by hand too (Run > autoSignOutAt9pm) if you ever need to
-// close everything out early.
+// Closes out every still-open visit (no timeOut yet), across every
+// activity in one pass, as if that member had signed out at closing
+// time — for anyone who used the facility but forgot to sign out
+// themselves. Meant to run automatically once a day via a time-driven
+// trigger — see installNightlyMaintenanceTrigger() below, which sets
+// that up. Safe to run by hand too (Run > autoSignOutAt9pm) if you
+// ever need to close everything out early.
 function autoSignOutAt9pm() {
   const CLOSING_TIME_LABEL = "9:00 PM";
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-    const lastRow = visits.getLastRow();
-    if (lastRow < 2) return;
+  const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+  const lastRow = visits.getLastRow();
+  if (lastRow < 2) return;
 
-    const idColIndex = VISIT_HEADERS.indexOf("idNo");
-    const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-    const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+  const activityColIndex = VISIT_HEADERS.indexOf("activity");
+  const idColIndex = VISIT_HEADERS.indexOf("idNo");
+  const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
+  const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
-    const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-    const regByIdNo = {};
-    sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
+  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  const regByKey = {};
+  sheetToObjects(registrations).forEach(r => { regByKey[r.activity + "|" + String(r.idNo).trim()] = r; });
 
-    let closedCount = 0;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][timeOutColIndex]) continue; // already signed out
-      const rowNum = i + 2;
-      visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
-      closedCount++;
+  let closedCount = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][timeOutColIndex]) continue; // already signed out
+    const rowNum = i + 2;
+    visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
+    closedCount++;
 
-      // Same session-cap bookkeeping a normal checkout does (see the
-      // "checkout" action above) — they used the facility today even
-      // though they didn't sign out themselves.
-      const idNo = String(values[i][idColIndex]).trim();
-      const match = regByIdNo[idNo];
-      const cfg = match && getDurationConfig(activity, match.duration);
-      if (cfg && cfg.sessionCap) {
-        const regIdx = findRowIndexByIdNo(registrations, idNo);
-        if (regIdx !== -1) {
-          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
-          registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
-        }
+    // Same session-cap bookkeeping a normal checkout does (see the
+    // "checkout" action above) — they used the facility today even
+    // though they didn't sign out themselves.
+    const activityKey = String(values[i][activityColIndex]).trim();
+    const idNo = String(values[i][idColIndex]).trim();
+    const match = regByKey[activityKey + "|" + idNo];
+    const activity = ACTIVITIES[activityKey];
+    const cfg = activity && match && getDurationConfig(activity, match.duration);
+    if (cfg && cfg.sessionCap) {
+      const regIdx = findRowIndexByIdNo(registrations, idNo, activityKey);
+      if (regIdx !== -1) {
+        const newUsed = (Number(match.sessionsUsed) || 0) + 1;
+        registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
       }
     }
-    if (closedCount > 0) {
-      Logger.log(`Auto sign-out: closed ${closedCount} open visit(s) for ${activity.label}.`);
-    }
-  });
+  }
+  if (closedCount > 0) {
+    Logger.log(`Auto sign-out: closed ${closedCount} open visit(s) across all activities.`);
+  }
 }
 
 function runNightlyMaintenance() {
   autoSignOutAt9pm();
-  compileAllRegistrations();
 }
 
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
 // then approve the permissions prompt. Schedules runNightlyMaintenance()
-// — auto sign-out plus a fresh "All Registrations" compile — to run
-// automatically every day at 9pm, in this project's time zone (Project
-// Settings (gear icon) -> Time zone — set that first if it isn't
-// already the venue's local time zone). Safe to re-run: it removes any
-// existing trigger for this function (and the older, single-purpose
-// autoSignOutAt9pm trigger, if you'd already set that up) first, so
-// you'll never end up with duplicates firing the same night.
+// (currently just the 9pm auto sign-out, kept as its own wrapper in
+// case more nightly jobs get added later) to run automatically every
+// day at 9pm, in this project's time zone (Project Settings (gear
+// icon) -> Time zone — set that first if it isn't already the venue's
+// local time zone). Safe to re-run: it removes any existing trigger
+// for this function (and the older autoSignOutAt9pm/compiled-sheet
+// triggers, if you'd set either of those up before) first, so you'll
+// never end up with duplicates firing the same night.
 function installNightlyMaintenanceTrigger() {
   ["autoSignOutAt9pm", "runNightlyMaintenance"].forEach(fn => {
     ScriptApp.getProjectTriggers().forEach(t => {
@@ -1679,120 +1783,5 @@ function installNightlyMaintenanceTrigger() {
     .everyDays(1)
     .atHour(21)
     .create();
-  Logger.log("Installed: runNightlyMaintenance (auto sign-out + compiled sheet refresh) will now run automatically every day at 9pm.");
-}
-
-
-// ------------------------------------------------------------------
-// One compiled sheet across every activity, and tidier tabs
-// ------------------------------------------------------------------
-
-const ALL_REGISTRATIONS_SHEET_NAME = "All Registrations";
-
-// Rebuilds one sheet combining every activity's Registrations sheet
-// into a single place, with an "activity" column so each row says
-// which activity it belongs to — newest approval first, across all
-// activities. Fully rebuilt from scratch every run rather than synced
-// incrementally on every approval (that would bring back the same
-// per-request slowdown that was deliberately removed elsewhere in this
-// file), so it's always safe to re-run. Runs automatically every night
-// as part of runNightlyMaintenance() above; run it by hand any time
-// (Run > compileAllRegistrations) for an immediate refresh.
-function compileAllRegistrations() {
-  const combinedHeaders = ["activity"].concat(HEADERS);
-  const sheet = getOrCreateSheet(ALL_REGISTRATIONS_SHEET_NAME, combinedHeaders);
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, combinedHeaders.length).clearContent();
-  }
-
-  let allRows = [];
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    const regSheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-    sheetToObjects(regSheet).forEach(row => {
-      allRows.push({ activity: activity.label, row: row });
-    });
-  });
-
-  allRows.sort((a, b) => registrationTimestampMs(b.row) - registrationTimestampMs(a.row));
-
-  if (allRows.length > 0) {
-    const outRows = allRows.map(({ activity, row }) =>
-      combinedHeaders.map(h => {
-        if (h === "activity") return activity;
-        if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
-        if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
-        return row[h] || "";
-      })
-    );
-    sheet.getRange(2, 1, outRows.length, combinedHeaders.length).setValues(outRows);
-  }
-
-  ensureTextFormatForPhoneColumns(sheet, combinedHeaders);
-  Logger.log(`Compiled ${allRows.length} registration(s) across all activities into "${ALL_REGISTRATIONS_SHEET_NAME}".`);
-}
-
-// Reorders and color-codes every sheet tab so the spreadsheet reads as
-// one organized system instead of tabs sitting in whatever order they
-// happened to be created — purely cosmetic, doesn't touch any data.
-// Run by hand (Run > organizeSheets) any time, including after adding
-// a new activity.
-function organizeSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // "All Registrations" leads, then each activity's own 3 sheets
-  // grouped together (Pending, Registrations, Visits), in the same
-  // order activities are defined in ACTIVITIES.
-  const order = [ALL_REGISTRATIONS_SHEET_NAME];
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    order.push(activity.pendingSheet, activity.registrationsSheet, activity.visitsSheet);
-  });
-  order.forEach((name, i) => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) return; // hasn't been created yet (e.g. no visits logged) — nothing to move
-    ss.setActiveSheet(sheet);
-    ss.moveActiveSheet(i + 1);
-  });
-
-  // Color-coded by role, so what each tab is for is visible without
-  // opening it.
-  const ROLE_COLORS = { all: "#B8860B", pending: "#EDA100", registrations: "#15369E", visits: "#1BAF7A" };
-  ss.getSheets().forEach(sheet => {
-    const name = sheet.getName();
-    let color = null;
-    if (name === ALL_REGISTRATIONS_SHEET_NAME) color = ROLE_COLORS.all;
-    else if (name.indexOf("Pending - ") === 0) color = ROLE_COLORS.pending;
-    else if (name.indexOf("Registrations - ") === 0) color = ROLE_COLORS.registrations;
-    else if (name.indexOf("Visits - ") === 0) color = ROLE_COLORS.visits;
-    if (color) sheet.setTabColor(color);
-  });
-
-  Logger.log("Sheet tabs reordered and color-coded.");
-}
-
-// Alerts moved off sheets entirely a while back (see
-// getAlerts()/addAlert() above) — any "Alerts - X" tabs left over from
-// before that change are unused dead weight. This PERMANENTLY DELETES
-// them. Run by hand only (Run > deleteUnusedAlertSheets) once you're
-// sure you don't need their history — Google Sheets' own version
-// history (File > Version history) can still recover a deleted sheet
-// for a while after, but this script can't undo it.
-function deleteUnusedAlertSheets() {
-  const NAMES = [
-    "Alerts - Gym",
-    "Alerts - Leisure Tennis",
-    "Alerts - Leisure Swimming",
-    "Alerts - Tennis Lessons",
-    "Alerts - Swimming Lessons"
-  ];
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let deleted = 0;
-  NAMES.forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (sheet) { ss.deleteSheet(sheet); deleted++; }
-  });
-  Logger.log(`Deleted ${deleted} unused Alerts sheet(s).`);
+  Logger.log("Installed: runNightlyMaintenance will now run automatically every day at 9pm.");
 }
