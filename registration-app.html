@@ -423,7 +423,7 @@
     <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
     <button type="button" class="switch-link back-link" id="activityPickerBack" style="display:none;margin:0 0 8px;">← Back</button>
     <h1 id="activityPickerTitle">CHOOSE YOUR ACTIVITY</h1>
-    <p class="subhead" id="activityPickerSub">Pick what you're registering for, signing in to, or renewing.</p>
+    <p class="subhead" id="activityPickerSub" style="display:none;"></p>
     <div class="setup-warning" id="setupWarningPicker" style="display:none;">
       ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL.
     </div>
@@ -1127,9 +1127,8 @@
   function renderActivityPicker(){
     const grid = document.getElementById('activityGrid');
     document.getElementById('activityPickerTitle').textContent = pickerSection ? pickerSection.label : 'CHOOSE YOUR ACTIVITY';
-    document.getElementById('activityPickerSub').textContent = pickerSection
-      ? 'Leisure play, or structured lessons?'
-      : "Pick what you're registering for, signing in to, or renewing.";
+    document.getElementById('activityPickerSub').textContent = pickerSection ? 'Leisure play, or structured lessons?' : '';
+    document.getElementById('activityPickerSub').style.display = pickerSection ? 'block' : 'none';
     document.getElementById('activityPickerBack').style.display = pickerSection ? 'block' : 'none';
 
     if(pickerSection){
