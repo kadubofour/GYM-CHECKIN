@@ -681,7 +681,6 @@
       showScreen('desk');
       renderActivitySwitcher();
       loadAll();
-      loadVisits();
       loadExportLink();
       refreshAllPendingCounts();
       scheduleAutoRefresh();
@@ -785,7 +784,6 @@
     sortKey = "class"; sortDir = 1;
     renderActivitySwitcher();
     loadAll();
-    loadVisits();
     loadExportLink();
   }
 
@@ -834,52 +832,57 @@
   // ---- Data loading ----
   const toastedAlertIds = new Set();
 
+  // One request instead of four (pending/registrations/visits/alerts
+  // used to each be their own fetch — each is a separate Apps Script
+  // execution with its own overhead on top of the actual sheet read).
   function loadAll(){
     const activity = currentActivity;
-    return Promise.all([
-      fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=pending&t=" + Date.now()).then(r => r.json()),
-      fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now()).then(r => r.json()),
-      fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now()).then(r => r.json())
-    ]).then(([pendingRes, regRes, alertsRes]) => {
-      if(activity.key !== currentActivity.key) return; // switched while in flight
-      if(pendingRes.status === "ok") pendingEntries = pendingRes.rows;
-      if(regRes.status === "ok"){ approvedEntries = regRes.rows; registrationsClearedAt = regRes.clearedAt || null; }
-      if(alertsRes.status === "ok") alertEntries = alertsRes.rows;
-      renderTally();
-      renderApprovals();
-      renderTable();
-      renderAlerts();
-    }).catch(() => showToast("Couldn't reach the sheet — check connection", true));
+    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=dashboard&t=" + Date.now())
+      .then(r => r.json())
+      .then(res => {
+        if(activity.key !== currentActivity.key) return; // switched while in flight
+        if(res.status !== "ok"){ showToast(res.message || "Couldn't reach the sheet — check connection", true); return; }
+        pendingEntries = res.pending || [];
+        approvedEntries = res.registrations || [];
+        registrationsClearedAt = res.clearedAt || null;
+        visitEntries = res.visits || [];
+        alertEntries = res.alerts || [];
+        renderTally();
+        renderApprovals();
+        renderTable();
+        renderVisitsTable();
+        renderAlerts();
+      })
+      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
 
-  // Skips the currently-selected activity — loadAll() already fetches
-  // its pending count (renderTally() feeds it into pendingCounts), so
-  // fetching it again here would just be a duplicate request every cycle.
+  // One request covering every activity's pending count, instead of
+  // one fetch per activity.
   function refreshAllPendingCounts(){
-    return Promise.all(Object.values(ACTIVITIES).filter(a => a.key !== currentActivity.key).map(a =>
-      fetch(SCRIPT_URL + "?activity=" + a.key + "&view=pending&t=" + Date.now())
-        .then(r => r.json()).then(res => ({ key: a.key, count: res.status === "ok" ? res.rows.length : null }))
-        .catch(() => ({ key: a.key, count: null }))
-    )).then(results => {
-      results.forEach(r => { if(r.count !== null) pendingCounts[r.key] = r.count; });
-      renderActivitySwitcher();
-    });
+    return fetch(SCRIPT_URL + "?view=allPendingCounts&t=" + Date.now())
+      .then(r => r.json())
+      .then(res => {
+        if(res.status !== "ok") return;
+        Object.keys(res.counts || {}).forEach(k => { pendingCounts[k] = res.counts[k]; });
+        renderActivitySwitcher();
+      })
+      .catch(() => {});
   }
 
   // Self-rescheduling instead of setInterval: the next cycle is only
   // queued once the current one (and everything it fetched) has fully
-  // settled. A plain setInterval keeps firing a fresh batch of ~9
-  // requests every AUTO_REFRESH_MS regardless of whether the previous
-  // batch ever finished — during any slow patch that piles requests up
-  // faster than Apps Script can drain them, which then makes
-  // everything slower still. Also skips the cycle entirely while the
-  // tab is hidden/backgrounded, since a front desk device is often
-  // left open all day.
+  // settled. A plain setInterval keeps firing a fresh batch of requests
+  // every AUTO_REFRESH_MS regardless of whether the previous batch ever
+  // finished — during any slow patch that piles requests up faster than
+  // Apps Script can drain them, which then makes everything slower
+  // still. Also skips the cycle entirely while the tab is
+  // hidden/backgrounded, since a front desk device is often left open
+  // all day.
   function scheduleAutoRefresh(){
     refreshTimer = setTimeout(() => {
       if(document.hidden){ scheduleAutoRefresh(); return; }
-      Promise.allSettled([loadAll(), loadVisits(), refreshAllPendingCounts()]).then(scheduleAutoRefresh);
+      Promise.allSettled([loadAll(), refreshAllPendingCounts()]).then(scheduleAutoRefresh);
     }, AUTO_REFRESH_MS);
   }
 
@@ -1035,18 +1038,9 @@
   let visitEntries = [];
   let visitSearchTerm = "";
 
-  function loadVisits(){
-    const activity = currentActivity;
-    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
-      .then(r => r.json())
-      .then(res => {
-        if(activity.key !== currentActivity.key) return;
-        if(res.status === "ok") visitEntries = res.rows;
-        renderVisitsTable();
-      })
-      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
-  }
-  document.getElementById('visitsRefreshBtn').addEventListener('click', loadVisits);
+  // Visits are now part of the combined loadAll() dashboard fetch, so
+  // the Visit Log tab's refresh button just re-runs that.
+  document.getElementById('visitsRefreshBtn').addEventListener('click', loadAll);
   document.getElementById('visitSearchBox').addEventListener('input', function(){
     visitSearchTerm = this.value.trim().toLowerCase();
     renderVisitsTable();

@@ -907,8 +907,35 @@ function registrationTimestampMs(row) {
   return isNaN(ms) ? Infinity : ms;
 }
 
+// Registration rows for one activity, with the Clear List cutoff (if
+// any) already applied. Shared by the plain "registrations" view and
+// the combined "dashboard" view so the filtering logic lives in one
+// place.
+function getVisibleRegistrations(activity) {
+  const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+  let rows = sheetToObjects(sheet);
+  const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
+  if (clearedAt) {
+    const cutoffMs = new Date(clearedAt).getTime();
+    rows = rows.filter(r => registrationTimestampMs(r) > cutoffMs);
+  }
+  return { rows: rows, clearedAt: clearedAt || null };
+}
+
 function doGet(e) {
   try {
+    // No specific activity needed — one execution, one sheet read per
+    // activity, instead of the front desk making a separate request
+    // per activity just to populate the pending-count badges.
+    if (e.parameter.view === 'allPendingCounts') {
+      const counts = {};
+      Object.keys(ACTIVITIES).forEach(key => {
+        const sheet = getOrCreateSheet(ACTIVITIES[key].pendingSheet, HEADERS);
+        counts[key] = sheetToObjects(sheet).length;
+      });
+      return ok({ counts: counts });
+    }
+
     const activity = getActivity(e.parameter.activity);
     if (!activity) return errorMsg("Unknown or missing activity.");
 
@@ -947,14 +974,25 @@ function doGet(e) {
       const sheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
       return ok({ rows: sheetToObjects(sheet) });
     }
-    const sheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
-    let rows = sheetToObjects(sheet);
-    const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
-    if (clearedAt) {
-      const cutoffMs = new Date(clearedAt).getTime();
-      rows = rows.filter(r => registrationTimestampMs(r) > cutoffMs);
+    if (view === 'dashboard') {
+      // Everything a front desk's auto-refresh cycle needs for one
+      // activity, in a single execution instead of 3-4 separate ones
+      // (pending/registrations/visits/alerts each cost their own
+      // request overhead — spreadsheet open, auth — on top of the
+      // actual read).
+      const pendingSheet = getOrCreateSheet(activity.pendingSheet, HEADERS);
+      const visitsSheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const registrations = getVisibleRegistrations(activity);
+      return ok({
+        pending: sheetToObjects(pendingSheet),
+        registrations: registrations.rows,
+        clearedAt: registrations.clearedAt,
+        visits: sheetToObjects(visitsSheet),
+        alerts: getAlerts(activity)
+      });
     }
-    return ok({ rows: rows, clearedAt: clearedAt || null });
+    const registrations = getVisibleRegistrations(activity);
+    return ok({ rows: registrations.rows, clearedAt: registrations.clearedAt });
   } catch (err) {
     return errorOut(err);
   }

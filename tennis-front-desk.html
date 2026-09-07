@@ -561,7 +561,6 @@
       showScreen('desk');
       renderActivitySwitcher();
       loadAll();
-      loadVisits();
       scheduleAutoRefresh();
     } else {
       pinError.textContent = "Incorrect PIN — try again.";
@@ -602,7 +601,6 @@
     visitSearchTerm = ""; document.getElementById('visitSearchBox').value = "";
     renderActivitySwitcher();
     loadAll();
-    loadVisits();
   }
 
   document.querySelectorAll('.tab-bar > .tab-btn').forEach(btn => {
@@ -622,42 +620,44 @@
     setTimeout(()=> toast.classList.remove('show'), duration || 2200);
   }
 
+  // One combined "dashboard" fetch (registrations/visits/alerts/pending
+  // for the current activity) plus one "allPendingCounts" fetch (for
+  // the switcher's badge counts across both this desk's activities)
+  // instead of four separate requests — each fetch is its own Apps
+  // Script execution with its own overhead on top of the actual read,
+  // so fewer of them per cycle is a real speed win, not just less
+  // network chatter.
   function loadAll(){
     const activity = currentActivity;
-    const pendingPromise = Promise.all(Object.values(ACTIVITIES).map(a =>
-      fetch(SCRIPT_URL + "?activity=" + a.key + "&view=pending&t=" + Date.now())
-        .then(r => r.json()).then(res => ({ key: a.key, rows: res.status === "ok" ? res.rows : [] }))
-        .catch(() => ({ key: a.key, rows: null }))
-    )).then(results => {
-      results.forEach(r => { if(r.rows !== null) pendingCounts[r.key] = r.rows.length; });
-      if(activity.key === currentActivity.key){
-        const mine = results.find(r => r.key === activity.key);
-        if(mine && mine.rows !== null) pendingEntries = mine.rows;
-      }
-      renderActivitySwitcher();
-      renderApprovals();
-    }).catch(() => {});
-
-    const registrationsPromise = fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrations&t=" + Date.now())
+    const dashboardPromise = fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=dashboard&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
         if(activity.key !== currentActivity.key) return;
-        if(res.status === "ok") approvedEntries = res.rows;
+        if(res.status !== "ok"){ showToast(res.message || "Couldn't reach the sheet — check connection", true); return; }
+        pendingEntries = res.pending || [];
+        approvedEntries = res.registrations || [];
+        visitEntries = res.visits || [];
+        alertEntries = res.alerts || [];
+        pendingCounts[activity.key] = pendingEntries.length;
+        renderActivitySwitcher();
+        renderApprovals();
         renderTally();
         renderRegistrants();
+        renderVisitsTable();
+        renderAlerts();
       })
       .catch(() => showToast("Couldn't reach the sheet — check connection", true));
 
-    const alertsPromise = fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=alerts&t=" + Date.now())
+    const countsPromise = fetch(SCRIPT_URL + "?view=allPendingCounts&t=" + Date.now())
       .then(r => r.json())
       .then(res => {
-        if(activity.key !== currentActivity.key) return;
-        if(res.status === "ok") alertEntries = res.rows;
-        renderAlerts();
+        if(res.status !== "ok") return;
+        Object.keys(res.counts || {}).forEach(k => { if(ACTIVITIES[k]) pendingCounts[k] = res.counts[k]; });
+        renderActivitySwitcher();
       })
       .catch(() => {});
 
-    return Promise.allSettled([pendingPromise, registrationsPromise, alertsPromise]);
+    return Promise.allSettled([dashboardPromise, countsPromise]);
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
 
@@ -671,7 +671,7 @@
   function scheduleAutoRefresh(){
     refreshTimer = setTimeout(() => {
       if(document.hidden){ scheduleAutoRefresh(); return; }
-      Promise.allSettled([loadAll(), loadVisits()]).then(scheduleAutoRefresh);
+      loadAll().then(scheduleAutoRefresh);
     }, AUTO_REFRESH_MS);
   }
 
@@ -1045,18 +1045,9 @@
   // ---- Visit Log tab ----
   let visitEntries = [];
 
-  function loadVisits(){
-    const activity = currentActivity;
-    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
-      .then(r => r.json())
-      .then(res => {
-        if(activity.key !== currentActivity.key) return;
-        if(res.status === "ok") visitEntries = res.rows;
-        renderVisitsTable();
-      })
-      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
-  }
-  document.getElementById('visitsRefreshBtn').addEventListener('click', loadVisits);
+  // Visits are part of the combined loadAll() dashboard fetch now, so
+  // the Visit Log tab's refresh button just re-runs that.
+  document.getElementById('visitsRefreshBtn').addEventListener('click', loadAll);
   document.getElementById('visitSearchBox').addEventListener('input', function(){
     visitSearchTerm = this.value.trim().toLowerCase();
     renderVisitsTable();
