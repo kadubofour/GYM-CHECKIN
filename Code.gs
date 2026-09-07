@@ -33,9 +33,11 @@
  * 3. From the function dropdown (next to Run/Debug), select "setup",
  *    click Run. Authorize when asked (Advanced -> "Go to (project)
  *    (unsafe)" -> Allow). This creates the Pending/Registrations/Visits
- *    sheets, each with the right headers. (The photo folder and export
- *    folder in Drive are created automatically the first time they're
- *    needed.)
+ *    sheets, each with the right headers. (The Drive folders — a
+ *    "Pending Registration Photos" folder for not-yet-approved photos/
+ *    signatures, a "Registration Photos" folder for approved ones, and
+ *    a "Registration Exports" folder — are all created automatically
+ *    the first time they're needed.)
  * 4. Deploy -> New deployment -> gear icon -> Web app.
  *      - Execute as: Me
  *      - Who has access: Anyone
@@ -282,7 +284,21 @@ function formatDateMDY(d) {
   return Utilities.formatDate(d, Session.getScriptTimeZone(), DATE_FORMAT);
 }
 
+// Approved members' photos/signatures live here — this is the folder
+// whose files get the public "Anyone with link" sharing that lets the
+// front desk's <img> thumbnails render.
 const PHOTOS_FOLDER_NAME = "Registration Photos";
+// A submission's photo/signature land here FIRST, while still pending —
+// same public sharing (the front desk's approval card shows the photo
+// so staff can check it against the person before deciding, and that
+// screen isn't a Google-authenticated page, so the file has to stay
+// link-viewable even before approval), but kept in a separate folder so
+// pending and already-approved members' files aren't mixed together.
+// On approval the file is moved into PHOTOS_FOLDER_NAME (see doApprove);
+// on rejection it's trashed (see doReject); a Walk-in's photo is trashed
+// on approval too, since a Walk-in becomes a Visits row with no photo
+// column — see doApprove's Walk-in branch.
+const PENDING_PHOTOS_FOLDER_NAME = "Pending Registration Photos";
 const EXPORT_FOLDER_NAME = "Registration Exports";
 
 // A "Clear List" on the front desk's Registration Table doesn't touch
@@ -608,6 +624,12 @@ function getPhotosFolder() {
   return DriveApp.createFolder(PHOTOS_FOLDER_NAME);
 }
 
+function getPendingPhotosFolder() {
+  const folders = DriveApp.getFoldersByName(PENDING_PHOTOS_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(PENDING_PHOTOS_FOLDER_NAME);
+}
+
 // Strips characters Drive/Windows/macOS dislike in filenames and
 // collapses whitespace, so an applicant's name can be dropped straight
 // into a filename. Falls back to "Unnamed" if nothing usable is left.
@@ -625,8 +647,11 @@ function sanitizeForFilename(name) {
 // filenameBase is the full filename (minus extension) to save under —
 // callers build this from the applicant's name + idNo (which is unique
 // per-activity, and globally unique for auto-generated codes since
-// every activity has its own letter prefix).
-function savePhotoAndGetUrl(filenameBase, base64Data, mimeType) {
+// every activity has its own letter prefix). folder is required — pass
+// getPendingPhotosFolder() for a brand-new submission (see the "submit"
+// handler) or getPhotosFolder() when adding a photo directly to an
+// already-approved member (see the "addPhoto" handler).
+function savePhotoAndGetUrl(filenameBase, base64Data, mimeType, folder) {
   if (!base64Data) return "";
   try {
     const cleaned = base64Data.indexOf(",") !== -1 ? base64Data.split(",")[1] : base64Data;
@@ -634,7 +659,6 @@ function savePhotoAndGetUrl(filenameBase, base64Data, mimeType) {
     const ext = type.indexOf("png") !== -1 ? "png" : "jpg";
     const bytes = Utilities.base64Decode(cleaned);
     const blob = Utilities.newBlob(bytes, type, `${filenameBase}.${ext}`);
-    const folder = getPhotosFolder();
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
@@ -655,6 +679,23 @@ function deleteDriveFileIfAny(url) {
   const fileId = parseDriveFileId(url);
   if (!fileId) return;
   try { DriveApp.getFileById(fileId).setTrashed(true); } catch (err) { /* already gone, or never a real file — nothing to clean up */ }
+}
+
+// Moves a photo/signature file (saved into the Pending folder at
+// submission time) into the given folder — used on approval to move it
+// out of PENDING_PHOTOS_FOLDER_NAME into PHOTOS_FOLDER_NAME. Safe to
+// call on a file that's already in the destination folder (a no-op) —
+// e.g. a renewal's pending row reuses the member's existing, already-
+// approved photo rather than a freshly uploaded one.
+function moveDriveFileIfAny(url, folder) {
+  const fileId = parseDriveFileId(url);
+  if (!fileId) return;
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const parents = file.getParents();
+    while (parents.hasNext()) parents.next().removeFile(file);
+    folder.addFile(file);
+  } catch (err) { /* already gone, or never a real file — nothing to move */ }
 }
 
 
@@ -799,9 +840,25 @@ function doApprove(activity, idNo) {
       if (h === "phone") return sheetSafeText(rowValues[HEADERS.indexOf("phone")]);
       return ""; // timeOut
     }));
+    // A Walk-in visit has no photo column — the photo/signature
+    // captured at submission (in the Pending folder) would just sit
+    // there unreferenced forever, so trash them now rather than moving
+    // them anywhere.
+    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
+    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
     pending.deleteRow(idx);
     return ok({ idNo: idNo });
   }
+
+  // The photo/signature were uploaded into the Pending folder at
+  // submission time (see the "submit" handler) — now that this row is
+  // becoming a real member, move them into the approved folder. Safe to
+  // call even for a renewal, whose rowValues.photoUrl/signatureUrl are
+  // just copied from the member's existing (already-approved) row —
+  // moving a file into the folder it's already in is a no-op.
+  const approvedPhotosFolder = getPhotosFolder();
+  moveDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")], approvedPhotosFolder);
+  moveDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")], approvedPhotosFolder);
 
   // getValues() strips any leading apostrophe on the way out, so a
   // value like "+233 24 123 4567" comes back plain again — re-guard it
@@ -1025,9 +1082,13 @@ function doPost(e) {
 
       // Name-first filenames (idNo tucked in parentheses for uniqueness)
       // so photos/signatures can be found by applicant name in Drive.
+      // Lands in the Pending folder for now — doApprove() moves it into
+      // the approved folder once (if) this registration is approved,
+      // and doReject()/a Walk-in approval trashes it otherwise.
       const applicantFileName = sanitizeForFilename(data.name);
-      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType);
-      const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType);
+      const pendingPhotosFolder = getPendingPhotosFolder();
+      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType, pendingPhotosFolder);
+      const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType, pendingPhotosFolder);
 
       // A Family Package registration isn't one row for the whole
       // family — see the HEADERS comment above. The person filling the
@@ -1299,7 +1360,10 @@ function doPost(e) {
 
       const applicantName = targetSheet.getRange(idx, nameColIndex).getValue();
       const applicantFileName = sanitizeForFilename(applicantName);
-      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType);
+      // Pending vs. already-approved decides which folder — same split
+      // as the "submit" handler.
+      const folder = targetSheet === pending ? getPendingPhotosFolder() : getPhotosFolder();
+      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType, folder);
       if (!photoUrl) return errorMsg("Couldn't save the photo — please try again.");
 
       targetSheet.getRange(idx, photoColIndex).setValue(photoUrl);
