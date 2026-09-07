@@ -1598,3 +1598,77 @@ function repairDateTimeColumns() {
   Logger.log("Date/time formatting repaired across all activities. Any date or time cells that had been " +
     "auto-converted by Sheets are now plain text, formatted as " + DATE_FORMAT + " / " + TIME_FORMAT + ".");
 }
+
+
+// ------------------------------------------------------------------
+// Automatic 9pm sign-out
+// ------------------------------------------------------------------
+
+// Closes out every still-open visit (no timeOut yet) across every
+// activity, as if that member had signed out at closing time — for
+// anyone who used the facility but forgot to sign out themselves.
+// Meant to run automatically once a day via a time-driven trigger —
+// see installAutoSignOutTrigger() below, which sets that up. Safe to
+// run by hand too (Run > autoSignOutAt9pm) if you ever need to close
+// everything out early.
+function autoSignOutAt9pm() {
+  const CLOSING_TIME_LABEL = "9:00 PM";
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+    const lastRow = visits.getLastRow();
+    if (lastRow < 2) return;
+
+    const idColIndex = VISIT_HEADERS.indexOf("idNo");
+    const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
+    const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+
+    const registrations = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+    const regByIdNo = {};
+    sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
+
+    let closedCount = 0;
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][timeOutColIndex]) continue; // already signed out
+      const rowNum = i + 2;
+      visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
+      closedCount++;
+
+      // Same session-cap bookkeeping a normal checkout does (see the
+      // "checkout" action above) — they used the facility today even
+      // though they didn't sign out themselves.
+      const idNo = String(values[i][idColIndex]).trim();
+      const match = regByIdNo[idNo];
+      const cfg = match && getDurationConfig(activity, match.duration);
+      if (cfg && cfg.sessionCap) {
+        const regIdx = findRowIndexByIdNo(registrations, idNo);
+        if (regIdx !== -1) {
+          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
+          registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+        }
+      }
+    }
+    if (closedCount > 0) {
+      Logger.log(`Auto sign-out: closed ${closedCount} open visit(s) for ${activity.label}.`);
+    }
+  });
+}
+
+// Run this ONCE from the function dropdown (Run > installAutoSignOutTrigger),
+// then approve the permissions prompt. Schedules autoSignOutAt9pm() to
+// run automatically every day at 9pm, in this project's time zone
+// (Project Settings (gear icon) -> Time zone — set that first if it
+// isn't already the venue's local time zone). Safe to re-run: it
+// removes any existing trigger for this function first, so you'll
+// never end up with duplicates firing the same night.
+function installAutoSignOutTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === "autoSignOutAt9pm") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("autoSignOutAt9pm")
+    .timeBased()
+    .everyDays(1)
+    .atHour(21)
+    .create();
+  Logger.log("Installed: autoSignOutAt9pm will now run automatically every day at 9pm.");
+}
