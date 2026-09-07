@@ -643,6 +643,20 @@ function savePhotoAndGetUrl(filenameBase, base64Data, mimeType) {
   }
 }
 
+// Trashes a photo/signature file saved by savePhotoAndGetUrl, given the
+// Drive URL stored in the sheet — used when a pending registration is
+// rejected, so no personal info (photo, signature) is left sitting in
+// Drive for someone who was never approved. Trashed rather than
+// permanently deleted (same as the export-file cleanup above), so it's
+// still recoverable from Drive's trash if rejected by mistake. Never
+// throws — a stray file left behind is not worth failing the reject
+// over, and an empty/unparseable url is a no-op.
+function deleteDriveFileIfAny(url) {
+  const fileId = parseDriveFileId(url);
+  if (!fileId) return;
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (err) { /* already gone, or never a real file — nothing to clean up */ }
+}
+
 
 // ------------------------------------------------------------------
 // Date helpers
@@ -833,10 +847,16 @@ function doApprove(activity, idNo) {
   return ok({ idNo: idNo });
 }
 
+// Rejecting a pending registration leaves nothing behind — the photo
+// and signature saved to Drive at submission time are trashed along
+// with the row, not just orphaned in the Photos folder forever.
 function doReject(activity, idNo) {
   const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
   const idx = findRowIndexByIdNo(pending, idNo, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
+  const rowValues = pending.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
+  deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
+  deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
   pending.deleteRow(idx);
   return ok({});
 }
