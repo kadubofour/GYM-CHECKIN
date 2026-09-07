@@ -769,8 +769,12 @@ function approvePendingRow(activity, pending, registrations, idx) {
       if (h === "idNo") return sheetSafeText(rowValues[HEADERS.indexOf("idNo")]);
       if (h === "name") return rowValues[HEADERS.indexOf("name")];
       if (h === "class") return rowValues[HEADERS.indexOf("class")];
-      if (h === "date") return formatDateMDY(now);
-      if (h === "timeIn") return now.toLocaleTimeString();
+      // forceLiteralText, same as everywhere else a "date"/time-shaped
+      // string is written — otherwise Sheets can silently store it as a
+      // real Date, and "checkout" below compares this column against a
+      // plain string, which would then never match.
+      if (h === "date") return forceLiteralText(formatDateMDY(now));
+      if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
       if (h === "phone") return sheetSafeText(rowValues[HEADERS.indexOf("phone")]);
       return ""; // timeOut
     }));
@@ -1195,8 +1199,12 @@ function doPost(e) {
         if (h === "idNo") return sheetSafeText(match.idNo);
         if (h === "name") return match.name;
         if (h === "class") return match.class;
-        if (h === "date") return formatDateMDY(now);
-        if (h === "timeIn") return now.toLocaleTimeString();
+        // forceLiteralText, same as everywhere else a "date"/time-shaped
+        // string is written — otherwise Sheets can silently store it as
+        // a real Date, and "checkout" below compares this column
+        // against a plain string, which would then never match.
+        if (h === "date") return forceLiteralText(formatDateMDY(now));
+        if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
         return ""; // timeOut, phone stay blank at check-in
       }));
       return ok({ member: match });
@@ -1212,25 +1220,33 @@ function doPost(e) {
 
       const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
-      if (lastRow < 2) return errorMsg("No sign-in found for this code today. Please sign in first.");
+      if (lastRow < 2) return errorMsg("No sign-in found for this code. Please sign in first.");
 
       const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const idColIndex = VISIT_HEADERS.indexOf("idNo");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-      const dateColIndex = VISIT_HEADERS.indexOf("date");
       const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
-      const todayStr = formatDateMDY(new Date());
+      // Finds this member's most recent STILL-OPEN visit (no timeOut
+      // yet), whatever day it was signed in on — not just one recorded
+      // as "today". Requiring an exact same-day match here used to mean
+      // a sign-in made late at night, or any drift between the sheet's
+      // time zone and the venue's, could leave a member unable to sign
+      // out at all even though their visit was genuinely still open;
+      // scanning from the last row down already finds the newest one
+      // first, and the nightly auto sign-out (see autoSignOutAt9pm)
+      // closes anything left open at day's end anyway, so there's
+      // nothing an exact-date check was actually protecting against.
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
         if (String(row[activityColIndex]).trim() === activity.key &&
-            String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
+            String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex]) {
           targetRow = i + 2; // sheet row number
           break;
         }
       }
-      if (targetRow === -1) return errorMsg("No open sign-in found for this code today. Please sign in first.");
+      if (targetRow === -1) return errorMsg("No open sign-in found for this code. Please sign in first.");
 
       visits.getRange(targetRow, timeOutColIndex + 1).setValue(new Date().toLocaleTimeString());
 
@@ -1262,26 +1278,27 @@ function doPost(e) {
 
       const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
-      if (lastRow < 2) return errorMsg("No sign-in found for this phone number today. Please sign in first.");
+      if (lastRow < 2) return errorMsg("No sign-in found for this phone number. Please sign in first.");
 
       const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const phoneColIndex = VISIT_HEADERS.indexOf("phone");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-      const dateColIndex = VISIT_HEADERS.indexOf("date");
       const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
-      const todayStr = formatDateMDY(new Date());
+      // Most recent STILL-OPEN visit for this phone number, whatever day
+      // it was signed in on — see the matching comment in "checkout"
+      // above for why an exact same-day match isn't required.
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
         if (String(row[activityColIndex]).trim() === activity.key &&
-            String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex] && row[dateColIndex] === todayStr) {
+            String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex]) {
           targetRow = i + 2; // sheet row number
           break;
         }
       }
       if (targetRow === -1) {
-        return errorMsg("No open sign-in found for this phone number today. Please sign in first, or ask the front desk.");
+        return errorMsg("No open sign-in found for this phone number. Please sign in first, or ask the front desk.");
       }
 
       visits.getRange(targetRow, timeOutColIndex + 1).setValue(new Date().toLocaleTimeString());
