@@ -351,9 +351,13 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 // lightweight row (name + gender + shared phone/email/address/emergency
 // contact only — no separate dob/medical/photo, except each member can
 // still state their own medical conditions). All rows in one family
-// share the same phone number, which is how "lookup" (the Sign In tab's
-// phone-number code retrieval) returns every family member's code at
-// once — there's no separate "family group" column needed for that.
+// also share one "familyGroupId" (a random ID stamped at submission —
+// see "submit" below), which is what lets doApprove()/doReject() act on
+// the whole family in one request instead of the front desk having to
+// approve or reject each member one at a time — see
+// findRowIndicesByFamilyGroup() below. They also all share the same
+// phone number, which is how "lookup" (the Sign In tab's phone-number
+// code retrieval) returns every family member's code at once.
 // "familyRelationship" ("relationship to you") is likewise only ever
 // populated for an additional family member's row.
 //
@@ -372,7 +376,7 @@ const HEADERS = [
   "duration", "sessionsUsed",
   "date", "time", "emergencyName", "emergencyPhone", "emergencyRelationship",
   "photoUrl", "signatureUrl", "isRenewal",
-  "familyRelationship"
+  "familyRelationship", "familyGroupId"
 ];
 const VISIT_HEADERS = ["activity", "visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
 
@@ -586,6 +590,28 @@ function findRowIndexByIdNo(sheet, idNo, activityKey) {
     }
   }
   return -1;
+}
+
+// Every Pending row sharing one Family Package submission's
+// familyGroupId (within one activity), as 1-based sheet row numbers —
+// used by doApprove()/doReject() to act on a whole family at once
+// instead of one member at a time. Returned in DESCENDING order so a
+// caller can delete/process each row without an earlier deleteRow()
+// shifting a later index still waiting to be handled.
+function findRowIndicesByFamilyGroup(sheet, groupId, activityKey) {
+  const activityColIndex = HEADERS.indexOf("activity") + 1;
+  const groupColIndex = HEADERS.indexOf("familyGroupId") + 1;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const activities = sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues();
+  const groups = sheet.getRange(2, groupColIndex, lastRow - 1, 1).getValues();
+  const rows = [];
+  for (let i = 0; i < activities.length; i++) {
+    if (String(activities[i][0]).trim() === activityKey && String(groups[i][0]).trim() === groupId) {
+      rows.push(i + 2);
+    }
+  }
+  return rows.sort((a, b) => b - a);
 }
 
 
@@ -814,17 +840,18 @@ function parseDriveFileId(input) {
 // to call)
 // ------------------------------------------------------------------
 
-// Approves a Pending row. A Walk-in never becomes a Registrations row —
-// it's a one-off visit, so approving it writes a Visits row directly
-// (checked in right now, no code needed later) and removes it from
-// Pending. A renewal request overwrites the member's EXISTING
-// Registrations row (new duration, expiry restarted from right now,
-// sessionsUsed reset to blank) instead of appending a duplicate row.
-function doApprove(activity, idNo) {
-  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
-  if (idx === -1) return ok({ message: "Already handled" });
+// Approves exactly one Pending row. A Walk-in never becomes a
+// Registrations row — it's a one-off visit, so approving it writes a
+// Visits row directly (checked in right now, no code needed later) and
+// removes it from Pending. A renewal request overwrites the member's
+// EXISTING Registrations row (new duration, expiry restarted from right
+// now, sessionsUsed reset to blank) instead of appending a duplicate
+// row. Returns the idNo that was approved. See doApprove() below for
+// how a Family Package's several rows are grouped and each run through
+// this one at a time.
+function approvePendingRow(activity, pending, registrations, idx) {
   const rowValues = pending.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
+  const idNo = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
 
   if (String(rowValues[HEADERS.indexOf("duration")]).trim() === "Walk-in") {
     const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
@@ -847,7 +874,7 @@ function doApprove(activity, idNo) {
     deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
     deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
     pending.deleteRow(idx);
-    return ok({ idNo: idNo });
+    return idNo;
   }
 
   // The photo/signature were uploaded into the Pending folder at
@@ -881,18 +908,15 @@ function doApprove(activity, idNo) {
   const isRenewal = String(rowValues[isRenewalIdx]).trim().toUpperCase() === "TRUE";
   rowValues[isRenewalIdx] = ""; // flag is spent once applied — never carried into Registrations
 
-  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-
   if (isRenewal) {
-    const idNoVal = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
-    const regIdx = findRowIndexByIdNo(registrations, idNoVal, activity.key);
+    const regIdx = findRowIndexByIdNo(registrations, idNo, activity.key);
     if (regIdx !== -1) {
       registrations.getRange(regIdx, HEADERS.indexOf("duration") + 1).setValue(rowValues[HEADERS.indexOf("duration")]);
       registrations.getRange(regIdx, HEADERS.indexOf("date") + 1).setValue(rowValues[HEADERS.indexOf("date")]);
       registrations.getRange(regIdx, HEADERS.indexOf("time") + 1).setValue(rowValues[HEADERS.indexOf("time")]);
       registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue("");
       pending.deleteRow(idx);
-      return ok({ idNo: idNo });
+      return idNo;
     }
     // Member's row is gone somehow (e.g. deleted by hand) — fall
     // through and append the clone as a fresh row instead of silently
@@ -901,21 +925,58 @@ function doApprove(activity, idNo) {
 
   registrations.appendRow(rowValues);
   pending.deleteRow(idx);
-  return ok({ idNo: idNo });
+  return idNo;
+}
+
+// A Family Package submission is several Pending rows sharing one
+// familyGroupId (see the HEADERS comment above) — approving any one of
+// them approves the whole family in one go, rather than making the
+// front desk approve each member individually. A renewal is never
+// grouped even though its cloned row carries the member's old
+// familyGroupId forward: only one member is ever renewing at a time, so
+// sweeping in the rest of the family (who aren't renewing anything)
+// would be wrong. Rows are processed highest-row-number first so an
+// earlier deleteRow() never shifts a not-yet-processed index.
+function doApprove(activity, idNo) {
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
+  if (idx === -1) return ok({ message: "Already handled" });
+
+  const isRenewal = String(pending.getRange(idx, HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
+  const groupId = isRenewal ? "" : String(pending.getRange(idx, HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
+  const rowIndices = groupId ? findRowIndicesByFamilyGroup(pending, groupId, activity.key) : [idx];
+
+  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  const approvedIdNos = rowIndices.map(rowIdx => approvePendingRow(activity, pending, registrations, rowIdx));
+
+  return ok({ idNo: idNo, approvedIdNos: approvedIdNos });
 }
 
 // Rejecting a pending registration leaves nothing behind — the photo
 // and signature saved to Drive at submission time are trashed along
-// with the row, not just orphaned in the Photos folder forever.
+// with the row, not just orphaned in the Photos folder forever. A
+// Family Package's rows are grouped and rejected together too, same as
+// doApprove() above (and for the same reason, a renewal is never
+// grouped).
 function doReject(activity, idNo) {
   const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
   const idx = findRowIndexByIdNo(pending, idNo, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
-  const rowValues = pending.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
-  deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
-  deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
-  pending.deleteRow(idx);
-  return ok({});
+
+  const isRenewal = String(pending.getRange(idx, HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
+  const groupId = isRenewal ? "" : String(pending.getRange(idx, HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
+  const rowIndices = groupId ? findRowIndicesByFamilyGroup(pending, groupId, activity.key) : [idx];
+
+  const rejectedIdNos = rowIndices.map(rowIdx => {
+    const rowValues = pending.getRange(rowIdx, 1, 1, HEADERS.length).getValues()[0];
+    const rejectedIdNo = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
+    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
+    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
+    pending.deleteRow(rowIdx);
+    return rejectedIdNo;
+  });
+
+  return ok({ rejectedIdNos: rejectedIdNos });
 }
 
 
@@ -1100,6 +1161,13 @@ function doPost(e) {
       // front so the whole submission fails cleanly (nothing written)
       // rather than partially, if the code pool or the 5-person cap is
       // hit.
+      // Shared by every row in this family (the primary registrant and
+      // each additional member below) so doApprove()/doReject() can
+      // find and act on the whole family at once — see
+      // findRowIndicesByFamilyGroup(). Blank for a non-family
+      // registration.
+      const familyGroupId = data.class === FAMILY_CATEGORY ? Utilities.getUuid() : "";
+
       let extraFamilyMembers = [];
       if (data.class === FAMILY_CATEGORY) {
         const rawMembers = Array.isArray(data.familyMembers) ? data.familyMembers : [];
@@ -1141,6 +1209,7 @@ function doPost(e) {
         // Force "date"/"time" to literal text too — otherwise Sheets
         // silently converts them to real date/time values.
         if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
+        if (h === "familyGroupId") return familyGroupId;
         return data[h] || "";
       }));
 
@@ -1158,6 +1227,7 @@ function doPost(e) {
           if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
           if (h === "email" || h === "address" || h === "emergencyName" || h === "emergencyRelationship") return data[h] || "";
           if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
+          if (h === "familyGroupId") return familyGroupId;
           // dob/nationality/department/photo/signature/sessionsUsed/
           // isRenewal are all left blank for an additional family
           // member — only their name, gender, relationship to the
@@ -1372,21 +1442,24 @@ function doPost(e) {
 
 
     if (action === "lookup") {
-      // Returns EVERY approved row sharing this phone number, not just
-      // one — so a Family Package's shared contact number retrieves
-      // every family member's code at once (each family member is its
-      // own row — see the HEADERS comment above), and anyone else who
-      // happens to share a phone number with another registrant sees
-      // all of theirs too. Scoped to this activity, same as everything
-      // else — a shared phone number on a different activity's row is
-      // never returned here.
+      // Returns EVERY approved row sharing this phone number, across
+      // EVERY activity, not just the one the request happened to be
+      // made from — so a phone number connected to more than one
+      // subscription (e.g. Gym AND Tennis Lessons) gets every code for
+      // every one of them back in a single lookup, not just whichever
+      // activity's tab the member happened to be on. Each returned row
+      // still carries its own "activity" field, so the caller can label
+      // which subscription each code belongs to. A Family Package's
+      // shared contact number retrieves every family member's code the
+      // same way (each family member is its own row — see the HEADERS
+      // comment above).
       const phone = String(data.phone || "").trim();
 
       const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      const pendingCount = sheetToObjects(pending).filter(r => r.activity === activity.key && String(r.phone).trim() === phone).length;
+      const pendingCount = sheetToObjects(pending).filter(r => String(r.phone).trim() === phone).length;
 
       const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const approvedMembers = sheetToObjects(registrations).filter(r => r.activity === activity.key && String(r.phone).trim() === phone);
+      const approvedMembers = sheetToObjects(registrations).filter(r => String(r.phone).trim() === phone);
 
       if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
       return ok({ found: true, approvedMembers: approvedMembers, pendingCount: pendingCount });

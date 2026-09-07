@@ -849,6 +849,97 @@
     return label;
   }
 
+  // One Pending row's approval card — solo, a renewal, or (when a
+  // Family Package's group only has one member left pending) a lone
+  // family row.
+  function renderApprovalCard(e){
+    const busy = busyIds.has(e.idNo);
+    const isWalkin = String(e.duration||'').trim() === "Walk-in";
+    const isRenewal = String(e.isRenewal||'').trim().toUpperCase() === "TRUE";
+    const actions = isWalkin
+      ? `<button class="reject-btn" data-idno="${escapeHtml(e.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject</button>
+         <button class="approve-btn" data-idno="${escapeHtml(e.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve</button>`
+      : `<span class="status-tag status-locked">Needs main front desk</span>`;
+    const familyRow = e.class === FAMILY_CATEGORY
+      ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
+      : '';
+    const staffRelationRow = UG_STAFF_RELATION_CATEGORIES.indexOf(e.class) !== -1
+      ? `<div class="detail-item"><div class="dlabel">Related UG Staff</div><div class="dvalue">${e.relatedStaffName ? escapeHtml(e.relatedStaffName) : '—'} (${e.relatedStaffIdNo ? escapeHtml(e.relatedStaffIdNo) : '—'})</div></div>
+         <div class="detail-item"><div class="dlabel">Relationship to Staff</div><div class="dvalue">${e.staffRelationship ? escapeHtml(e.staffRelationship) : '—'}</div></div>`
+      : '';
+    return `
+    <div class="approval-card">
+      <div class="approval-head">
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          <div>
+            <div class="approval-name">${escapeHtml(e.name)}${isWalkin ? '' : (isRenewal ? ' <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">RENEWAL</span>' : ' <span class="status-tag" style="background:var(--blue-dim);color:var(--blue);font-size:10px;vertical-align:middle;">NEW</span>')}</div>
+            <div class="approval-sub">${isRenewal ? 'Requested' : 'Submitted'} ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
+          </div>
+        </div>
+        <div class="approval-actions">${actions}</div>
+      </div>
+      ${emergencyCalloutHtml(e)}
+      <div class="detail-grid">
+        <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
+        <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
+        ${familyRow}
+        ${staffRelationRow}
+        <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(e.phone||'—')}</div></div>
+        <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${e.idNo ? escapeHtml(e.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>'}</div></div>
+        <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${planLabel(e)}</div></div>
+      </div>
+    </div>`;
+  }
+
+  // One card for a whole Family Package submission — approving/
+  // rejecting it (via the primary registrant's idNo) acts on every
+  // member at once server-side (see Code.gs's doApprove/doReject), so
+  // this desk only decides on the family once. Only actionable when the
+  // whole family is a Walk-in (this desk can only approve/reject
+  // walk-ins) — otherwise it shows the same "needs main front desk"
+  // lock as a solo row, just once for the family instead of per member.
+  function renderFamilyApprovalCard(members){
+    const primary = members.find(m => m.dob) || members[0];
+    const others = members.filter(m => m !== primary);
+    const busy = busyIds.has(primary.idNo);
+    const isWalkin = String(primary.duration||'').trim() === "Walk-in";
+    const actions = isWalkin
+      ? `<button class="reject-btn" data-idno="${escapeHtml(primary.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject Family</button>
+         <button class="approve-btn" data-idno="${escapeHtml(primary.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve Family (${members.length})</button>`
+      : `<span class="status-tag status-locked">Needs main front desk</span>`;
+    const memberListHtml = others.length
+      ? `<div class="detail-item"><div class="dlabel">Family Members (${others.length})</div><div class="dvalue">${others.map(m => `${escapeHtml(m.name||'')}${m.familyRelationship ? ' ('+escapeHtml(m.familyRelationship)+')' : ''}`).join(', ')}</div></div>`
+      : '';
+    const staffRelationRow = UG_STAFF_RELATION_CATEGORIES.indexOf(primary.class) !== -1
+      ? `<div class="detail-item"><div class="dlabel">Related UG Staff</div><div class="dvalue">${primary.relatedStaffName ? escapeHtml(primary.relatedStaffName) : '—'} (${primary.relatedStaffIdNo ? escapeHtml(primary.relatedStaffIdNo) : '—'})</div></div>
+         <div class="detail-item"><div class="dlabel">Relationship to Staff</div><div class="dvalue">${primary.staffRelationship ? escapeHtml(primary.staffRelationship) : '—'}</div></div>`
+      : '';
+    return `
+    <div class="approval-card">
+      <div class="approval-head">
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${primary.photoUrl ? `<img src="${escapeHtml(primary.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          <div>
+            <div class="approval-name">${escapeHtml(primary.name)} <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">FAMILY · ${members.length}</span></div>
+            <div class="approval-sub">Submitted ${escapeHtml(primary.date||'')} · ${escapeHtml(primary.time||'')}</div>
+          </div>
+        </div>
+        <div class="approval-actions">${actions}</div>
+      </div>
+      ${emergencyCalloutHtml(primary)}
+      <div class="detail-grid">
+        <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, primary.class)}">${escapeHtml(primary.class||'')}</span></div></div>
+        <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${primary.department ? escapeHtml(primary.department) : '—'}</div></div>
+        ${memberListHtml}
+        ${staffRelationRow}
+        <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(primary.phone||'—')}</div></div>
+        <div class="detail-item"><div class="dlabel">ID No. / Code (Primary)</div><div class="dvalue">${primary.idNo ? escapeHtml(primary.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>'}</div></div>
+        <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${planLabel(primary)}</div></div>
+      </div>
+    </div>`;
+  }
+
   function renderApprovals(){
     const host = document.getElementById('approvalsHost');
     document.getElementById('pendingBadge').textContent = pendingEntries.length;
@@ -856,45 +947,23 @@
       host.innerHTML = `<div class="empty-state"><p>Nothing pending for ${escapeHtml(currentActivity.label)}.</p></div>`;
       return;
     }
-    host.innerHTML = pendingEntries.map(e => {
-      const busy = busyIds.has(e.idNo);
-      const isWalkin = String(e.duration||'').trim() === "Walk-in";
+    // A fresh Family Package submission is several Pending rows sharing
+    // one familyGroupId (see Code.gs) — group them into one card here,
+    // same as the main front desk dashboard. A renewal keeps its old
+    // familyGroupId too, but is never grouped (only one member is ever
+    // renewing at a time), matching Code.gs's doApprove/doReject.
+    const seenGroups = new Set();
+    const cardsHtml = pendingEntries.map(e => {
       const isRenewal = String(e.isRenewal||'').trim().toUpperCase() === "TRUE";
-      const actions = isWalkin
-        ? `<button class="reject-btn" data-idno="${escapeHtml(e.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject</button>
-           <button class="approve-btn" data-idno="${escapeHtml(e.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve</button>`
-        : `<span class="status-tag status-locked">Needs main front desk</span>`;
-      const familyRow = e.class === FAMILY_CATEGORY
-        ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
-        : '';
-      const staffRelationRow = UG_STAFF_RELATION_CATEGORIES.indexOf(e.class) !== -1
-        ? `<div class="detail-item"><div class="dlabel">Related UG Staff</div><div class="dvalue">${e.relatedStaffName ? escapeHtml(e.relatedStaffName) : '—'} (${e.relatedStaffIdNo ? escapeHtml(e.relatedStaffIdNo) : '—'})</div></div>
-           <div class="detail-item"><div class="dlabel">Relationship to Staff</div><div class="dvalue">${e.staffRelationship ? escapeHtml(e.staffRelationship) : '—'}</div></div>`
-        : '';
-      return `
-      <div class="approval-card">
-        <div class="approval-head">
-          <div style="display:flex; align-items:center; gap:12px;">
-            ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
-            <div>
-              <div class="approval-name">${escapeHtml(e.name)}${isWalkin ? '' : (isRenewal ? ' <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">RENEWAL</span>' : ' <span class="status-tag" style="background:var(--blue-dim);color:var(--blue);font-size:10px;vertical-align:middle;">NEW</span>')}</div>
-              <div class="approval-sub">${isRenewal ? 'Requested' : 'Submitted'} ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
-            </div>
-          </div>
-          <div class="approval-actions">${actions}</div>
-        </div>
-        ${emergencyCalloutHtml(e)}
-        <div class="detail-grid">
-          <div class="detail-item"><div class="dlabel">Category</div><div class="dvalue"><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></div></div>
-          <div class="detail-item"><div class="dlabel">Department</div><div class="dvalue">${e.department ? escapeHtml(e.department) : '—'}</div></div>
-          ${familyRow}
-          ${staffRelationRow}
-          <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(e.phone||'—')}</div></div>
-          <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${e.idNo ? escapeHtml(e.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>'}</div></div>
-          <div class="detail-item"><div class="dlabel">Plan</div><div class="dvalue">${planLabel(e)}</div></div>
-        </div>
-      </div>`;
+      if(e.familyGroupId && !isRenewal){
+        if(seenGroups.has(e.familyGroupId)) return '';
+        seenGroups.add(e.familyGroupId);
+        const members = pendingEntries.filter(m => m.familyGroupId === e.familyGroupId && String(m.isRenewal||'').trim().toUpperCase() !== "TRUE");
+        return members.length > 1 ? renderFamilyApprovalCard(members) : renderApprovalCard(members[0]);
+      }
+      return renderApprovalCard(e);
     }).join('');
+    host.innerHTML = cardsHtml;
 
     host.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => handleApprovalAction(btn.dataset.idno, btn.dataset.action));
@@ -903,6 +972,12 @@
 
   function handleApprovalAction(idNo, action){
     const entry = pendingEntries.find(e => e.idNo === idNo);
+    const isRenewal = entry && String(entry.isRenewal||'').trim().toUpperCase() === "TRUE";
+    // Grab the family's size now (if any), before loadAll() below
+    // refreshes pendingEntries out from under it.
+    const familySize = (entry && entry.familyGroupId && !isRenewal)
+      ? pendingEntries.filter(e => e.familyGroupId === entry.familyGroupId && String(e.isRenewal||'').trim().toUpperCase() !== "TRUE").length
+      : 1;
     const activity = currentActivity;
     busyIds.add(idNo);
     renderApprovals();
@@ -915,7 +990,8 @@
     .then(data => {
       busyIds.delete(idNo);
       if(data.status === "ok"){
-        showToast(action === "approveWalkin" ? "Walk-in checked in ✓" : "Rejected");
+        const base = action === "approveWalkin" ? "Walk-in checked in ✓" : "Rejected";
+        showToast(familySize > 1 ? `${base} — family of ${familySize}` : base);
         loadAll();
       } else {
         showToast(data.message || "Couldn't update — try again", true);

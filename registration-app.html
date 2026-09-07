@@ -2054,7 +2054,11 @@
   // Swimming Lessons' Monthly): expired if the date window has passed OR
   // the sessions are used up, whichever comes first.
   function getStatusInfo(member){
-    const cfg = currentActivity ? currentActivity.durations[member.duration] : null;
+    // A phone lookup can now return members from OTHER activities too
+    // (see renderLookupResults) — resolve the plan against whichever
+    // activity that row actually belongs to, not always currentActivity.
+    const memberActivity = ACTIVITIES[member.activity] || currentActivity;
+    const cfg = memberActivity ? memberActivity.durations[member.duration] : null;
     if(!cfg) return { left: null, expired: false, sessionCap: null };
 
     const regDate = parseRegDate(member.date);
@@ -2238,9 +2242,11 @@
     });
   });
 
-  // Every approved row sharing that phone number comes back at once —
-  // for a Family Package that's every family member's code in one go,
-  // not just whichever row happened to match first.
+  // Every approved row sharing that phone number comes back at once, no
+  // matter which activity it belongs to — for a Family Package that's
+  // every family member's code in one go, and for a number registered
+  // under more than one activity's subscription (e.g. Gym AND Tennis
+  // Lessons), it's every one of those codes together too.
   function renderLookupResults(data){
     if(!data.found){
       renderMessage(true, "Not found", "We couldn't find a registration with that phone number.");
@@ -2251,12 +2257,20 @@
       renderMessage(false, "Still Pending", `${data.pendingCount} registration${data.pendingCount===1?'':'s'} found on this number — still awaiting front-desk approval, check back soon.`);
       return;
     }
+    // A number connected to more than one activity's subscription (e.g.
+    // Gym AND Tennis Lessons) gets every code for every one of them back
+    // in this one lookup — label each with its activity/program so it's
+    // clear which subscription a code belongs to, since a code only
+    // works for Sign In on that same activity's page.
     const rowsHtml = members.map(m => {
       const info = getStatusInfo(m);
+      const memberActivity = ACTIVITIES[m.activity];
+      const activityLabel = memberActivity ? memberActivity.label : '';
+      const sameActivity = memberActivity && currentActivity && memberActivity.key === currentActivity.key;
       return `<div class="lookup-result-row">
         <div>
           <div class="lookup-result-name">${escapeHtml(m.name||'')}</div>
-          <div class="lookup-result-sub">${escapeHtml(m.class||'')}${info.expired ? ' · Expired / used up' : ''}</div>
+          <div class="lookup-result-sub">${activityLabel ? `<strong>${escapeHtml(activityLabel)}</strong> · ` : ''}${escapeHtml(m.class||'')}${info.expired ? ' · Expired / used up' : ''}${activityLabel && !sameActivity ? ' · switch activity to sign in with this code' : ''}</div>
         </div>
         ${codeChipWithCopyHtml(m.idNo)}
       </div>`;
