@@ -1608,9 +1608,9 @@ function repairDateTimeColumns() {
 // activity, as if that member had signed out at closing time — for
 // anyone who used the facility but forgot to sign out themselves.
 // Meant to run automatically once a day via a time-driven trigger —
-// see installAutoSignOutTrigger() below, which sets that up. Safe to
-// run by hand too (Run > autoSignOutAt9pm) if you ever need to close
-// everything out early.
+// see installNightlyMaintenanceTrigger() below, which sets that up.
+// Safe to run by hand too (Run > autoSignOutAt9pm) if you ever need to
+// close everything out early.
 function autoSignOutAt9pm() {
   const CLOSING_TIME_LABEL = "9:00 PM";
   Object.keys(ACTIVITIES).forEach(key => {
@@ -1654,21 +1654,145 @@ function autoSignOutAt9pm() {
   });
 }
 
-// Run this ONCE from the function dropdown (Run > installAutoSignOutTrigger),
-// then approve the permissions prompt. Schedules autoSignOutAt9pm() to
-// run automatically every day at 9pm, in this project's time zone
-// (Project Settings (gear icon) -> Time zone — set that first if it
-// isn't already the venue's local time zone). Safe to re-run: it
-// removes any existing trigger for this function first, so you'll
-// never end up with duplicates firing the same night.
-function installAutoSignOutTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === "autoSignOutAt9pm") ScriptApp.deleteTrigger(t);
+function runNightlyMaintenance() {
+  autoSignOutAt9pm();
+  compileAllRegistrations();
+}
+
+// Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
+// then approve the permissions prompt. Schedules runNightlyMaintenance()
+// — auto sign-out plus a fresh "All Registrations" compile — to run
+// automatically every day at 9pm, in this project's time zone (Project
+// Settings (gear icon) -> Time zone — set that first if it isn't
+// already the venue's local time zone). Safe to re-run: it removes any
+// existing trigger for this function (and the older, single-purpose
+// autoSignOutAt9pm trigger, if you'd already set that up) first, so
+// you'll never end up with duplicates firing the same night.
+function installNightlyMaintenanceTrigger() {
+  ["autoSignOutAt9pm", "runNightlyMaintenance"].forEach(fn => {
+    ScriptApp.getProjectTriggers().forEach(t => {
+      if (t.getHandlerFunction() === fn) ScriptApp.deleteTrigger(t);
+    });
   });
-  ScriptApp.newTrigger("autoSignOutAt9pm")
+  ScriptApp.newTrigger("runNightlyMaintenance")
     .timeBased()
     .everyDays(1)
     .atHour(21)
     .create();
-  Logger.log("Installed: autoSignOutAt9pm will now run automatically every day at 9pm.");
+  Logger.log("Installed: runNightlyMaintenance (auto sign-out + compiled sheet refresh) will now run automatically every day at 9pm.");
+}
+
+
+// ------------------------------------------------------------------
+// One compiled sheet across every activity, and tidier tabs
+// ------------------------------------------------------------------
+
+const ALL_REGISTRATIONS_SHEET_NAME = "All Registrations";
+
+// Rebuilds one sheet combining every activity's Registrations sheet
+// into a single place, with an "activity" column so each row says
+// which activity it belongs to — newest approval first, across all
+// activities. Fully rebuilt from scratch every run rather than synced
+// incrementally on every approval (that would bring back the same
+// per-request slowdown that was deliberately removed elsewhere in this
+// file), so it's always safe to re-run. Runs automatically every night
+// as part of runNightlyMaintenance() above; run it by hand any time
+// (Run > compileAllRegistrations) for an immediate refresh.
+function compileAllRegistrations() {
+  const combinedHeaders = ["activity"].concat(HEADERS);
+  const sheet = getOrCreateSheet(ALL_REGISTRATIONS_SHEET_NAME, combinedHeaders);
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, combinedHeaders.length).clearContent();
+  }
+
+  let allRows = [];
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const regSheet = getOrCreateSheet(activity.registrationsSheet, HEADERS);
+    sheetToObjects(regSheet).forEach(row => {
+      allRows.push({ activity: activity.label, row: row });
+    });
+  });
+
+  allRows.sort((a, b) => registrationTimestampMs(b.row) - registrationTimestampMs(a.row));
+
+  if (allRows.length > 0) {
+    const outRows = allRows.map(({ activity, row }) =>
+      combinedHeaders.map(h => {
+        if (h === "activity") return activity;
+        if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
+        if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
+        return row[h] || "";
+      })
+    );
+    sheet.getRange(2, 1, outRows.length, combinedHeaders.length).setValues(outRows);
+  }
+
+  ensureTextFormatForPhoneColumns(sheet, combinedHeaders);
+  Logger.log(`Compiled ${allRows.length} registration(s) across all activities into "${ALL_REGISTRATIONS_SHEET_NAME}".`);
+}
+
+// Reorders and color-codes every sheet tab so the spreadsheet reads as
+// one organized system instead of tabs sitting in whatever order they
+// happened to be created — purely cosmetic, doesn't touch any data.
+// Run by hand (Run > organizeSheets) any time, including after adding
+// a new activity.
+function organizeSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // "All Registrations" leads, then each activity's own 3 sheets
+  // grouped together (Pending, Registrations, Visits), in the same
+  // order activities are defined in ACTIVITIES.
+  const order = [ALL_REGISTRATIONS_SHEET_NAME];
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    order.push(activity.pendingSheet, activity.registrationsSheet, activity.visitsSheet);
+  });
+  order.forEach((name, i) => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) return; // hasn't been created yet (e.g. no visits logged) — nothing to move
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(i + 1);
+  });
+
+  // Color-coded by role, so what each tab is for is visible without
+  // opening it.
+  const ROLE_COLORS = { all: "#B8860B", pending: "#EDA100", registrations: "#15369E", visits: "#1BAF7A" };
+  ss.getSheets().forEach(sheet => {
+    const name = sheet.getName();
+    let color = null;
+    if (name === ALL_REGISTRATIONS_SHEET_NAME) color = ROLE_COLORS.all;
+    else if (name.indexOf("Pending - ") === 0) color = ROLE_COLORS.pending;
+    else if (name.indexOf("Registrations - ") === 0) color = ROLE_COLORS.registrations;
+    else if (name.indexOf("Visits - ") === 0) color = ROLE_COLORS.visits;
+    if (color) sheet.setTabColor(color);
+  });
+
+  Logger.log("Sheet tabs reordered and color-coded.");
+}
+
+// Alerts moved off sheets entirely a while back (see
+// getAlerts()/addAlert() above) — any "Alerts - X" tabs left over from
+// before that change are unused dead weight. This PERMANENTLY DELETES
+// them. Run by hand only (Run > deleteUnusedAlertSheets) once you're
+// sure you don't need their history — Google Sheets' own version
+// history (File > Version history) can still recover a deleted sheet
+// for a while after, but this script can't undo it.
+function deleteUnusedAlertSheets() {
+  const NAMES = [
+    "Alerts - Gym",
+    "Alerts - Leisure Tennis",
+    "Alerts - Leisure Swimming",
+    "Alerts - Tennis Lessons",
+    "Alerts - Swimming Lessons"
+  ];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let deleted = 0;
+  NAMES.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) { ss.deleteSheet(sheet); deleted++; }
+  });
+  Logger.log(`Deleted ${deleted} unused Alerts sheet(s).`);
 }
