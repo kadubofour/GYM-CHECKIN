@@ -1,4 +1,4 @@
-# University of Ghana Sports Directorate — Multi-Activity Registration System
+# University of Ghana Sports and Wellness Directorate — Multi-Activity Registration System
 
 Five activities, one Google Sheets backend, four static front-ends.
 
