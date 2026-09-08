@@ -163,19 +163,23 @@
  *   single-column note scan plus one insertRowAfter()/insertRowsBefore()
  *   — so grouping is live the moment a registration is approved, including
  *   several back to back for a Family Package.
+ * - A renewal is approved through this exact same insert path — its old
+ *   Registrations row is deleted from wherever it was sitting and the
+ *   renewed row is inserted into today's block, just like a brand new
+ *   approval. It is never edited quietly in place inside an old date
+ *   block.
  * - regroupAllRegistrations() additionally rebuilds every activity's
  *   Registrations sheet from scratch (sorted newest-date-first, with a
  *   bold, shaded, merged banner row above each date's block) once a night
  *   as part of runNightlyMaintenance() (see installNightlyMaintenanceTrigger()
- *   below). It's a self-healing backstop, not the primary mechanism: it
- *   catches drift the incremental insert doesn't handle — most notably a
- *   renewal, which updates its member's row in place and so can be left
- *   sitting in a stale, non-today block until the next nightly run sorts
- *   it back out. A full rebuild is deliberately NEVER run synchronously
- *   inside an approval request — an earlier version of this project did
- *   that, and rewriting/reformatting the whole sheet on every single
- *   approval is what caused approvals to time out with "check the
- *   connection".
+ *   below). It's a self-healing backstop, not the primary mechanism —
+ *   it exists to catch any remaining drift (e.g. a stale banner count
+ *   after a row is deleted from a block by something other than the
+ *   insert path above) rather than to do the day-to-day grouping work.
+ *   A full rebuild is deliberately NEVER run synchronously inside an
+ *   approval request — an earlier version of this project did that, and
+ *   rewriting/reformatting the whole sheet on every single approval is
+ *   what caused approvals to time out with "check the connection".
  *   You can still also run the full rebuild by hand
  *   (Run > regroupAllRegistrations) any time you don't want to wait for
  *   the nightly run.
@@ -827,10 +831,13 @@ function dateLabelFor(dateStr) {
 // Approves exactly one Pending row. A Walk-in never becomes a
 // Registrations row — it's a one-off visit, so approving it writes a
 // Visits row directly (checked in right now, no code needed later) and
-// removes it from Pending. A renewal request overwrites the member's
-// EXISTING Registrations row (new duration, expiry restarted from right
-// now, sessionsUsed reset to blank) instead of appending a duplicate
-// row. Returns the idNo that was approved. See doApprove() below for
+// removes it from Pending. A renewal request is treated exactly like a
+// brand new registration: the member's existing Registrations row
+// (new duration, expiry restarted from right now, sessionsUsed reset
+// to blank) is pulled out of wherever it currently sits and dropped
+// back into today's date block, same as any other fresh approval —
+// not quietly edited in place inside whatever old date block it was
+// in. Returns the idNo that was approved. See doApprove() below for
 // how a Family Package's several rows are grouped and each run through
 // this one at a time. "registrations" is that activity's own
 // Registrations sheet, already resolved by the caller.
@@ -899,10 +906,18 @@ function approvePendingRow(activity, pending, registrations, idx) {
   if (isRenewal) {
     const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
     if (regIdx !== -1) {
-      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("duration") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("duration")]);
-      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("date") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("date")]);
-      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("time") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("time")]);
-      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue("");
+      // A renewal IS a new registration, date-grouping-wise: remove the
+      // member from wherever their old row currently sits (an old date
+      // block, most likely) and drop the renewed row into today's block
+      // via the same path a fresh approval uses, rather than editing 4
+      // fields in place and leaving the row stranded under yesterday's
+      // (or last month's) banner. rowValues already carries the renewed
+      // duration/date/time (stamped above) and the reset sessionsUsed,
+      // plus every other field cloned from the existing row by
+      // requestRenewal() — so it's a complete, correct row on its own.
+      registrations.deleteRow(regIdx);
+      const renewedRowValues = REGISTRATIONS_HEADERS.map(h => rowValues[PENDING_HEADERS.indexOf(h)]);
+      insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, renewedRowValues, formatDateMDY(approvedNow));
       pending.deleteRow(idx);
       return idNo;
     }
