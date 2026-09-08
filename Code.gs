@@ -156,17 +156,29 @@
  *   that shared number — see "lookup" below.
  *
  * DATE-GROUPED REGISTRATIONS SHEETS:
- * - regroupAllRegistrations() rebuilds every activity's Registrations
- *   sheet so rows are sorted newest-date-first with a bold, shaded,
- *   merged banner row above each date's block. It runs automatically
- *   every night as part of runNightlyMaintenance() (see
- *   installNightlyMaintenanceTrigger() below) — NOT after every single
- *   approval (an earlier version of this project did that, and
- *   rewriting/reformatting the whole sheet on every single approval —
- *   worse for a Family Package's several members back to back — is
- *   what caused approvals to time out with "check the connection").
- *   You can still also run it by hand (Run > regroupAllRegistrations)
- *   any time you don't want to wait for the nightly run.
+ * - Every approval calls insertRegistrationIntoDateGroup(), which drops the
+ *   newly-approved row straight into today's date block on its activity's
+ *   Registrations sheet (creating that block at the top if this is the
+ *   first approval of the day). This is a cheap, targeted insert — a
+ *   single-column note scan plus one insertRowAfter()/insertRowsBefore()
+ *   — so grouping is live the moment a registration is approved, including
+ *   several back to back for a Family Package.
+ * - regroupAllRegistrations() additionally rebuilds every activity's
+ *   Registrations sheet from scratch (sorted newest-date-first, with a
+ *   bold, shaded, merged banner row above each date's block) once a night
+ *   as part of runNightlyMaintenance() (see installNightlyMaintenanceTrigger()
+ *   below). It's a self-healing backstop, not the primary mechanism: it
+ *   catches drift the incremental insert doesn't handle — most notably a
+ *   renewal, which updates its member's row in place and so can be left
+ *   sitting in a stale, non-today block until the next nightly run sorts
+ *   it back out. A full rebuild is deliberately NEVER run synchronously
+ *   inside an approval request — an earlier version of this project did
+ *   that, and rewriting/reformatting the whole sheet on every single
+ *   approval is what caused approvals to time out with "check the
+ *   connection".
+ *   You can still also run the full rebuild by hand
+ *   (Run > regroupAllRegistrations) any time you don't want to wait for
+ *   the nightly run.
  *
  * (Photo upload, e-signature, the Excel export, walk-ins, and
  * renew/update-details all work exactly as in the original
@@ -358,10 +370,15 @@ const VIEW_CLEARED_AT_PREFIX = "VIEW_CLEARED_AT_";
 const PENDING_SHEET_NAME = "Pending";
 
 // Marker written as a NOTE (not the cell value) on the idNo cell of a
-// synthetic banner row, used by regroupRegistrationsByDate() below to
-// group a Registrations sheet into dated blocks. sheetToObjects()
-// filters these out of every normal read so a banner row never shows
-// up as if it were a real member.
+// synthetic banner row, used to group a Registrations sheet into dated
+// blocks — see regroupRegistrationsByDate() (full rebuild) and
+// insertRegistrationIntoDateGroup() (incremental insert on approval)
+// below. The actual note value is this marker PLUS the block's raw
+// date string (e.g. "§DATE_HEADER§9/8/2026"), so a fresh approval can
+// find "does today's block already exist" without re-parsing every
+// banner's display label. sheetToObjects() filters any row whose note
+// STARTS WITH this marker out of every normal read, so a banner row
+// never shows up as if it were a real member.
 const DATE_HEADER_MARKER = "§DATE_HEADER§";
 
 
@@ -603,7 +620,7 @@ function sheetToObjects(sheet) {
   return values
     .map((row, i) => ({ row, note: idIdx === -1 ? "" : (idNotes[i] ? idNotes[i][0] : "") }))
     .filter(({ row }) => row.join("") !== "")
-    .filter(({ note }) => note !== DATE_HEADER_MARKER)
+    .filter(({ note }) => note.indexOf(DATE_HEADER_MARKER) !== 0)
     .map(({ row }) => {
       const obj = {};
       headers.forEach((h, i) => obj[h] = cellToDisplayValue(row[i], h));
@@ -898,7 +915,11 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // the per-activity Registrations sheet has no such column, so map by
   // field NAME rather than position.
   const regRowValues = REGISTRATIONS_HEADERS.map(h => rowValues[PENDING_HEADERS.indexOf(h)]);
-  registrations.appendRow(regRowValues);
+  // Insert straight into today's date block (creating it if this is the
+  // first approval of the day) instead of a plain append, so the sheet
+  // stays grouped by date immediately — not just after the nightly
+  // regroupAllRegistrations() backstop. Cheap: touches only the one block.
+  insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, regRowValues, formatDateMDY(approvedNow));
   pending.deleteRow(idx);
   return idNo;
 }
@@ -1828,7 +1849,7 @@ function regroupRegistrationsByDate(activity) {
   const allValues = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const allNotes = sheet.getRange(2, 1, lastRow - 1, lastCol).getNotes();
   const memberRows = allValues.filter((row, i) =>
-    row.join("") !== "" && allNotes[i][idColIndex] !== DATE_HEADER_MARKER
+    row.join("") !== "" && String(allNotes[i][idColIndex] || "").indexOf(DATE_HEADER_MARKER) !== 0
   );
 
   // Self-healing: normalize the date cell to plain text before grouping,
@@ -1871,21 +1892,21 @@ function regroupRegistrationsByDate(activity) {
   });
 
   const outRows = [];
-  const headerRowOffsets = []; // 0-based offsets into outRows
+  const headerRows = []; // { offset, key } — 0-based offset into outRows, plus that block's date key
 
   dateKeys.forEach(key => {
     const rowsForDate = groups.get(key);
     const headerRow = new Array(lastCol).fill("");
     headerRow[idColIndex] =
       `${dateLabelFor(key)}  —  ${rowsForDate.length} registration${rowsForDate.length === 1 ? "" : "s"}`;
-    headerRowOffsets.push(outRows.length);
+    headerRows.push({ offset: outRows.length, key: key });
     outRows.push(headerRow);
     rowsForDate.forEach(r => outRows.push(r));
   });
 
   sheet.getRange(2, 1, outRows.length, lastCol).setValues(outRows);
 
-  headerRowOffsets.forEach(offset => {
+  headerRows.forEach(({ offset, key }) => {
     const rowNum = offset + 2; // +2: row 1 is the column header, outRows is 0-based
     const range = sheet.getRange(rowNum, 1, 1, lastCol);
     range.merge();
@@ -1893,7 +1914,7 @@ function regroupRegistrationsByDate(activity) {
     range.setBackground("#DCE4F0");
     range.setFontColor("#0F1D3B");
     range.setHorizontalAlignment("left");
-    sheet.getRange(rowNum, idColIndex + 1, 1, 1).setNote(DATE_HEADER_MARKER);
+    sheet.getRange(rowNum, idColIndex + 1, 1, 1).setNote(DATE_HEADER_MARKER + key);
   });
 }
 
@@ -1905,6 +1926,91 @@ function regroupRegistrationsByDate(activity) {
 // dropdown -> Run) any time you don't want to wait for the nightly run.
 function regroupAllRegistrations() {
   Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
+}
+
+// Drops a freshly-approved row straight into its Registrations sheet's
+// TODAY block — creating that block at the very top if this is the
+// first approval of the day — instead of just appending it to the
+// bottom, so date grouping is live the moment a registration is
+// approved rather than waiting for the nightly regroupAllRegistrations().
+// Cheap by construction: it only reads the idNo column's notes (to
+// find/verify blocks) and rewrites the one block being touched, never
+// the whole sheet — unlike a full regroupRegistrationsByDate() rebuild,
+// this is safe to run on every single approval, including several back
+// to back for a Family Package.
+//
+// Only ever called for a FRESH (non-renewal) approval, and dateKey is
+// always today's date (every fresh approval is stamped with "now" —
+// see approvePendingRow()), which is why this never needs to search
+// for a sorted insertion point among older blocks: a brand new block
+// is always the newest one, so it always goes at the very top. A
+// renewal updates its member's row in place instead of moving it, so
+// it can end up sitting inside a stale (non-today) block until the
+// next nightly regroupAllRegistrations() run sorts it back out —
+// that's an accepted, self-healing gap, not a bug.
+function insertRegistrationIntoDateGroup(sheet, headers, regRowValues, dateKey) {
+  const lastCol = headers.length;
+  const idColIndex = headers.indexOf("idNo");
+  const lastRow = sheet.getLastRow();
+  const bannerNote = DATE_HEADER_MARKER + dateKey;
+
+  if (lastRow < 2) {
+    insertNewDateBlock(sheet, lastCol, idColIndex, regRowValues, dateKey, 2);
+    return;
+  }
+
+  // Single-column note read (cheap) to find today's banner, if any,
+  // and — by scanning forward until the next banner or the end of the
+  // sheet — the last row currently in that block.
+  const idNotes = sheet.getRange(2, idColIndex + 1, lastRow - 1, 1).getNotes();
+  let bannerRow = -1;
+  let blockEndRow = -1;
+  for (let i = 0; i < idNotes.length; i++) {
+    if (idNotes[i][0] !== bannerNote) continue;
+    bannerRow = i + 2;
+    blockEndRow = bannerRow;
+    for (let j = i + 1; j < idNotes.length; j++) {
+      if (String(idNotes[j][0] || "").indexOf(DATE_HEADER_MARKER) === 0) break; // next block starts here
+      blockEndRow = j + 2;
+    }
+    break;
+  }
+
+  if (bannerRow === -1) {
+    // No block for today yet — today is always the newest date this
+    // can be, so the new block goes right after the column header.
+    insertNewDateBlock(sheet, lastCol, idColIndex, regRowValues, dateKey, 2);
+    return;
+  }
+
+  // Today's block already exists — add this member at the end of it
+  // (inheriting that row's plain formatting, not the banner's bold
+  // one), then bump the banner's count label.
+  sheet.insertRowAfter(blockEndRow);
+  const newRow = blockEndRow + 1;
+  sheet.getRange(newRow, 1, 1, lastCol).setValues([regRowValues]);
+  const newCount = (blockEndRow - bannerRow) + 1; // members already in the block, plus this one
+  sheet.getRange(bannerRow, idColIndex + 1).setValue(
+    `${dateLabelFor(dateKey)}  —  ${newCount} registration${newCount === 1 ? "" : "s"}`
+  );
+}
+
+// Inserts a brand-new two-row (banner + one member) date block at
+// atRow, formatted the same way regroupRegistrationsByDate() formats
+// one. Used by insertRegistrationIntoDateGroup() above.
+function insertNewDateBlock(sheet, lastCol, idColIndex, regRowValues, dateKey, atRow) {
+  sheet.insertRowsBefore(atRow, 2);
+
+  const bannerRange = sheet.getRange(atRow, 1, 1, lastCol);
+  bannerRange.merge();
+  bannerRange.setFontWeight("bold");
+  bannerRange.setBackground("#DCE4F0");
+  bannerRange.setFontColor("#0F1D3B");
+  bannerRange.setHorizontalAlignment("left");
+  sheet.getRange(atRow, idColIndex + 1).setValue(`${dateLabelFor(dateKey)}  —  1 registration`);
+  sheet.getRange(atRow, idColIndex + 1).setNote(DATE_HEADER_MARKER + dateKey);
+
+  sheet.getRange(atRow + 1, 1, 1, lastCol).setValues([regRowValues]);
 }
 
 
