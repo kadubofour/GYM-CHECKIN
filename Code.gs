@@ -163,11 +163,11 @@
  *   single-column note scan plus one insertRowAfter()/insertRowsBefore()
  *   — so grouping is live the moment a registration is approved, including
  *   several back to back for a Family Package.
- * - A renewal is approved through this exact same insert path — its old
- *   Registrations row is deleted from wherever it was sitting and the
- *   renewed row is inserted into today's block, just like a brand new
- *   approval. It is never edited quietly in place inside an old date
- *   block.
+ * - A renewal is approved through this exact same insert path, as a
+ *   brand new row in today's block — the member's prior Registrations
+ *   row is left exactly as it was, not edited or removed. So a
+ *   member's renewal history simply accumulates as separate rows over
+ *   time, each one dated to when it was approved.
  * - regroupAllRegistrations() additionally rebuilds every activity's
  *   Registrations sheet from scratch (sorted newest-date-first, with a
  *   bold, shaded, merged banner row above each date's block) once a night
@@ -832,14 +832,13 @@ function dateLabelFor(dateStr) {
 // Registrations row — it's a one-off visit, so approving it writes a
 // Visits row directly (checked in right now, no code needed later) and
 // removes it from Pending. A renewal request is treated exactly like a
-// brand new registration: the member's existing Registrations row
-// (new duration, expiry restarted from right now, sessionsUsed reset
-// to blank) is pulled out of wherever it currently sits and dropped
-// back into today's date block, same as any other fresh approval —
-// not quietly edited in place inside whatever old date block it was
-// in. Returns the idNo that was approved. See doApprove() below for
-// how a Family Package's several rows are grouped and each run through
-// this one at a time. "registrations" is that activity's own
+// brand new registration: it's appended as its own row (new duration,
+// expiry restarted from right now, sessionsUsed reset to blank), into
+// today's date block, same as any other fresh approval — the member's
+// prior Registrations row is left exactly as it was, not edited or
+// removed. Returns the idNo that was approved. See doApprove() below
+// for how a Family Package's several rows are grouped and each run
+// through this one at a time. "registrations" is that activity's own
 // Registrations sheet, already resolved by the caller.
 function approvePendingRow(activity, pending, registrations, idx) {
   const rowValues = pending.getRange(idx, 1, 1, PENDING_HEADERS.length).getValues()[0];
@@ -900,31 +899,14 @@ function approvePendingRow(activity, pending, registrations, idx) {
   rowValues[PENDING_HEADERS.indexOf("sessionsUsed")] = "";
 
   const isRenewalIdx = PENDING_HEADERS.indexOf("isRenewal");
-  const isRenewal = String(rowValues[isRenewalIdx]).trim().toUpperCase() === "TRUE";
   rowValues[isRenewalIdx] = ""; // flag is spent once applied — never carried into Registrations
 
-  if (isRenewal) {
-    const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
-    if (regIdx !== -1) {
-      // A renewal IS a new registration, date-grouping-wise: remove the
-      // member from wherever their old row currently sits (an old date
-      // block, most likely) and drop the renewed row into today's block
-      // via the same path a fresh approval uses, rather than editing 4
-      // fields in place and leaving the row stranded under yesterday's
-      // (or last month's) banner. rowValues already carries the renewed
-      // duration/date/time (stamped above) and the reset sessionsUsed,
-      // plus every other field cloned from the existing row by
-      // requestRenewal() — so it's a complete, correct row on its own.
-      registrations.deleteRow(regIdx);
-      const renewedRowValues = REGISTRATIONS_HEADERS.map(h => rowValues[PENDING_HEADERS.indexOf(h)]);
-      insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, renewedRowValues, formatDateMDY(approvedNow));
-      pending.deleteRow(idx);
-      return idNo;
-    }
-    // Member's row is gone somehow (e.g. deleted by hand) — fall
-    // through and append the clone as a fresh row instead of silently
-    // dropping the request.
-  }
+  // A renewal is a brand new registration record, not an edit of the
+  // old one — the member's prior Registrations row is left exactly as
+  // it is, and this renewed row (new duration/date/time, sessionsUsed
+  // reset — stamped above) is appended as its own row, same as any
+  // other fresh approval. So there is no renewal-specific branch here:
+  // every approval, renewal or not, takes this same path.
 
   // rowValues is Pending-shaped (has "activity" as its first field);
   // the per-activity Registrations sheet has no such column, so map by
