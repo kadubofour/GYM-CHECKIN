@@ -1957,13 +1957,14 @@
       emergencyRelationship: emergencyRelationshipField.value.trim(),
       date: formatDateMDY(now),
       time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-      photoBase64: photoBase64,
-      photoMimeType: photoMimeType,
       declarationAccepted: selectedDeclaration === 'Yes',
-      infoConfirmedCorrect: infoCorrectAgreed,
-      signatureBase64: hasSignature ? signatureCanvas.toDataURL('image/png') : "",
-      signatureMimeType: "image/png"
+      infoConfirmedCorrect: infoCorrectAgreed
     };
+    // Sent separately, right after submission succeeds — see the
+    // fire-and-forget "addPhoto" call below.
+    const photoForUpload = photoBase64;
+    const photoMimeTypeForUpload = photoMimeType;
+    const signatureForUpload = hasSignature ? signatureCanvas.toDataURL('image/png') : "";
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting…";
@@ -1978,6 +1979,27 @@
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
       if(data.status === "ok"){
+        // The row was written with photoUrl/signatureUrl blank — the
+        // server deliberately skips those (slow) Drive uploads on the
+        // request the registrant is waiting on. Firing this now, not
+        // awaited, lets the registrant move on to the approval-wait
+        // screen immediately while the photo/signature land a moment
+        // later. Never shown to the user — same "a photo problem never
+        // blocks a registration" philosophy the server follows.
+        fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "addPhoto",
+            activity: currentActivity.key,
+            idNo: data.idNo,
+            photoBase64: photoForUpload,
+            photoMimeType: photoMimeTypeForUpload,
+            signatureBase64: signatureForUpload,
+            signatureMimeType: "image/png"
+          })
+        }).catch(() => {});
+
         const members = (data.familyMembers && data.familyMembers.length)
           ? data.familyMembers
           : [{ idNo: data.idNo, name: fullName }];

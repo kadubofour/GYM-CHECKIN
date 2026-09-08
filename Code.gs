@@ -358,6 +358,16 @@ const PHOTOS_FOLDER_NAME = "Registration Photos";
 // on rejection it's trashed (see doReject); a Walk-in's photo is trashed
 // on approval too, since a Walk-in becomes a Visits row with no photo
 // column — see doApprove's Walk-in branch.
+//
+// Neither upload happens inside "submit" itself — createFile() +
+// setSharing() for each is Drive's slowest work in this whole project,
+// and doing both synchronously in the request that writes the Pending
+// row was adding real, noticeable delay to every registration. Instead
+// "submit" writes the row with photoUrl/signatureUrl blank, and the
+// registrant-app client immediately fires a separate "addPhoto" call
+// (see that action below — it accepts either field, or both) with the
+// same idNo right after. The registrant sees "submitted" the moment
+// the row is written; the photo/signature land a moment later.
 const PENDING_PHOTOS_FOLDER_NAME = "Pending Registration Photos";
 
 // A "Clear List" on the front desk's Registration Table doesn't touch
@@ -1255,15 +1265,19 @@ function doPost(e) {
       }
       usedIdNos.add(idNo);
 
-      // Name-first filenames (idNo tucked in parentheses for uniqueness)
-      // so photos/signatures can be found by applicant name in Drive.
-      // Lands in the Pending folder for now — doApprove() moves it into
-      // the approved folder once (if) this registration is approved,
-      // and doReject()/a Walk-in approval trashes it otherwise.
-      const applicantFileName = sanitizeForFilename(data.name);
-      const pendingPhotosFolder = getPendingPhotosFolder();
-      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType, pendingPhotosFolder);
-      const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType, pendingPhotosFolder);
+      // Photo/signature are NOT uploaded to Drive here — createFile() +
+      // setSharing() for each (Drive's slowest operations in this whole
+      // project) used to run right in this request, adding a couple of
+      // real seconds to every submission. The row is written below with
+      // both columns blank instead; the registrant-app client fires a
+      // separate, non-blocking "addPhoto" request (see that action
+      // below) with the same idNo right after this response comes
+      // back, so the registrant sees "submitted" immediately and the
+      // photo/signature land in Pending moments later. Never blocks a
+      // registration on a photo/signature upload succeeding — same
+      // philosophy as savePhotoAndGetUrl() itself never throwing.
+      const photoUrl = "";
+      const signatureUrl = "";
 
       // A Family Package registration isn't one row for the whole
       // family — see the PENDING_HEADERS comment above. The person
@@ -1523,9 +1537,16 @@ function doPost(e) {
 
 
     if (action === "addPhoto") {
+      // Also doubles as the "submit" handler's follow-up call: a fresh
+      // submission writes its Pending row with photoUrl/signatureUrl
+      // blank (see the long comment in "submit" above) and the
+      // registrant-app client fires this action right after, with the
+      // same idNo, to actually upload whichever of photoBase64/
+      // signatureBase64 it has — that's why either one alone is
+      // accepted here, not just a photo.
       const idNo = String(data.idNo || "").trim();
       if (!idNo) return errorMsg("Enter your code or ID number.");
-      if (!data.photoBase64) return errorMsg("No photo received.");
+      if (!data.photoBase64 && !data.signatureBase64) return errorMsg("No photo received.");
 
       const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
       let idx = findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key);
@@ -1540,17 +1561,25 @@ function doPost(e) {
       }
       if (!targetSheet) return errorMsg("Code not recognized");
 
-      const photoColIndex = targetHeaders.indexOf("photoUrl") + 1;
       const nameColIndex = targetHeaders.indexOf("name") + 1;
       const applicantName = targetSheet.getRange(idx, nameColIndex).getValue();
       const applicantFileName = sanitizeForFilename(applicantName);
       // Pending vs. already-approved decides which folder — same split
       // as the "submit" handler.
       const folder = targetSheet === pending ? getPendingPhotosFolder() : getPhotosFolder();
-      const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType, folder);
-      if (!photoUrl) return errorMsg("Couldn't save the photo — please try again.");
 
-      targetSheet.getRange(idx, photoColIndex).setValue(photoUrl);
+      // Never hard-fails if one upload doesn't come back with a URL —
+      // same "never blocks on a photo problem" philosophy as
+      // savePhotoAndGetUrl() itself never throwing. Whichever of the
+      // two wasn't sent (or failed) is simply left as-is.
+      if (data.photoBase64) {
+        const photoUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo})`, data.photoBase64, data.photoMimeType, folder);
+        if (photoUrl) targetSheet.getRange(idx, targetHeaders.indexOf("photoUrl") + 1).setValue(photoUrl);
+      }
+      if (data.signatureBase64) {
+        const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType, folder);
+        if (signatureUrl) targetSheet.getRange(idx, targetHeaders.indexOf("signatureUrl") + 1).setValue(signatureUrl);
+      }
       return ok({});
     }
 
