@@ -6,7 +6,7 @@ Five activities, one Google Sheets backend, four static front-ends.
 
 | Activity | Code prefix | Example | Categories | Plans |
 |---|---|---|---|---|
-| Gym Membership | `G` | `G1234567` | UG Student, UG Staff, Non-UG Student, Public | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
+| Gymnasium | `G` | `G1234567` | UG Student, UG Staff, Non-UG Student, Public | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
 | Leisure Tennis | `T` | `T1234567` | UG Student, UG Staff, UG Staff Relation (Under 17 / 17 & Above), Public Child (Under 17), Public Adult (17 & Above), Family Package (Max 5) | Walk-in, Monthly only |
 | Leisure Swimming | `S` | `S1234567` | Same 7 categories as Leisure Tennis | Walk-in, Monthly, Semesterly (UG Student only), Quarterly, Half-yearly, Yearly |
 | Tennis Lessons | `TL` | `TL1234567` | Same 7 categories | Walk-in, Monthly (30-day window) |

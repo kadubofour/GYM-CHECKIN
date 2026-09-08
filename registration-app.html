@@ -444,14 +444,14 @@
   </div>
 
   <div class="tab-bar">
-    <button class="tab-btn active" data-tab="register">Register</button>
+    <button class="tab-btn" data-tab="register">Register</button>
     <button class="tab-btn" data-tab="renew">Renewal</button>
-    <button class="tab-btn" data-tab="signin">Sign In</button>
+    <button class="tab-btn active" data-tab="signin">Sign In</button>
     <button class="tab-btn" data-tab="signout">Sign Out</button>
   </div>
 
   <!-- ============ REGISTRATION TAB ============ -->
-  <div class="tab-panel active" id="tab-register">
+  <div class="tab-panel" id="tab-register">
     <p class="subhead">Your registration will be reviewed by the front desk before it's confirmed.</p>
 
     <div class="wizard-progress" id="wizardProgress">
@@ -741,7 +741,7 @@
   </div>
 
   <!-- ============ SIGN IN TAB ============ -->
-  <div class="tab-panel" id="tab-signin">
+  <div class="tab-panel active" id="tab-signin">
     <div class="view active" id="view-code">
       <p class="subhead">Enter your member code or ID number to sign in.</p>
       <form id="codeForm" novalidate>
@@ -999,7 +999,7 @@
   const UG_STAFF_RELATION_CATEGORIES = ["UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)"];
   const ACTIVITIES = {
     gym: {
-      key: "gym", label: "Gym Membership", short: "Gym",
+      key: "gym", label: "Gymnasium", short: "Gym",
       categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
       idRequiredCategories: ["UG Student", "UG Staff"],
       deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -1118,7 +1118,7 @@
   // activity combined into one section — picking the section reveals
   // a second step to choose between the two.
   const PICKER_SECTIONS = [
-    { key: 'gym', label: 'Gym Membership' },
+    { key: 'gym', label: 'Gymnasium' },
     { key: 'tennis', label: 'Tennis', options: ['leisureTennis', 'tennisLessons'] },
     { key: 'swimming', label: 'Swimming', options: ['leisureSwimming', 'swimmingLessons'] }
   ];
@@ -2696,8 +2696,10 @@
     resetRenew();
     topTabs.forEach(b => b.classList.remove('active'));
     Object.values(topPanels).forEach(p => p.classList.remove('active'));
-    document.querySelector('.tab-bar > .tab-btn[data-tab="register"]').classList.add('active');
-    topPanels.register.classList.add('active');
+    // Sign In first — most people opening the app already have a
+    // membership and just want to sign in, not register a new one.
+    document.querySelector('.tab-bar > .tab-btn[data-tab="signin"]').classList.add('active');
+    topPanels.signin.classList.add('active');
   }
 
 })();

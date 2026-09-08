@@ -592,7 +592,7 @@
   const UG_STAFF_RELATION_CATEGORIES = ["UG Staff Relation (Under 17)", "UG Staff Relation (17 & Above)"];
   const ACTIVITIES = {
     gym: {
-      key: "gym", label: "Gym Membership",
+      key: "gym", label: "Gymnasium",
       categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
       idRequiredCategories: ["UG Student", "UG Staff"],
       durations: { "Walk-in": {days:1}, "Monthly": {days:30}, "Semesterly": {days:120,onlyFor:["UG Student"]}, "Quarterly": {days:90,hideFor:["UG Student"]}, "Half-yearly": {days:182}, "Yearly": {days:365} }
@@ -716,7 +716,7 @@
   // activity and a Lessons activity into one section with a second-row
   // toggle between the two.
   const SWITCHER_SECTIONS = [
-    { key: 'gym', label: 'Gym Membership', activityKey: 'gym' },
+    { key: 'gym', label: 'Gymnasium', activityKey: 'gym' },
     { key: 'tennis', label: 'Tennis', options: ['leisureTennis', 'tennisLessons'] },
     { key: 'swimming', label: 'Swimming', options: ['leisureSwimming', 'swimmingLessons'] }
   ];

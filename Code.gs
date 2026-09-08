@@ -221,7 +221,7 @@ const STAFF_RELATIONSHIP_OPTIONS = ["Spouse", "Child"];
 const ACTIVITIES = {
   gym: {
     key: "gym",
-    label: "Gym Membership",
+    label: "Gymnasium",
     prefix: "G",
     // Old per-activity Pending sheet name — only ever read by
     // migratePendingToSharedSheet()/deleteLegacyPendingSheets() below,
