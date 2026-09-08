@@ -9,11 +9,11 @@
 <style>
   :root{
     --bg:#FFFFFF; --panel:#FFFFFF; --panel-alt:#F2F6FC;
-    --page-bg:#0A1128;
     --line:#DCE4F0; --line-strong:#B9C7DE;
     --text:#0F1D3B; --text-dim:#5B6B85; --text-faint:#8B98AC;
-    --blue:#15369E; --blue-dark:#0C2568; --blue-dim:rgba(21,54,158,0.08); --blue-dim-strong:rgba(21,54,158,0.14);
-    --gold:#B8860B; --gold-dark:#8C660A; --gold-dim:rgba(184,134,11,0.12);
+    /* University of Ghana crest colors: deep navy + gold. */
+    --blue:#232559; --blue-dark:#14152F; --blue-dim:rgba(35,37,89,0.08); --blue-dim-strong:rgba(35,37,89,0.14);
+    --gold:#BA8F4A; --gold-dark:#8F6B32; --gold-dim:rgba(186,143,74,0.12);
     --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
   }
   *{box-sizing:border-box;}
@@ -22,7 +22,7 @@
     background:
       radial-gradient(1100px 560px at 88% -8%, var(--blue-dim), transparent 60%),
       radial-gradient(900px 500px at 8% 108%, var(--gold-dim), transparent 55%),
-      var(--page-bg);
+      var(--bg);
     color:var(--text); font-family:'Inter',sans-serif;
     min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px;
   }
@@ -30,16 +30,13 @@
   .screen.active{display:block; width:100%;}
   .card{
     width:100%; max-width:480px; background:var(--panel); border:1px solid var(--line);
-    border-radius:16px; padding:30px 30px 30px; position:relative; margin:0 auto;
+    border-top:4px solid var(--gold); border-radius:16px; padding:30px 30px 30px; position:relative; margin:0 auto;
     box-shadow:0 1px 3px rgba(15,29,59,0.04), 0 10px 30px rgba(15,29,59,0.06);
   }
   .brand-eyebrow{
     font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.18em;
     text-transform:uppercase; color:var(--blue); margin:0 0 6px; text-align:center;
   }
-  .brand-lockup{ display:flex; align-items:center; justify-content:center; gap:10px; margin:0 0 6px; }
-  .brand-lockup .brand-eyebrow{ margin:0; }
-  .brand-logo{ height:34px; width:auto; flex-shrink:0; }
   h1{
     font-family:'Bebas Neue',sans-serif; font-size:40px; letter-spacing:0.02em; line-height:0.9;
     margin:0 0 20px; text-align:center; color:var(--text);
@@ -424,10 +421,7 @@
 
 <div class="screen active" id="screen-picker">
   <div class="card">
-    <div class="brand-lockup">
-      <img class="brand-logo" src="UoG_CoA_2017.svg" alt="University of Ghana coat of arms">
-      <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
-    </div>
+    <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
     <button type="button" class="switch-link back-link" id="activityPickerBack" style="display:none;margin:0 0 8px;">← Back</button>
     <h1 id="activityPickerTitle">CHOOSE YOUR ACTIVITY</h1>
     <p class="subhead" id="activityPickerSub" style="display:none;"></p>
