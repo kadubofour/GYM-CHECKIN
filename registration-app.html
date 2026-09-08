@@ -1103,6 +1103,26 @@
   }
   populateCountryCodeSelects();
 
+  // Ghanaian habit: local numbers are usually written with a leading 0
+  // ("024 123 4567") even though every phone field here already pairs
+  // with an explicit country code select that accounts for it — so a
+  // leading 0 is dropped the moment it's typed, and typing is capped
+  // at 9 digits (the length of a local number once that 0 is gone).
+  document.querySelectorAll('.phone-group input[type="text"]').forEach(input => {
+    input.addEventListener('input', () => {
+      let value = input.value.replace(/^0/, '');
+      let digitCount = 0, cutIndex = value.length;
+      for(let i = 0; i < value.length; i++){
+        if(/\d/.test(value[i])){
+          digitCount++;
+          if(digitCount > 9){ cutIndex = i; break; }
+        }
+      }
+      value = value.slice(0, cutIndex);
+      if(value !== input.value) input.value = value;
+    });
+  });
+
   /* ===================== Screens: activity picker <-> app ===================== */
   const screens = {
     picker: document.getElementById('screen-picker'),
