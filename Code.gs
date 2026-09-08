@@ -155,16 +155,18 @@
  *   returns every family member's code at once when the head enters
  *   that shared number — see "lookup" below.
  *
- * DATE-GROUPED REGISTRATIONS SHEETS (optional, manual):
+ * DATE-GROUPED REGISTRATIONS SHEETS:
  * - regroupAllRegistrations() rebuilds every activity's Registrations
  *   sheet so rows are sorted newest-date-first with a bold, shaded,
- *   merged banner row above each date's block. It's a manual tool —
- *   run it by hand (Run > regroupAllRegistrations) whenever you want
- *   the sheets tidied, not something that runs automatically on every
+ *   merged banner row above each date's block. It runs automatically
+ *   every night as part of runNightlyMaintenance() (see
+ *   installNightlyMaintenanceTrigger() below) — NOT after every single
  *   approval (an earlier version of this project did that, and
  *   rewriting/reformatting the whole sheet on every single approval —
  *   worse for a Family Package's several members back to back — is
  *   what caused approvals to time out with "check the connection").
+ *   You can still also run it by hand (Run > regroupAllRegistrations)
+ *   any time you don't want to wait for the nightly run.
  *
  * (Photo upload, e-signature, the Excel export, walk-ins, and
  * renew/update-details all work exactly as in the original
@@ -1797,8 +1799,7 @@ function deleteUnusedAlertSheets() {
 
 
 // ------------------------------------------------------------------
-// Date-grouped Registrations sheets (optional, manual — see the
-// top-of-file doc comment)
+// Date-grouped Registrations sheets (see the top-of-file doc comment)
 // ------------------------------------------------------------------
 
 // Rebuilds one activity's Registrations sheet so rows are sorted
@@ -1807,13 +1808,14 @@ function deleteUnusedAlertSheets() {
 // from the real member rows (ignoring any existing header rows) so
 // it's idempotent.
 //
-// NOT called automatically from doApprove() — rewriting and
-// reformatting the ENTIRE sheet on every single approval got slow as a
-// sheet grew, and made approving a Family Package's several members
-// back to back time out with "check the connection". Run
-// regroupAllRegistrations() below by hand (Apps Script editor's
-// function dropdown -> Run) whenever you want a Registrations sheet
-// tidied.
+// NOT called from doApprove() — rewriting and reformatting the ENTIRE
+// sheet on every single approval got slow as a sheet grew, and made
+// approving a Family Package's several members back to back time out
+// with "check the connection". Instead it's run automatically once a
+// night by runNightlyMaintenance() (see regroupAllRegistrations()
+// below and installNightlyMaintenanceTrigger()) — you can also run
+// regroupAllRegistrations() by hand any time you don't want to wait
+// for the nightly run.
 function regroupRegistrationsByDate(activity) {
   const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
   const lastCol = REGISTRATIONS_HEADERS.length;
@@ -1895,10 +1897,12 @@ function regroupRegistrationsByDate(activity) {
   });
 }
 
-// Run this by hand (Apps Script editor's function dropdown -> Run)
-// whenever you want every activity's Registrations sheet tidied into
-// dated, banner-grouped blocks. Takes a while on a large sheet — that's
-// exactly why it's no longer run automatically on every approval.
+// Tidies every activity's Registrations sheet into dated, banner-grouped
+// blocks. Runs automatically once a night via runNightlyMaintenance()
+// (see installNightlyMaintenanceTrigger()) — takes a while on a large
+// sheet, which is exactly why it runs there and not after every single
+// approval. You can also run it by hand (Apps Script editor's function
+// dropdown -> Run) any time you don't want to wait for the nightly run.
 function regroupAllRegistrations() {
   Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
 }
@@ -2047,18 +2051,20 @@ function autoSignOutAt9pm() {
 
 function runNightlyMaintenance() {
   autoSignOutAt9pm();
+  regroupAllRegistrations();
 }
 
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
 // then approve the permissions prompt. Schedules runNightlyMaintenance()
-// (currently just the 9pm auto sign-out, kept as its own wrapper in
-// case more nightly jobs get added later) to run automatically every
-// day at 9pm, in this project's time zone (Project Settings (gear
-// icon) -> Time zone — set that first if it isn't already the venue's
-// local time zone). Safe to re-run: it removes any existing trigger
-// for this function (and the older autoSignOutAt9pm/compiled-sheet
-// triggers, if you'd set either of those up before) first, so you'll
-// never end up with duplicates firing the same night.
+// (the 9pm auto sign-out, then the date-grouped Registrations
+// tidy-up — kept as its own wrapper in case more nightly jobs get
+// added later) to run automatically every day at 9pm, in this
+// project's time zone (Project Settings (gear icon) -> Time zone —
+// set that first if it isn't already the venue's local time zone).
+// Safe to re-run: it removes any existing trigger for this function
+// (and the older autoSignOutAt9pm/compiled-sheet triggers, if you'd
+// set either of those up before) first, so you'll never end up with
+// duplicates firing the same night.
 function installNightlyMaintenanceTrigger() {
   ["autoSignOutAt9pm", "runNightlyMaintenance"].forEach(fn => {
     ScriptApp.getProjectTriggers().forEach(t => {
