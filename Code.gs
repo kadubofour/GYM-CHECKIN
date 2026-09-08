@@ -29,8 +29,10 @@
  * - Only Pending is shared; Registrations/Visits are isolated per
  *   activity simply by being different sheets, so there's nothing to
  *   filter — reading "Registrations - Gym" can only ever return Gym
- *   rows. Every managed sheet still gets a basic Sheets filter (the
- *   little dropdown arrows on the header row) automatically.
+ *   rows. No sheet gets a basic Sheets filter (the little dropdown
+ *   arrows on the header row) automatically anymore — it didn't play
+ *   well with the merged date-header banner rows on Registrations
+ *   sheets (see "DATE-GROUPED REGISTRATIONS SHEETS" below).
  *
  * SETUP (fresh sheet):
  * 1. Create a new Google Sheet (sheets.new).
@@ -545,12 +547,11 @@ function getOrCreateSheet(name, headers) {
     // sheet, not something that needs re-checking on every read.
     ensureTextFormatForPhoneColumns(sheet, headers);
   }
-  // A basic Sheets filter (the dropdown arrows on the header row) so
-  // isolating rows by hand needs no setup. getFilter() is cheap, and
-  // createFilter() only ever actually runs once per sheet.
-  if (!sheet.getFilter()) {
-    try { sheet.getDataRange().createFilter(); } catch (err) { /* cosmetic convenience — never block on it */ }
-  }
+  // No automatic Sheets filter (the dropdown arrows on the header row)
+  // — it doesn't play well with the merged date-header banner rows
+  // (blank/weird entries in the dropdowns, filtering rows out from
+  // under a banner), so it's left off. Add one by hand from the Data
+  // menu if you want it for a particular sheet.
   return sheet;
 }
 
