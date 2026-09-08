@@ -10,8 +10,10 @@
  *                                  activity, registration tables, visit logs)
  *   - tennis-front-desk.html     (Leisure Tennis + Tennis Lessons only —
  *                                  read-only registrant data + visit log +
- *                                  sign-in/out kiosk; can only approve/reject
- *                                  WALK-INS, enforced server-side below)
+ *                                  sign-in/out kiosk + a Walk-in entry form;
+ *                                  cannot approve/reject anything — every
+ *                                  pending row, walk-ins included, waits for
+ *                                  the main front desk)
  *   - swimming-front-desk.html   (same, for Leisure Swimming + Swimming Lessons)
  *
  * SHEET LAYOUT: everything lives in THREE shared sheets — "Pending",
@@ -1140,22 +1142,6 @@ function doPost(e) {
 
     if (action === "reject") {
       return doReject(activity, data.idNo);
-    }
-
-
-    // ---- Restricted actions for the satellite (tennis/swimming) front
-    // desks: approvals there are ONLY allowed on a Walk-in row. This is
-    // enforced here server-side (not just by hiding the button in the
-    // satellite UI) since both apps call the same backend URL. ----
-    if (action === "approveWalkin" || action === "rejectWalkin") {
-      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      const idx = findRowIndexByIdNo(pending, data.idNo, activity.key);
-      if (idx === -1) return ok({ message: "Already handled" });
-      const duration = String(pending.getRange(idx, HEADERS.indexOf("duration") + 1).getValue()).trim();
-      if (duration !== "Walk-in") {
-        return errorMsg("This front desk can only approve or reject walk-ins — new registrations and renewals need the main front desk.");
-      }
-      return action === "approveWalkin" ? doApprove(activity, data.idNo) : doReject(activity, data.idNo);
     }
 
 

@@ -522,7 +522,6 @@
   let visitSearchTerm = "";
   let pinBuffer = "";
   let refreshTimer = null;
-  let busyIds = new Set();
 
   const screens = { pin: document.getElementById('pinScreen'), desk: document.getElementById('deskScreen') };
   function showScreen(name){
@@ -853,13 +852,13 @@
   // Family Package's group only has one member left pending) a lone
   // family row.
   function renderApprovalCard(e){
-    const busy = busyIds.has(e.idNo);
     const isWalkin = String(e.duration||'').trim() === "Walk-in";
     const isRenewal = String(e.isRenewal||'').trim().toUpperCase() === "TRUE";
-    const actions = isWalkin
-      ? `<button class="reject-btn" data-idno="${escapeHtml(e.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject</button>
-         <button class="approve-btn" data-idno="${escapeHtml(e.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve</button>`
-      : `<span class="status-tag status-locked">Needs main front desk</span>`;
+    // This desk is read-only for approvals — every pending row, walk-in
+    // included, has to be approved or rejected from the main front
+    // desk. See Code.gs: doPost no longer even has an approveWalkin/
+    // rejectWalkin action for this desk to call.
+    const actions = `<span class="status-tag status-locked">Needs main front desk</span>`;
     const familyRow = e.class === FAMILY_CATEGORY
       ? `<div class="detail-item"><div class="dlabel">Family Package</div><div class="dvalue">${e.dob ? 'Primary registrant' : 'Additional family member'} — other codes retrievable by phone on Sign In</div></div>`
       : '';
@@ -892,22 +891,13 @@
     </div>`;
   }
 
-  // One card for a whole Family Package submission — approving/
-  // rejecting it (via the primary registrant's idNo) acts on every
-  // member at once server-side (see Code.gs's doApprove/doReject), so
-  // this desk only decides on the family once. Only actionable when the
-  // whole family is a Walk-in (this desk can only approve/reject
-  // walk-ins) — otherwise it shows the same "needs main front desk"
-  // lock as a solo row, just once for the family instead of per member.
+  // One card for a whole Family Package submission (read-only here —
+  // see renderApprovalCard above), so this desk shows one "needs main
+  // front desk" lock for the family instead of one per member.
   function renderFamilyApprovalCard(members){
     const primary = members.find(m => m.dob) || members[0];
     const others = members.filter(m => m !== primary);
-    const busy = busyIds.has(primary.idNo);
-    const isWalkin = String(primary.duration||'').trim() === "Walk-in";
-    const actions = isWalkin
-      ? `<button class="reject-btn" data-idno="${escapeHtml(primary.idNo)}" data-action="rejectWalkin" ${busy?'disabled':''}>Reject Family</button>
-         <button class="approve-btn" data-idno="${escapeHtml(primary.idNo)}" data-action="approveWalkin" ${busy?'disabled':''}>Approve Family (${members.length})</button>`
-      : `<span class="status-tag status-locked">Needs main front desk</span>`;
+    const actions = `<span class="status-tag status-locked">Needs main front desk</span>`;
     const memberListHtml = others.length
       ? `<div class="detail-item"><div class="dlabel">Family Members (${others.length})</div><div class="dvalue">${others.map(m => `${escapeHtml(m.name||'')}${m.familyRelationship ? ' ('+escapeHtml(m.familyRelationship)+')' : ''}`).join(', ')}</div></div>`
       : '';
@@ -964,45 +954,6 @@
       return renderApprovalCard(e);
     }).join('');
     host.innerHTML = cardsHtml;
-
-    host.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', () => handleApprovalAction(btn.dataset.idno, btn.dataset.action));
-    });
-  }
-
-  function handleApprovalAction(idNo, action){
-    const entry = pendingEntries.find(e => e.idNo === idNo);
-    const isRenewal = entry && String(entry.isRenewal||'').trim().toUpperCase() === "TRUE";
-    // Grab the family's size now (if any), before loadAll() below
-    // refreshes pendingEntries out from under it.
-    const familySize = (entry && entry.familyGroupId && !isRenewal)
-      ? pendingEntries.filter(e => e.familyGroupId === entry.familyGroupId && String(e.isRenewal||'').trim().toUpperCase() !== "TRUE").length
-      : 1;
-    const activity = currentActivity;
-    busyIds.add(idNo);
-    renderApprovals();
-    fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: action, activity: activity.key, idNo: idNo })
-    })
-    .then(res => res.json())
-    .then(data => {
-      busyIds.delete(idNo);
-      if(data.status === "ok"){
-        const base = action === "approveWalkin" ? "Walk-in checked in ✓" : "Rejected";
-        showToast(familySize > 1 ? `${base} — family of ${familySize}` : base);
-        loadAll();
-      } else {
-        showToast(data.message || "Couldn't update — try again", true);
-        renderApprovals();
-      }
-    })
-    .catch(() => {
-      busyIds.delete(idNo);
-      showToast("No connection", true);
-      renderApprovals();
-    });
   }
 
   // ---- Registrants (full detail, read-only) ----
