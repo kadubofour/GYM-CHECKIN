@@ -9,24 +9,28 @@
  *   - front-desk-dashboard.html  (main front desk: full approvals for every
  *                                  activity, registration tables, visit logs)
  *   - tennis-front-desk.html     (Leisure Tennis + Tennis Lessons only —
- *                                  read-only registrant data + visit log +
- *                                  sign-in/out kiosk + a Walk-in entry form;
- *                                  cannot approve/reject anything — every
- *                                  pending row, walk-ins included, waits for
- *                                  the main front desk)
+ *                                  read-only registrant data + a Walk-in entry
+ *                                  form; cannot approve/reject anything, and
+ *                                  has no access to Pending or the Visit Log
+ *                                  at all — everything pending, walk-ins
+ *                                  included, waits for the main front desk)
  *   - swimming-front-desk.html   (same, for Leisure Swimming + Swimming Lessons)
  *
- * SHEET LAYOUT: everything lives in THREE shared sheets — "Pending",
- * "Registrations", "Visits" — not one set per activity. Every row in
- * each carries an "activity" column (gym / leisureTennis / etc.)
- * saying which activity it belongs to. Anywhere the code needs "just
- * this activity's rows", it filters the shared sheet by that column
- * (see getVisibleRegistrations(), findRowIndexByIdNo(), and every
- * doGet/doPost handler below) rather than reading a separate sheet —
- * so isolating one activity is a filter, not a different tab. Each
- * shared sheet also gets a basic Sheets filter (the little dropdown
- * arrows on the header row) automatically, so isolating one activity
- * by hand in the Sheets UI itself needs no setup either.
+ * SHEET LAYOUT:
+ * - Pending is ONE shared sheet across all 5 activities, distinguished
+ *   by an "activity" column (gym / leisureTennis / etc. — see
+ *   PENDING_HEADERS). A registration sits here from submission until a
+ *   front desk approves or rejects it.
+ * - Registrations and Visits are back to ONE SHEET PER ACTIVITY (e.g.
+ *   "Registrations - Gym", "Visits - Gym" — see ACTIVITIES below), the
+ *   same as the very first version of this project. Once a Pending row
+ *   is approved, it's copied into that activity's own Registrations
+ *   sheet — see approvePendingRow().
+ * - Only Pending is shared; Registrations/Visits are isolated per
+ *   activity simply by being different sheets, so there's nothing to
+ *   filter — reading "Registrations - Gym" can only ever return Gym
+ *   rows. Every managed sheet still gets a basic Sheets filter (the
+ *   little dropdown arrows on the header row) automatically.
  *
  * SETUP (fresh sheet):
  * 1. Create a new Google Sheet (sheets.new).
@@ -34,9 +38,10 @@
  *    whole file in, save (disk icon / Ctrl+S / Cmd+S).
  * 3. From the function dropdown (next to Run/Debug), select "setup",
  *    click Run. Authorize when asked (Advanced -> "Go to (project)
- *    (unsafe)" -> Allow). This creates the Pending/Registrations/Visits
- *    sheets, each with the right headers. (The Drive folders — a
- *    "Pending Registration Photos" folder for not-yet-approved photos/
+ *    (unsafe)" -> Allow). This creates the shared Pending sheet plus
+ *    each activity's own Registrations/Visits sheets (11 sheets total),
+ *    each with the right headers. (The Drive folders — a "Pending
+ *    Registration Photos" folder for not-yet-approved photos/
  *    signatures, and a "Registration Photos" folder for approved ones —
  *    are both created automatically the first time they're needed.)
  * 4. Deploy -> New deployment -> gear icon -> Web app.
@@ -51,33 +56,49 @@
  *    -> pencil icon -> Version: New version -> Deploy, or the live
  *    URL won't see your change.
  *
- * UPGRADING AN EXISTING SHEET (one that still has the old per-activity
- * "Pending - Gym" / "Registrations - Leisure Tennis" / etc. tabs):
+ * UPGRADING FROM THE ORIGINAL 15-SHEET LAYOUT (one Pending/
+ * Registrations/Visits sheet PER activity, e.g. "Pending - Gym"):
  * 1. Paste this file in, save, redeploy (step 6 above).
- * 2. Run migrateToSharedSheets() ONCE from the function dropdown. It
- *    copies every row out of the old per-activity sheets into the new
- *    shared Pending/Registrations/Visits sheets, tagged with the right
- *    activity. It's additive and safe to re-run (it skips anything
- *    already present), and it never touches or deletes the old sheets.
- * 3. Once you've checked the shared sheets look right, you can run
- *    organizeSheets() to tidy the tab bar, and, whenever you're ready,
- *    deleteLegacyPerActivitySheets() to remove the old 15 tabs for
- *    good (that one's a real, permanent delete — see its comment).
+ * 2. Run migratePendingToSharedSheet() ONCE from the function dropdown.
+ *    It copies every row out of the old per-activity Pending sheets
+ *    into the new shared Pending sheet, tagged with the right activity.
+ *    Additive and safe to re-run (skips anything already present);
+ *    never touches or deletes the old sheets. The old per-activity
+ *    Registrations/Visits sheets need no migration at all — that's
+ *    still exactly the shape this version reads.
+ * 3. Once you've checked the shared Pending sheet looks right, you can
+ *    run deleteLegacyPendingSheets() to remove the old per-activity
+ *    Pending tabs for good (that one's a real, permanent delete — see
+ *    its comment).
+ *
+ * UPGRADING FROM THE FULLY-MERGED LAYOUT (a short-lived version of
+ * this project where Pending, Registrations AND Visits were all one
+ * shared sheet each, just called "Pending"/"Registrations"/"Visits"):
+ * 1. Paste this file in, save, redeploy. Pending needs no migration —
+ *    it's already shaped exactly like this version expects it.
+ * 2. Run splitSharedRegistrationsAndVisits() ONCE from the function
+ *    dropdown. It reads the old shared "Registrations"/"Visits" sheets
+ *    and copies each row into its own activity's Registrations/Visits
+ *    sheet. Additive and safe to re-run; never touches or deletes the
+ *    old shared sheets.
+ * 3. Once you've checked the per-activity sheets look right, run
+ *    deleteSharedRegistrationsAndVisitsSheets() to remove the old
+ *    shared "Registrations"/"Visits" tabs for good (permanent delete).
  *
  * HOW ACTIVITIES WORK:
  * - ACTIVITIES (below) is the single source of truth for the 5
  *   activities: member-code prefix, which categories are offered,
  *   which categories must supply their own ID vs get an
- *   auto-generated code, and which duration/plan options exist (with
- *   day-length and, for Swimming Lessons, a session cap).
+ *   auto-generated code, which duration/plan options exist (with
+ *   day-length and, for Swimming Lessons, a session cap), and which
+ *   sheets belong to it.
  * - EVERY request (doGet view= and doPost action=) carries an
  *   "activity" key (gym / leisureTennis / leisureSwimming /
- *   tennisLessons / swimmingLessons) that scopes which rows of the
- *   shared sheets to read/write. There is no cross-activity data — a
- *   member registered for the gym and for tennis lessons is two
- *   entirely separate rows (possibly with the same raw ID, if they
- *   used their student/staff ID both times), each tagged with its own
- *   activity.
+ *   tennisLessons / swimmingLessons) that says which activity's
+ *   sheets to read/write. There is no cross-activity data — a member
+ *   registered for the gym and for tennis lessons is two entirely
+ *   separate rows in two entirely separate sheets (possibly with the
+ *   same raw ID, if they used their student/staff ID both times).
  *
  * HOW IDENTITY / MEMBER CODES WORK:
  * - idNo is the one field that identifies a member within an
@@ -86,19 +107,21 @@
  *   submit — a random unique code shaped "<prefix><7 digits>", e.g.
  *   G1234567 (Gym), T1234567 (Leisure Tennis), S1234567 (Leisure
  *   Swimming), TL1234567 (Tennis Lessons), SL1234567 (Swimming
- *   Lessons). idNo is also the row's unique key for approve/reject
- *   (paired with activity, since the shared sheets can hold the same
- *   manually-typed ID for two different activities), and it's the
- *   "code" a member later types into Sign In / Sign Out.
+ *   Lessons). idNo is also the row's key for approve/reject (paired
+ *   with activity on the shared Pending sheet, since a manually-typed
+ *   ID can appear on two different activities' rows there), and it's
+ *   the "code" a member later types into Sign In / Sign Out.
  * - Because an auto-generated idNo is created at submission (not at
  *   approval), it can serve as the pending row's key right away — but
  *   the app never shows it to the member until their registration is
  *   actually approved, via the Sign In tab's phone-number lookup.
  * - A manually-entered ID (UG Student / UG Staff) is never prefixed —
  *   it's stored exactly as typed. The SAME ID number can legitimately
- *   appear on two rows for two different activities (one person, two
- *   memberships) — that's why every lookup below filters by activity
- *   as well as idNo, never idNo alone.
+ *   appear on rows in two different activities' sheets (one person,
+ *   two memberships) — that's why every Pending lookup filters by
+ *   activity as well as idNo, never idNo alone (a per-activity
+ *   Registrations/Visits sheet needs no such filter — the sheet itself
+ *   is already scoped to one activity).
  *
  * HOW SWIMMING LESSONS' SESSION CAP WORKS:
  * - Swimming Lessons has exactly ONE plan (no Walk-in): the
@@ -121,18 +144,32 @@
  *   (stored in the same hasMedicalCondition/medicalConditionDetails
  *   columns the primary registrant uses), plus the SAME shared
  *   phone/email/address/emergency-contact — but no separate
- *   dob/photo — each with its own auto-generated member code. See the
- *   "submit" handler below.
+ *   dob/photo — each with its own auto-generated member code. All rows
+ *   in one family also share one "familyGroupId" (a random ID stamped
+ *   at submission), which is what lets doApprove()/doReject() act on
+ *   the whole family in one request instead of the front desk having
+ *   to approve or reject each member one at a time — see
+ *   findRowIndicesByFamilyGroup() below. See the "submit" handler.
  * - Because every row in the family shares one phone number, the Sign
  *   In tab's "lookup" action (phone-number code retrieval) naturally
  *   returns every family member's code at once when the head enters
  *   that shared number — see "lookup" below.
  *
+ * DATE-GROUPED REGISTRATIONS SHEETS (optional, manual):
+ * - regroupAllRegistrations() rebuilds every activity's Registrations
+ *   sheet so rows are sorted newest-date-first with a bold, shaded,
+ *   merged banner row above each date's block. It's a manual tool —
+ *   run it by hand (Run > regroupAllRegistrations) whenever you want
+ *   the sheets tidied, not something that runs automatically on every
+ *   approval (an earlier version of this project did that, and
+ *   rewriting/reformatting the whole sheet on every single approval —
+ *   worse for a Family Package's several members back to back — is
+ *   what caused approvals to time out with "check the connection").
+ *
  * (Photo upload, e-signature, the Excel export, walk-ins, and
  * renew/update-details all work exactly as in the original
  * single-activity version — see the inline comments near each
- * function below — just scoped per-activity now, via the "activity"
- * column instead of a separate sheet.)
+ * function below.)
  */
 
 
@@ -166,12 +203,14 @@ const ACTIVITIES = {
     key: "gym",
     label: "Gym Membership",
     prefix: "G",
-    // Old per-activity sheet names — only ever read by
-    // migrateToSharedSheets()/deleteLegacyPerActivitySheets() below,
-    // never by normal request handling anymore.
+    // Old per-activity Pending sheet name — only ever read by
+    // migratePendingToSharedSheet()/deleteLegacyPendingSheets() below,
+    // never by normal request handling anymore (Pending is shared now).
     legacyPendingSheet: "Pending - Gym",
-    legacyRegistrationsSheet: "Registrations - Gym",
-    legacyVisitsSheet: "Visits - Gym",
+    // Registrations/Visits are back to one sheet per activity — these
+    // ARE the live sheet names, read/written on every request.
+    registrationsSheet: "Registrations - Gym",
+    visitsSheet: "Visits - Gym",
     categories: ["UG Student", "UG Staff", "Non-UG Student", "Public"],
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -195,8 +234,8 @@ const ACTIVITIES = {
     label: "Leisure Tennis",
     prefix: "T",
     legacyPendingSheet: "Pending - Leisure Tennis",
-    legacyRegistrationsSheet: "Registrations - Leisure Tennis",
-    legacyVisitsSheet: "Visits - Leisure Tennis",
+    registrationsSheet: "Registrations - Leisure Tennis",
+    visitsSheet: "Visits - Leisure Tennis",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -212,8 +251,8 @@ const ACTIVITIES = {
     label: "Leisure Swimming",
     prefix: "S",
     legacyPendingSheet: "Pending - Leisure Swimming",
-    legacyRegistrationsSheet: "Registrations - Leisure Swimming",
-    legacyVisitsSheet: "Visits - Leisure Swimming",
+    registrationsSheet: "Registrations - Leisure Swimming",
+    visitsSheet: "Visits - Leisure Swimming",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -231,8 +270,8 @@ const ACTIVITIES = {
     label: "Tennis Lessons",
     prefix: "TL",
     legacyPendingSheet: "Pending - Tennis Lessons",
-    legacyRegistrationsSheet: "Registrations - Tennis Lessons",
-    legacyVisitsSheet: "Visits - Tennis Lessons",
+    registrationsSheet: "Registrations - Tennis Lessons",
+    visitsSheet: "Visits - Tennis Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -246,8 +285,8 @@ const ACTIVITIES = {
     label: "Swimming Lessons",
     prefix: "SL",
     legacyPendingSheet: "Pending - Swimming Lessons",
-    legacyRegistrationsSheet: "Registrations - Swimming Lessons",
-    legacyVisitsSheet: "Visits - Swimming Lessons",
+    registrationsSheet: "Registrations - Swimming Lessons",
+    visitsSheet: "Visits - Swimming Lessons",
     categories: LESSON_STYLE_CATEGORIES,
     idRequiredCategories: ["UG Student", "UG Staff"],
     deptRequiredCategories: ["UG Student", "UG Staff"],
@@ -310,25 +349,23 @@ const PENDING_PHOTOS_FOLDER_NAME = "Pending Registration Photos";
 // so members are completely unaffected by a clear.
 const VIEW_CLEARED_AT_PREFIX = "VIEW_CLEARED_AT_";
 
-// The three shared sheet names — every activity's data lives in these,
-// distinguished by the "activity" column (see HEADERS/VISIT_HEADERS).
+// The one shared Pending sheet name — every activity's pending rows
+// live here, distinguished by the "activity" column (see
+// PENDING_HEADERS). Registrations/Visits are per-activity — see
+// ACTIVITIES[key].registrationsSheet/.visitsSheet instead.
 const PENDING_SHEET_NAME = "Pending";
-const REGISTRATIONS_SHEET_NAME = "Registrations";
-const VISITS_SHEET_NAME = "Visits";
 
 // Marker written as a NOTE (not the cell value) on the idNo cell of a
-// synthetic banner row, from back when each activity had its own
-// Registrations sheet and rows could be grouped into dated, merged
-// banner blocks. Nothing writes this anymore (that per-activity-sheet
-// feature doesn't carry over to the shared-sheet model), but
-// sheetToObjects() still filters it out in case an old sheet still
-// has leftover banner rows from before you migrated.
+// synthetic banner row, used by regroupRegistrationsByDate() below to
+// group a Registrations sheet into dated blocks. sheetToObjects()
+// filters these out of every normal read so a banner row never shows
+// up as if it were a real member.
 const DATE_HEADER_MARKER = "§DATE_HEADER§";
 
 
-// Columns in the shared Pending/Registrations sheets. "activity" comes
-// first so it's the first thing you see scanning a row, and so every
-// lookup below can filter on it before ever comparing idNo.
+// Columns in the shared Pending sheet. "activity" comes first so it's
+// the first thing you see scanning a row, and so every lookup below
+// can filter on it before ever comparing idNo.
 //
 // "sessionsUsed" is only ever populated for a duration with a
 // sessionCap (currently just Swimming Lessons' package) — it sits
@@ -346,23 +383,18 @@ const DATE_HEADER_MARKER = "§DATE_HEADER§";
 // lightweight row (name + gender + shared phone/email/address/emergency
 // contact only — no separate dob/medical/photo, except each member can
 // still state their own medical conditions). All rows in one family
-// also share one "familyGroupId" (a random ID stamped at submission —
-// see "submit" below), which is what lets doApprove()/doReject() act on
-// the whole family in one request instead of the front desk having to
-// approve or reject each member one at a time — see
-// findRowIndicesByFamilyGroup() below. They also all share the same
-// phone number, which is how "lookup" (the Sign In tab's phone-number
-// code retrieval) returns every family member's code at once.
+// also share one "familyGroupId" — see findRowIndicesByFamilyGroup().
 // "familyRelationship" ("relationship to you") is likewise only ever
 // populated for an additional family member's row.
 //
-// NOTE: HEADERS is positional — every sheet already has its physical
-// columns laid out in this exact order, and the header row itself is
-// only (re)written for a brand-new sheet (see getOrCreateSheet). A new
-// field must always be appended at the END of this array, never
-// inserted in the middle, or every column after it will silently
-// misalign with already-written rows.
-const HEADERS = [
+// NOTE: PENDING_HEADERS is positional — every sheet already has its
+// physical columns laid out in this exact order, and the header row
+// itself is only (re)written for a brand-new sheet (see
+// getOrCreateSheet). A new field must always be appended at the END of
+// this array, never inserted in the middle, or every column after it
+// will silently misalign with already-written rows. REGISTRATIONS_HEADERS
+// below is derived from this array, so the same rule applies there too.
+const PENDING_HEADERS = [
   "activity",
   "idNo", "name", "dob", "gender", "nationality", "hasMedicalCondition",
   "medicalConditionDetails", "address",
@@ -373,7 +405,16 @@ const HEADERS = [
   "photoUrl", "signatureUrl", "isRenewal",
   "familyRelationship", "familyGroupId"
 ];
-const VISIT_HEADERS = ["activity", "visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
+
+// Registrations sheets are per-activity, so they don't need an
+// "activity" column — the sheet itself already says which activity it
+// belongs to. Otherwise identical to PENDING_HEADERS, so a Pending
+// row's fields map onto a Registrations row one-for-one on approval
+// (see approvePendingRow()).
+const REGISTRATIONS_HEADERS = PENDING_HEADERS.filter(h => h !== "activity");
+
+// Visits sheets are per-activity too, for the same reason.
+const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
 
 // Expired/used-up-membership sign-in attempts, so every front desk for
 // that activity (main and satellite alike) can be alerted even when
@@ -455,9 +496,12 @@ function durationAllowedForCategory(cfg, category) {
 
 
 function setup() {
-  getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-  getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+  getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+    getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+  });
 }
 
 function getOrCreateSheet(name, headers) {
@@ -479,9 +523,8 @@ function getOrCreateSheet(name, headers) {
     ensureTextFormatForPhoneColumns(sheet, headers);
   }
   // A basic Sheets filter (the dropdown arrows on the header row) so
-  // isolating one activity by hand — Data > filter by the "activity"
-  // column — needs no setup. getFilter() is cheap, and createFilter()
-  // only ever actually runs once per sheet.
+  // isolating rows by hand needs no setup. getFilter() is cheap, and
+  // createFilter() only ever actually runs once per sheet.
   if (!sheet.getFilter()) {
     try { sheet.getDataRange().createFilter(); } catch (err) { /* cosmetic convenience — never block on it */ }
   }
@@ -551,7 +594,7 @@ function sheetToObjects(sheet) {
   // The §DATE_HEADER§ banner-row marker only ever lives as a note on
   // the idNo column — fetching notes for every column via
   // range.getNotes() is much more expensive than this single column,
-  // for something almost every sheet never has at all.
+  // for something most sheets never have at all.
   const idNotes = (idIdx === -1 || values.length === 0)
     ? []
     : sheet.getRange(2, idIdx + 1, values.length, 1).getNotes();
@@ -567,22 +610,29 @@ function sheetToObjects(sheet) {
 }
 
 
-// idNo alone isn't a safe key on a shared sheet — a manually-typed UG
-// Student/Staff ID can legitimately appear on two rows for two
-// different activities (one person, two memberships) — so every
-// lookup is idNo AND activity together.
-function findRowIndexByIdNo(sheet, idNo, activityKey) {
-  const idColIndex = HEADERS.indexOf("idNo") + 1; // 1-based
-  const activityColIndex = HEADERS.indexOf("activity") + 1;
+// General-purpose row-by-idNo finder.
+// - On the shared Pending sheet, pass PENDING_HEADERS and an
+//   activityKey — idNo alone isn't a safe key there, since a
+//   manually-typed UG Student/Staff ID can legitimately appear on rows
+//   for two different activities (one person, two memberships).
+// - On a per-activity Registrations sheet, pass REGISTRATIONS_HEADERS
+//   and omit activityKey — the sheet is already scoped to one
+//   activity, so there's nothing to filter (REGISTRATIONS_HEADERS has
+//   no "activity" column to check against anyway).
+function findRowIndexByIdNo(sheet, idNo, headers, activityKey) {
+  const idColIndex = headers.indexOf("idNo") + 1; // 1-based
+  const activityColIndex = headers.indexOf("activity") + 1; // 0 if headers has no "activity" column
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   const ids = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
-  const activities = sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues();
+  const activities = activityColIndex > 0
+    ? sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues()
+    : null;
   const targetId = String(idNo).trim();
   for (let i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]).trim() === targetId && String(activities[i][0]).trim() === activityKey) {
-      return i + 2;
-    }
+    if (String(ids[i][0]).trim() !== targetId) continue;
+    if (activities && String(activities[i][0]).trim() !== activityKey) continue;
+    return i + 2;
   }
   return -1;
 }
@@ -592,10 +642,11 @@ function findRowIndexByIdNo(sheet, idNo, activityKey) {
 // used by doApprove()/doReject() to act on a whole family at once
 // instead of one member at a time. Returned in DESCENDING order so a
 // caller can delete/process each row without an earlier deleteRow()
-// shifting a later index still waiting to be handled.
+// shifting a later index still waiting to be handled. Pending-only —
+// Registrations/Visits sheets don't need this (see doApprove()).
 function findRowIndicesByFamilyGroup(sheet, groupId, activityKey) {
-  const activityColIndex = HEADERS.indexOf("activity") + 1;
-  const groupColIndex = HEADERS.indexOf("familyGroupId") + 1;
+  const activityColIndex = PENDING_HEADERS.indexOf("activity") + 1;
+  const groupColIndex = PENDING_HEADERS.indexOf("familyGroupId") + 1;
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const activities = sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues();
@@ -611,9 +662,10 @@ function findRowIndicesByFamilyGroup(sheet, groupId, activityKey) {
 
 
 function idNoExists(activity, idNo) {
-  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-  return findRowIndexByIdNo(pending, idNo, activity.key) !== -1 || findRowIndexByIdNo(registrations, idNo, activity.key) !== -1;
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+  return findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key) !== -1
+    || findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS) !== -1;
 }
 
 
@@ -692,10 +744,10 @@ function savePhotoAndGetUrl(filenameBase, base64Data, mimeType, folder) {
 // Drive URL stored in the sheet — used when a pending registration is
 // rejected, so no personal info (photo, signature) is left sitting in
 // Drive for someone who was never approved. Trashed rather than
-// permanently deleted (same as the export-file cleanup above), so it's
-// still recoverable from Drive's trash if rejected by mistake. Never
-// throws — a stray file left behind is not worth failing the reject
-// over, and an empty/unparseable url is a no-op.
+// permanently deleted, so it's still recoverable from Drive's trash if
+// rejected by mistake. Never throws — a stray file left behind is not
+// worth failing the reject over, and an empty/unparseable url is a
+// no-op.
 function deleteDriveFileIfAny(url) {
   const fileId = parseDriveFileId(url);
   if (!fileId) return;
@@ -742,11 +794,15 @@ function parseDateSafe(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function dateLabelFor(dateStr) {
+  const d = parseDateSafe(dateStr);
+  if (!d) return String(dateStr || "Unknown date");
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), "EEEE, MMM d, yyyy");
+}
+
 
 // ------------------------------------------------------------------
-// Shared approve/reject logic (used by both the full main-app actions
-// and the walk-in-only actions the satellite front desks are allowed
-// to call)
+// Shared approve/reject logic
 // ------------------------------------------------------------------
 
 // Approves exactly one Pending row. A Walk-in never becomes a
@@ -757,35 +813,35 @@ function parseDateSafe(v) {
 // now, sessionsUsed reset to blank) instead of appending a duplicate
 // row. Returns the idNo that was approved. See doApprove() below for
 // how a Family Package's several rows are grouped and each run through
-// this one at a time.
+// this one at a time. "registrations" is that activity's own
+// Registrations sheet, already resolved by the caller.
 function approvePendingRow(activity, pending, registrations, idx) {
-  const rowValues = pending.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
-  const idNo = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
+  const rowValues = pending.getRange(idx, 1, 1, PENDING_HEADERS.length).getValues()[0];
+  const idNo = String(rowValues[PENDING_HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
 
-  if (String(rowValues[HEADERS.indexOf("duration")]).trim() === "Walk-in") {
-    const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+  if (String(rowValues[PENDING_HEADERS.indexOf("duration")]).trim() === "Walk-in") {
+    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
     const now = new Date();
     visits.appendRow(VISIT_HEADERS.map(h => {
-      if (h === "activity") return activity.key;
       if (h === "visitId") return Utilities.getUuid();
-      if (h === "idNo") return sheetSafeText(rowValues[HEADERS.indexOf("idNo")]);
-      if (h === "name") return rowValues[HEADERS.indexOf("name")];
-      if (h === "class") return rowValues[HEADERS.indexOf("class")];
+      if (h === "idNo") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]);
+      if (h === "name") return rowValues[PENDING_HEADERS.indexOf("name")];
+      if (h === "class") return rowValues[PENDING_HEADERS.indexOf("class")];
       // forceLiteralText, same as everywhere else a "date"/time-shaped
       // string is written — otherwise Sheets can silently store it as a
       // real Date, and "checkout" below compares this column against a
       // plain string, which would then never match.
       if (h === "date") return forceLiteralText(formatDateMDY(now));
       if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
-      if (h === "phone") return sheetSafeText(rowValues[HEADERS.indexOf("phone")]);
+      if (h === "phone") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("phone")]);
       return ""; // timeOut
     }));
     // A Walk-in visit has no photo column — the photo/signature
     // captured at submission (in the Pending folder) would just sit
     // there unreferenced forever, so trash them now rather than moving
     // them anywhere.
-    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
-    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
+    deleteDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("photoUrl")]);
+    deleteDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("signatureUrl")]);
     pending.deleteRow(idx);
     return idNo;
   }
@@ -797,37 +853,37 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // just copied from the member's existing (already-approved) row —
   // moving a file into the folder it's already in is a no-op.
   const approvedPhotosFolder = getPhotosFolder();
-  moveDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")], approvedPhotosFolder);
-  moveDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")], approvedPhotosFolder);
+  moveDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("photoUrl")], approvedPhotosFolder);
+  moveDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("signatureUrl")], approvedPhotosFolder);
 
   // getValues() strips any leading apostrophe on the way out, so a
   // value like "+233 24 123 4567" comes back plain again — re-guard it
   // before this appendRow()/setValue() re-triggers the same formula
   // parsing.
   ["idNo", "phone", "emergencyPhone"].forEach(h => {
-    const i = HEADERS.indexOf(h);
+    const i = PENDING_HEADERS.indexOf(h);
     rowValues[i] = sheetSafeText(rowValues[i]);
   });
 
   // Stamp "date"/"time" with the actual moment of approval — that's
   // what the expiry countdown is based on.
   const approvedNow = new Date();
-  rowValues[HEADERS.indexOf("date")] = forceLiteralText(formatDateMDY(approvedNow));
-  rowValues[HEADERS.indexOf("time")] = forceLiteralText(approvedNow.toLocaleTimeString());
+  rowValues[PENDING_HEADERS.indexOf("date")] = forceLiteralText(formatDateMDY(approvedNow));
+  rowValues[PENDING_HEADERS.indexOf("time")] = forceLiteralText(approvedNow.toLocaleTimeString());
   // A freshly (re)approved package always starts with 0 sessions used.
-  rowValues[HEADERS.indexOf("sessionsUsed")] = "";
+  rowValues[PENDING_HEADERS.indexOf("sessionsUsed")] = "";
 
-  const isRenewalIdx = HEADERS.indexOf("isRenewal");
+  const isRenewalIdx = PENDING_HEADERS.indexOf("isRenewal");
   const isRenewal = String(rowValues[isRenewalIdx]).trim().toUpperCase() === "TRUE";
   rowValues[isRenewalIdx] = ""; // flag is spent once applied — never carried into Registrations
 
   if (isRenewal) {
-    const regIdx = findRowIndexByIdNo(registrations, idNo, activity.key);
+    const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
     if (regIdx !== -1) {
-      registrations.getRange(regIdx, HEADERS.indexOf("duration") + 1).setValue(rowValues[HEADERS.indexOf("duration")]);
-      registrations.getRange(regIdx, HEADERS.indexOf("date") + 1).setValue(rowValues[HEADERS.indexOf("date")]);
-      registrations.getRange(regIdx, HEADERS.indexOf("time") + 1).setValue(rowValues[HEADERS.indexOf("time")]);
-      registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue("");
+      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("duration") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("duration")]);
+      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("date") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("date")]);
+      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("time") + 1).setValue(rowValues[PENDING_HEADERS.indexOf("time")]);
+      registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue("");
       pending.deleteRow(idx);
       return idNo;
     }
@@ -836,30 +892,34 @@ function approvePendingRow(activity, pending, registrations, idx) {
     // dropping the request.
   }
 
-  registrations.appendRow(rowValues);
+  // rowValues is Pending-shaped (has "activity" as its first field);
+  // the per-activity Registrations sheet has no such column, so map by
+  // field NAME rather than position.
+  const regRowValues = REGISTRATIONS_HEADERS.map(h => rowValues[PENDING_HEADERS.indexOf(h)]);
+  registrations.appendRow(regRowValues);
   pending.deleteRow(idx);
   return idNo;
 }
 
 // A Family Package submission is several Pending rows sharing one
-// familyGroupId (see the HEADERS comment above) — approving any one of
-// them approves the whole family in one go, rather than making the
-// front desk approve each member individually. A renewal is never
+// familyGroupId (see the PENDING_HEADERS comment above) — approving any
+// one of them approves the whole family in one go, rather than making
+// the front desk approve each member individually. A renewal is never
 // grouped even though its cloned row carries the member's old
 // familyGroupId forward: only one member is ever renewing at a time, so
 // sweeping in the rest of the family (who aren't renewing anything)
 // would be wrong. Rows are processed highest-row-number first so an
 // earlier deleteRow() never shifts a not-yet-processed index.
 function doApprove(activity, idNo) {
-  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  const idx = findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
 
-  const isRenewal = String(pending.getRange(idx, HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
-  const groupId = isRenewal ? "" : String(pending.getRange(idx, HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
+  const isRenewal = String(pending.getRange(idx, PENDING_HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
+  const groupId = isRenewal ? "" : String(pending.getRange(idx, PENDING_HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
   const rowIndices = groupId ? findRowIndicesByFamilyGroup(pending, groupId, activity.key) : [idx];
 
-  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+  const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
   const approvedIdNos = rowIndices.map(rowIdx => approvePendingRow(activity, pending, registrations, rowIdx));
 
   return ok({ idNo: idNo, approvedIdNos: approvedIdNos });
@@ -872,19 +932,19 @@ function doApprove(activity, idNo) {
 // doApprove() above (and for the same reason, a renewal is never
 // grouped).
 function doReject(activity, idNo) {
-  const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  const idx = findRowIndexByIdNo(pending, idNo, activity.key);
+  const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  const idx = findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key);
   if (idx === -1) return ok({ message: "Already handled" });
 
-  const isRenewal = String(pending.getRange(idx, HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
-  const groupId = isRenewal ? "" : String(pending.getRange(idx, HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
+  const isRenewal = String(pending.getRange(idx, PENDING_HEADERS.indexOf("isRenewal") + 1).getValue()).trim().toUpperCase() === "TRUE";
+  const groupId = isRenewal ? "" : String(pending.getRange(idx, PENDING_HEADERS.indexOf("familyGroupId") + 1).getValue()).trim();
   const rowIndices = groupId ? findRowIndicesByFamilyGroup(pending, groupId, activity.key) : [idx];
 
   const rejectedIdNos = rowIndices.map(rowIdx => {
-    const rowValues = pending.getRange(rowIdx, 1, 1, HEADERS.length).getValues()[0];
-    const rejectedIdNo = String(rowValues[HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
-    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("photoUrl")]);
-    deleteDriveFileIfAny(rowValues[HEADERS.indexOf("signatureUrl")]);
+    const rowValues = pending.getRange(rowIdx, 1, 1, PENDING_HEADERS.length).getValues()[0];
+    const rejectedIdNo = String(rowValues[PENDING_HEADERS.indexOf("idNo")]).replace(/^'/, "").trim();
+    deleteDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("photoUrl")]);
+    deleteDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("signatureUrl")]);
     pending.deleteRow(rowIdx);
     return rejectedIdNo;
   });
@@ -908,13 +968,13 @@ function registrationTimestampMs(row) {
   return isNaN(ms) ? Infinity : ms;
 }
 
-// Registration rows for one activity, with the Clear List cutoff (if
-// any) already applied. Shared by the plain "registrations" view and
-// the combined "dashboard" view so the filtering logic lives in one
-// place.
+// One activity's Registrations rows, with the Clear List cutoff (if
+// any) already applied. Shared by the plain "registrations" view, the
+// main "dashboard" view, and the satellite "registrantsDashboard" view
+// so the filtering logic lives in one place.
 function getVisibleRegistrations(activity) {
-  const sheet = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-  let rows = sheetToObjects(sheet).filter(r => r.activity === activity.key);
+  const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+  let rows = sheetToObjects(sheet);
   const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
   if (clearedAt) {
     const cutoffMs = new Date(clearedAt).getTime();
@@ -927,9 +987,10 @@ function doGet(e) {
   try {
     // No specific activity needed — one sheet read total, instead of
     // the front desk making a separate request per activity just to
-    // populate the pending-count badges.
+    // populate the pending-count badges. (Pending is still the one
+    // shared sheet, so this is still cheap.)
     if (e.parameter.view === 'allPendingCounts') {
-      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
       const counts = {};
       Object.keys(ACTIVITIES).forEach(key => { counts[key] = 0; });
       sheetToObjects(sheet).forEach(r => { if (counts[r.activity] !== undefined) counts[r.activity]++; });
@@ -944,27 +1005,40 @@ function doGet(e) {
       return ok({ rows: getAlerts(activity) });
     }
     if (view === 'visits') {
-      const sheet = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
-      return ok({ rows: sheetToObjects(sheet).filter(r => r.activity === activity.key) });
+      const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      return ok({ rows: sheetToObjects(sheet) });
     }
     if (view === 'pending') {
-      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
       return ok({ rows: sheetToObjects(sheet).filter(r => r.activity === activity.key) });
     }
     if (view === 'dashboard') {
-      // Everything a front desk's auto-refresh cycle needs for one
-      // activity, in a single execution instead of 3-4 separate ones
-      // (pending/registrations/visits/alerts each cost their own
+      // Everything the MAIN front desk's auto-refresh cycle needs for
+      // one activity, in a single execution instead of 3-4 separate
+      // ones (pending/registrations/visits/alerts each cost their own
       // request overhead — spreadsheet open, auth — on top of the
       // actual read).
-      const pendingSheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      const visitsSheet = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      const pendingSheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      const visitsSheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       const registrations = getVisibleRegistrations(activity);
       return ok({
         pending: sheetToObjects(pendingSheet).filter(r => r.activity === activity.key),
         registrations: registrations.rows,
         clearedAt: registrations.clearedAt,
-        visits: sheetToObjects(visitsSheet).filter(r => r.activity === activity.key),
+        visits: sheetToObjects(visitsSheet),
+        alerts: getAlerts(activity)
+      });
+    }
+    if (view === 'registrantsDashboard') {
+      // The satellite (tennis/swimming) front desks only have access to
+      // approved registrants and expired-membership alerts — no
+      // Pending, no Visit Log (both are handled at the main front
+      // desk) — so this is a leaner view than "dashboard" above, and
+      // still just one request per refresh cycle.
+      const registrations = getVisibleRegistrations(activity);
+      return ok({
+        registrations: registrations.rows,
+        clearedAt: registrations.clearedAt,
         alerts: getAlerts(activity)
       });
     }
@@ -1042,15 +1116,15 @@ function doPost(e) {
       const signatureUrl = savePhotoAndGetUrl(`${applicantFileName} (${idNo}) - Signature`, data.signatureBase64, data.signatureMimeType, pendingPhotosFolder);
 
       // A Family Package registration isn't one row for the whole
-      // family — see the HEADERS comment above. The person filling the
-      // form (idNo/photo/etc. above) is one full row; every additional
-      // family member they list gets their own lightweight row below
-      // — name, and optionally their own medical conditions (stored in
-      // the same hasMedicalCondition/medicalConditionDetails columns
-      // the primary registrant uses) — generated and validated up
-      // front so the whole submission fails cleanly (nothing written)
-      // rather than partially, if the code pool or the 5-person cap is
-      // hit.
+      // family — see the PENDING_HEADERS comment above. The person
+      // filling the form (idNo/photo/etc. above) is one full row;
+      // every additional family member they list gets their own
+      // lightweight row below — name, and optionally their own medical
+      // conditions (stored in the same
+      // hasMedicalCondition/medicalConditionDetails columns the
+      // primary registrant uses) — generated and validated up front so
+      // the whole submission fails cleanly (nothing written) rather
+      // than partially, if the code pool or the 5-person cap is hit.
       // Shared by every row in this family (the primary registrant and
       // each additional member below) so doApprove()/doReject() can
       // find and act on the whole family at once — see
@@ -1088,8 +1162,8 @@ function doPost(e) {
         }
       }
 
-      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      sheet.appendRow(HEADERS.map(h => {
+      const sheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      sheet.appendRow(PENDING_HEADERS.map(h => {
         if (h === "activity") return activity.key;
         if (h === "idNo") return sheetSafeText(idNo);
         if (h === "photoUrl") return photoUrl;
@@ -1104,7 +1178,7 @@ function doPost(e) {
       }));
 
       extraFamilyMembers.forEach(member => {
-        sheet.appendRow(HEADERS.map(h => {
+        sheet.appendRow(PENDING_HEADERS.map(h => {
           if (h === "activity") return activity.key;
           if (h === "idNo") return sheetSafeText(member.idNo);
           if (h === "name") return member.name;
@@ -1146,8 +1220,8 @@ function doPost(e) {
 
 
     if (action === "checkin") {
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const rows = sheetToObjects(registrations).filter(r => r.activity === activity.key);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const rows = sheetToObjects(registrations);
       const code = String(data.code || "").trim();
       const match = rows.find(r => String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
@@ -1178,9 +1252,8 @@ function doPost(e) {
           : ("Your membership expired" + (expiredOnLabel ? ` on ${expiredOnLabel}` : "") + ". Please see the front desk to renew."));
       }
 
-      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       visits.appendRow(VISIT_HEADERS.map(h => {
-        if (h === "activity") return activity.key;
         if (h === "visitId") return Utilities.getUuid();
         if (h === "idNo") return sheetSafeText(match.idNo);
         if (h === "name") return match.name;
@@ -1198,17 +1271,16 @@ function doPost(e) {
 
 
     if (action === "checkout") {
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const rows = sheetToObjects(registrations).filter(r => r.activity === activity.key);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const rows = sheetToObjects(registrations);
       const code = String(data.code || "").trim();
       const match = rows.find(r => String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
 
-      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
       if (lastRow < 2) return errorMsg("No sign-in found for this code. Please sign in first.");
 
-      const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const idColIndex = VISIT_HEADERS.indexOf("idNo");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
       const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
@@ -1226,8 +1298,7 @@ function doPost(e) {
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
-        if (String(row[activityColIndex]).trim() === activity.key &&
-            String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex]) {
+        if (String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex]) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -1243,10 +1314,10 @@ function doPost(e) {
       // doesn't burn a session at all).
       const cfg = getDurationConfig(activity, match.duration);
       if (cfg && cfg.sessionCap) {
-        const regIdx = findRowIndexByIdNo(registrations, match.idNo, activity.key);
+        const regIdx = findRowIndexByIdNo(registrations, match.idNo, REGISTRATIONS_HEADERS);
         if (regIdx !== -1) {
           const newUsed = (Number(match.sessionsUsed) || 0) + 1;
-          registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+          registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
           match.sessionsUsed = String(newUsed);
         }
       }
@@ -1262,11 +1333,10 @@ function doPost(e) {
       const phone = String(data.phone || "").trim();
       if (!phone) return errorMsg("Enter the phone number you signed in with.");
 
-      const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       const lastRow = visits.getLastRow();
       if (lastRow < 2) return errorMsg("No sign-in found for this phone number. Please sign in first.");
 
-      const activityColIndex = VISIT_HEADERS.indexOf("activity");
       const phoneColIndex = VISIT_HEADERS.indexOf("phone");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
       const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
@@ -1277,8 +1347,7 @@ function doPost(e) {
       let targetRow = -1;
       for (let i = values.length - 1; i >= 0; i--) {
         const row = values[i];
-        if (String(row[activityColIndex]).trim() === activity.key &&
-            String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex]) {
+        if (String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex]) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -1300,21 +1369,21 @@ function doPost(e) {
       if (!idNo) return errorMsg("Enter your code or ID number.");
       if (!data.photoBase64) return errorMsg("No photo received.");
 
-      const photoColIndex = HEADERS.indexOf("photoUrl") + 1;
-      const nameColIndex = HEADERS.indexOf("name") + 1;
-
-      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      let idx = findRowIndexByIdNo(pending, idNo, activity.key);
-      let targetSheet = null;
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      let idx = findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key);
+      let targetSheet = null, targetHeaders = null;
       if (idx !== -1) {
         targetSheet = pending;
+        targetHeaders = PENDING_HEADERS;
       } else {
-        const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-        idx = findRowIndexByIdNo(registrations, idNo, activity.key);
-        if (idx !== -1) targetSheet = registrations;
+        const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+        idx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
+        if (idx !== -1) { targetSheet = registrations; targetHeaders = REGISTRATIONS_HEADERS; }
       }
       if (!targetSheet) return errorMsg("Code not recognized");
 
+      const photoColIndex = targetHeaders.indexOf("photoUrl") + 1;
+      const nameColIndex = targetHeaders.indexOf("name") + 1;
       const applicantName = targetSheet.getRange(idx, nameColIndex).getValue();
       const applicantFileName = sanitizeForFilename(applicantName);
       // Pending vs. already-approved decides which folder — same split
@@ -1333,20 +1402,27 @@ function doPost(e) {
       // EVERY activity, not just the one the request happened to be
       // made from — so a phone number connected to more than one
       // subscription (e.g. Gym AND Tennis Lessons) gets every code for
-      // every one of them back in a single lookup, not just whichever
-      // activity's tab the member happened to be on. Each returned row
-      // still carries its own "activity" field, so the caller can label
-      // which subscription each code belongs to. A Family Package's
-      // shared contact number retrieves every family member's code the
-      // same way (each family member is its own row — see the HEADERS
-      // comment above).
+      // every one of them back in a single lookup. Registrations lives
+      // in its own sheet per activity, so this loops all 5 and tags
+      // each match with which activity it came from (a per-activity
+      // sheet has no "activity" column of its own to read that off
+      // of), so the caller can label which subscription each code
+      // belongs to. A Family Package's shared contact number retrieves
+      // every family member's code the same way (each family member is
+      // its own row — see the PENDING_HEADERS comment above).
       const phone = String(data.phone || "").trim();
 
-      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
       const pendingCount = sheetToObjects(pending).filter(r => String(r.phone).trim() === phone).length;
 
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const approvedMembers = sheetToObjects(registrations).filter(r => String(r.phone).trim() === phone);
+      const approvedMembers = [];
+      Object.keys(ACTIVITIES).forEach(key => {
+        const act = ACTIVITIES[key];
+        const registrations = getOrCreateSheet(act.registrationsSheet, REGISTRATIONS_HEADERS);
+        sheetToObjects(registrations)
+          .filter(r => String(r.phone).trim() === phone)
+          .forEach(r => { r.activity = act.key; approvedMembers.push(r); });
+      });
 
       if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
       return ok({ found: true, approvedMembers: approvedMembers, pendingCount: pendingCount });
@@ -1365,9 +1441,9 @@ function doPost(e) {
         ? data.idNos.map(c => String(c || "").trim()).filter(Boolean)
         : [];
       if (codes.length === 0) return errorMsg("No codes to check.");
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
       const approvedMembers = sheetToObjects(registrations)
-        .filter(r => r.activity === activity.key && codes.indexOf(String(r.idNo).trim()) !== -1);
+        .filter(r => codes.indexOf(String(r.idNo).trim()) !== -1);
       return ok({ approvedMembers: approvedMembers });
     }
 
@@ -1375,10 +1451,10 @@ function doPost(e) {
     if (action === "verify") {
       // Looks a member up by code for the Renew tab's gate — deliberately
       // does NOT log a Visits row (unlike "checkin"). Approved members only.
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
       const code = String(data.code || "").trim();
       if (!code) return errorMsg("Enter your code or ID number.");
-      const match = sheetToObjects(registrations).find(r => r.activity === activity.key && String(r.idNo).trim() === code);
+      const match = sheetToObjects(registrations).find(r => String(r.idNo).trim() === code);
       if (!match) return errorMsg("Code not recognized");
       return ok({ member: match });
     }
@@ -1390,30 +1466,37 @@ function doPost(e) {
       if (!code) return errorMsg("Enter your code or ID number.");
       if (!duration) return errorMsg("Please choose a plan.");
 
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const idx = findRowIndexByIdNo(registrations, code, activity.key);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const idx = findRowIndexByIdNo(registrations, code, REGISTRATIONS_HEADERS);
       if (idx === -1) return errorMsg("Code not recognized");
 
-      const currentClass = registrations.getRange(idx, HEADERS.indexOf("class") + 1).getValue();
+      const currentClass = registrations.getRange(idx, REGISTRATIONS_HEADERS.indexOf("class") + 1).getValue();
       const durCfg = getDurationConfig(activity, duration);
       if (!durCfg || !durationAllowedForCategory(durCfg, currentClass)) {
         return errorMsg("That plan isn't available for your category.");
       }
 
-      const pending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-      if (findRowIndexByIdNo(pending, code, activity.key) !== -1) {
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      if (findRowIndexByIdNo(pending, code, PENDING_HEADERS, activity.key) !== -1) {
         return errorMsg("You already have a request awaiting approval at the front desk.");
       }
 
-      const rowValues = registrations.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
+      const rowValues = registrations.getRange(idx, 1, 1, REGISTRATIONS_HEADERS.length).getValues()[0];
       const now = new Date();
-      const pendingRow = HEADERS.map((h, i) => {
+      // Mapped by field NAME, not position — the Registrations row has
+      // no "activity" column, so PENDING_HEADERS (which does) can't be
+      // filled in positionally the way it could when both sheets used
+      // to share one layout.
+      const pendingRow = PENDING_HEADERS.map(h => {
+        if (h === "activity") return activity.key;
         if (h === "duration") return duration;
         if (h === "date") return forceLiteralText(formatDateMDY(now));
         if (h === "time") return forceLiteralText(now.toLocaleTimeString());
         if (h === "isRenewal") return "TRUE";
-        if (h === "idNo" || h === "phone" || h === "emergencyPhone") return sheetSafeText(rowValues[i]);
-        return rowValues[i]; // includes "activity", already correct on the found row
+        const regFieldIdx = REGISTRATIONS_HEADERS.indexOf(h);
+        const raw = regFieldIdx === -1 ? "" : rowValues[regFieldIdx];
+        if (h === "idNo" || h === "phone" || h === "emergencyPhone") return sheetSafeText(raw);
+        return raw;
       });
       pending.appendRow(pendingRow);
       return ok({});
@@ -1424,8 +1507,8 @@ function doPost(e) {
       const code = String(data.code || "").trim();
       if (!code) return errorMsg("Enter your code or ID number.");
 
-      const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-      const idx = findRowIndexByIdNo(registrations, code, activity.key);
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const idx = findRowIndexByIdNo(registrations, code, REGISTRATIONS_HEADERS);
       if (idx === -1) return errorMsg("Code not recognized");
 
       // Only these fields are editable from the Renew tab's form —
@@ -1434,12 +1517,12 @@ function doPost(e) {
       editableFields.forEach(h => {
         if (data[h] === undefined) return;
         const val = (h === "phone" || h === "emergencyPhone") ? sheetSafeText(data[h]) : data[h];
-        registrations.getRange(idx, HEADERS.indexOf(h) + 1).setValue(val);
+        registrations.getRange(idx, REGISTRATIONS_HEADERS.indexOf(h) + 1).setValue(val);
       });
 
-      const rowValues = registrations.getRange(idx, 1, 1, HEADERS.length).getValues()[0];
+      const rowValues = registrations.getRange(idx, 1, 1, REGISTRATIONS_HEADERS.length).getValues()[0];
       const member = {};
-      HEADERS.forEach((h, i) => member[h] = rowValues[i]);
+      REGISTRATIONS_HEADERS.forEach((h, i) => member[h] = rowValues[i]);
       return ok({ member: member });
     }
 
@@ -1499,126 +1582,195 @@ function errorOut(err) {
 
 
 // ------------------------------------------------------------------
-// Migrating from the old per-activity sheets, and tidying the tabs
+// Migrating Pending from the old per-activity sheets
 // ------------------------------------------------------------------
 
-// Run this ONCE (Run > migrateToSharedSheets) after deploying this
-// version of Code.gs, to copy every row out of the old per-activity
-// "Pending - Gym" / "Registrations - Leisure Tennis" / etc. sheets
-// into the new shared Pending/Registrations/Visits sheets, tagged with
-// which activity each row belongs to. Additive and safe to re-run —
-// it only appends a row if one for that idNo (or, for Visits, that
-// visitId) isn't already present in the shared sheet for that
-// activity, so running it twice (or after new data has already been
-// added post-migration) never duplicates anything. Never touches or
-// deletes the old per-activity sheets — see deleteLegacyPerActivitySheets()
-// below once you're ready to remove them for good.
-function migrateToSharedSheets() {
+// Run this ONCE (Run > migratePendingToSharedSheet) after deploying
+// this version of Code.gs, if you're coming from the very first,
+// fully-per-activity layout (one Pending/Registrations/Visits sheet
+// PER activity). Copies every row out of the old per-activity Pending
+// sheets ("Pending - Gym" etc.) into the new shared Pending sheet,
+// tagged with which activity each row belongs to. Additive and safe to
+// re-run — it only appends a row if one for that idNo isn't already
+// present for that activity, so running it twice never duplicates
+// anything. Never touches or deletes the old per-activity Pending
+// sheets — see deleteLegacyPendingSheets() below once you're ready to
+// remove them for good. The old per-activity Registrations/Visits
+// sheets need no migration at all — this version reads those directly.
+function migratePendingToSharedSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let migratedPending = 0, migratedRegistrations = 0, migratedVisits = 0;
+  let migrated = 0;
 
-  const sharedPending = getOrCreateSheet(PENDING_SHEET_NAME, HEADERS);
-  const sharedRegistrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-  const sharedVisits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
-
-  const existingPendingKeys = new Set(sheetToObjects(sharedPending).map(r => r.activity + "|" + String(r.idNo).trim()));
-  const existingRegistrationKeys = new Set(sheetToObjects(sharedRegistrations).map(r => r.activity + "|" + String(r.idNo).trim()));
-  const existingVisitIds = new Set(sheetToObjects(sharedVisits).map(r => String(r.visitId).trim()));
-
-  function copyMemberRow(headers, row, activityKey) {
-    return headers.map(h => {
-      if (h === "activity") return activityKey;
-      if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
-      if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
-      return row[h] || "";
-    });
-  }
+  const sharedPending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  const existingKeys = new Set(sheetToObjects(sharedPending).map(r => r.activity + "|" + String(r.idNo).trim()));
 
   Object.keys(ACTIVITIES).forEach(key => {
     const activity = ACTIVITIES[key];
-
     const legacyPending = ss.getSheetByName(activity.legacyPendingSheet);
-    if (legacyPending) {
-      sheetToObjects(legacyPending).forEach(row => {
-        const dedupeKey = activity.key + "|" + String(row.idNo).trim();
-        if (existingPendingKeys.has(dedupeKey)) return;
-        existingPendingKeys.add(dedupeKey);
-        sharedPending.appendRow(copyMemberRow(HEADERS, row, activity.key));
-        migratedPending++;
-      });
-    }
+    if (!legacyPending) return;
+    sheetToObjects(legacyPending).forEach(row => {
+      const dedupeKey = activity.key + "|" + String(row.idNo).trim();
+      if (existingKeys.has(dedupeKey)) return;
+      existingKeys.add(dedupeKey);
+      sharedPending.appendRow(PENDING_HEADERS.map(h => {
+        if (h === "activity") return activity.key;
+        if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
+        if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
+        return row[h] || "";
+      }));
+      migrated++;
+    });
+  });
 
-    const legacyRegistrations = ss.getSheetByName(activity.legacyRegistrationsSheet);
-    if (legacyRegistrations) {
-      sheetToObjects(legacyRegistrations).forEach(row => {
-        const dedupeKey = activity.key + "|" + String(row.idNo).trim();
-        if (existingRegistrationKeys.has(dedupeKey)) return;
-        existingRegistrationKeys.add(dedupeKey);
-        sharedRegistrations.appendRow(copyMemberRow(HEADERS, row, activity.key));
-        migratedRegistrations++;
-      });
-    }
+  Logger.log(`Migrated ${migrated} pending row(s) into the shared Pending sheet.`);
+}
 
-    const legacyVisits = ss.getSheetByName(activity.legacyVisitsSheet);
-    if (legacyVisits) {
-      sheetToObjects(legacyVisits).forEach(row => {
+// The old per-activity Pending sheets (e.g. "Pending - Gym") are unused
+// dead weight once migratePendingToSharedSheet() has copied everything
+// into the shared Pending sheet. This PERMANENTLY DELETES all 5 of
+// them. Run by hand only (Run > deleteLegacyPendingSheets) once you've
+// checked the shared Pending sheet looks right — Google Sheets' own
+// version history (File > Version history) can still recover a deleted
+// sheet for a while after, but this script can't undo it.
+function deleteLegacyPendingSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let deleted = 0;
+  Object.keys(ACTIVITIES).forEach(key => {
+    const sheet = ss.getSheetByName(ACTIVITIES[key].legacyPendingSheet);
+    if (sheet) { ss.deleteSheet(sheet); deleted++; }
+  });
+  Logger.log(`Deleted ${deleted} legacy per-activity Pending sheet(s).`);
+}
+
+
+// ------------------------------------------------------------------
+// Splitting Registrations/Visits back into per-activity sheets, for
+// anyone coming from the short-lived fully-merged layout (Pending,
+// Registrations AND Visits were all one shared sheet each)
+// ------------------------------------------------------------------
+
+const SHARED_REGISTRATIONS_SHEET_NAME = "Registrations";
+const SHARED_VISITS_SHEET_NAME = "Visits";
+
+// Run this ONCE (Run > splitSharedRegistrationsAndVisits) if your sheet
+// still has the old shared "Registrations"/"Visits" tabs from the
+// fully-merged version of this project. Reads every row out of them
+// and copies it into that row's own activity's Registrations/Visits
+// sheet. Additive and safe to re-run — it only appends a row if one for
+// that idNo (or, for Visits, that visitId) isn't already present in the
+// destination sheet, so running it twice never duplicates anything.
+// Never touches or deletes the old shared sheets — see
+// deleteSharedRegistrationsAndVisitsSheets() below once you're ready to
+// remove them for good. Pending needs no split — it's already the one
+// shared sheet this version expects.
+function splitSharedRegistrationsAndVisits() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let movedRegistrations = 0, movedVisits = 0;
+
+  const sharedRegistrations = ss.getSheetByName(SHARED_REGISTRATIONS_SHEET_NAME);
+  if (sharedRegistrations) {
+    const byActivity = {};
+    sheetToObjects(sharedRegistrations).forEach(row => {
+      const key = row.activity;
+      if (!byActivity[key]) byActivity[key] = [];
+      byActivity[key].push(row);
+    });
+    Object.keys(byActivity).forEach(key => {
+      const activity = ACTIVITIES[key];
+      if (!activity) return; // unknown/stale activity value — skip rather than guess
+      const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const existingIds = new Set(sheetToObjects(sheet).map(r => String(r.idNo).trim()));
+      byActivity[key].forEach(row => {
+        const dedupeKey = String(row.idNo).trim();
+        if (existingIds.has(dedupeKey)) return;
+        existingIds.add(dedupeKey);
+        sheet.appendRow(REGISTRATIONS_HEADERS.map(h => {
+          if (h === "idNo" || h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(row[h] || "");
+          if (h === "date" || h === "time") return forceLiteralText(row[h] || "");
+          return row[h] || "";
+        }));
+        movedRegistrations++;
+      });
+    });
+  }
+
+  const sharedVisits = ss.getSheetByName(SHARED_VISITS_SHEET_NAME);
+  if (sharedVisits) {
+    const byActivity = {};
+    sheetToObjects(sharedVisits).forEach(row => {
+      const key = row.activity;
+      if (!byActivity[key]) byActivity[key] = [];
+      byActivity[key].push(row);
+    });
+    Object.keys(byActivity).forEach(key => {
+      const activity = ACTIVITIES[key];
+      if (!activity) return;
+      const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const existingVisitIds = new Set(sheetToObjects(sheet).map(r => String(r.visitId).trim()));
+      byActivity[key].forEach(row => {
         const visitId = String(row.visitId || "").trim();
         if (!visitId || existingVisitIds.has(visitId)) return;
         existingVisitIds.add(visitId);
-        sharedVisits.appendRow(VISIT_HEADERS.map(h => {
-          if (h === "activity") return activity.key;
+        sheet.appendRow(VISIT_HEADERS.map(h => {
           if (h === "idNo" || h === "phone") return sheetSafeText(row[h] || "");
           if (h === "date" || h === "timeIn" || h === "timeOut") return forceLiteralText(row[h] || "");
           return row[h] || "";
         }));
-        migratedVisits++;
+        movedVisits++;
       });
+    });
+  }
+
+  Logger.log(`Split ${movedRegistrations} registration(s) and ${movedVisits} visit(s) out into per-activity sheets.`);
+}
+
+// The old shared "Registrations"/"Visits" sheets are unused dead weight
+// once splitSharedRegistrationsAndVisits() has copied everything into
+// the per-activity sheets. This PERMANENTLY DELETES both of them. Run
+// by hand only (Run > deleteSharedRegistrationsAndVisitsSheets) once
+// you've checked the per-activity sheets look right.
+function deleteSharedRegistrationsAndVisitsSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let deleted = 0;
+  [SHARED_REGISTRATIONS_SHEET_NAME, SHARED_VISITS_SHEET_NAME].forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) { ss.deleteSheet(sheet); deleted++; }
+  });
+  Logger.log(`Deleted ${deleted} shared sheet(s).`);
+}
+
+// Reorders and color-codes every managed tab — purely cosmetic, doesn't
+// touch any data. Run by hand (Run > organizeSheets) any time. Pending
+// first, then each activity's own Registrations/Visits pair grouped
+// together.
+function organizeSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let position = 1;
+
+  const pendingSheet = ss.getSheetByName(PENDING_SHEET_NAME);
+  if (pendingSheet) {
+    ss.setActiveSheet(pendingSheet);
+    ss.moveActiveSheet(position++);
+    pendingSheet.setTabColor("#EDA100");
+  }
+
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const reg = ss.getSheetByName(activity.registrationsSheet);
+    if (reg) {
+      ss.setActiveSheet(reg);
+      ss.moveActiveSheet(position++);
+      reg.setTabColor("#15369E");
+    }
+    const vis = ss.getSheetByName(activity.visitsSheet);
+    if (vis) {
+      ss.setActiveSheet(vis);
+      ss.moveActiveSheet(position++);
+      vis.setTabColor("#1BAF7A");
     }
   });
 
-  Logger.log(`Migrated ${migratedPending} pending, ${migratedRegistrations} registration(s), and ${migratedVisits} visit(s) into the shared sheets.`);
-}
-
-// Reorders and color-codes the shared sheet tabs — purely cosmetic,
-// doesn't touch any data. Run by hand (Run > organizeSheets) any time.
-function organizeSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const order = [PENDING_SHEET_NAME, REGISTRATIONS_SHEET_NAME, VISITS_SHEET_NAME];
-  order.forEach((name, i) => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) return;
-    ss.setActiveSheet(sheet);
-    ss.moveActiveSheet(i + 1);
-  });
-
-  const ROLE_COLORS = { [PENDING_SHEET_NAME]: "#EDA100", [REGISTRATIONS_SHEET_NAME]: "#15369E", [VISITS_SHEET_NAME]: "#1BAF7A" };
-  order.forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (sheet) sheet.setTabColor(ROLE_COLORS[name]);
-  });
-
   Logger.log("Sheet tabs reordered and color-coded.");
-}
-
-// The old per-activity sheets (e.g. "Pending - Gym", "Registrations -
-// Leisure Tennis") are unused dead weight once migrateToSharedSheets()
-// has copied everything into the shared Pending/Registrations/Visits
-// sheets. This PERMANENTLY DELETES all 15 of them. Run by hand only
-// (Run > deleteLegacyPerActivitySheets) once you've checked the shared
-// sheets look right — Google Sheets' own version history (File >
-// Version history) can still recover a deleted sheet for a while
-// after, but this script can't undo it.
-function deleteLegacyPerActivitySheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let deleted = 0;
-  Object.keys(ACTIVITIES).forEach(key => {
-    const activity = ACTIVITIES[key];
-    [activity.legacyPendingSheet, activity.legacyRegistrationsSheet, activity.legacyVisitsSheet].forEach(name => {
-      const sheet = ss.getSheetByName(name);
-      if (sheet) { ss.deleteSheet(sheet); deleted++; }
-    });
-  });
-  Logger.log(`Deleted ${deleted} legacy per-activity sheet(s).`);
 }
 
 // Alerts moved off sheets entirely a while back (see
@@ -1645,6 +1797,114 @@ function deleteUnusedAlertSheets() {
 
 
 // ------------------------------------------------------------------
+// Date-grouped Registrations sheets (optional, manual — see the
+// top-of-file doc comment)
+// ------------------------------------------------------------------
+
+// Rebuilds one activity's Registrations sheet so rows are sorted
+// newest-date-first and each date's block has a bold, shaded, merged
+// header row above it. Safe to call any time; it re-derives everything
+// from the real member rows (ignoring any existing header rows) so
+// it's idempotent.
+//
+// NOT called automatically from doApprove() — rewriting and
+// reformatting the ENTIRE sheet on every single approval got slow as a
+// sheet grew, and made approving a Family Package's several members
+// back to back time out with "check the connection". Run
+// regroupAllRegistrations() below by hand (Apps Script editor's
+// function dropdown -> Run) whenever you want a Registrations sheet
+// tidied.
+function regroupRegistrationsByDate(activity) {
+  const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+  const lastCol = REGISTRATIONS_HEADERS.length;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const idColIndex = REGISTRATIONS_HEADERS.indexOf("idNo");
+  const dateColIndex = REGISTRATIONS_HEADERS.indexOf("date");
+
+  const allValues = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const allNotes = sheet.getRange(2, 1, lastRow - 1, lastCol).getNotes();
+  const memberRows = allValues.filter((row, i) =>
+    row.join("") !== "" && allNotes[i][idColIndex] !== DATE_HEADER_MARKER
+  );
+
+  // Self-healing: normalize the date cell to plain text before grouping,
+  // in case a row still holds a real Date object.
+  memberRows.forEach(row => {
+    row[dateColIndex] = cellToDisplayValue(row[dateColIndex], "date");
+  });
+
+  // Clear everything below the header row — content and formatting —
+  // before rewriting, and unmerge any previous date-header rows.
+  const clearRange = sheet.getRange(2, 1, sheet.getMaxRows() - 1, lastCol);
+  try { clearRange.breakApart(); } catch (e) { /* nothing merged yet */ }
+  clearRange.clearContent();
+  clearRange.clearNote();
+  clearRange.setBackground(null).setFontWeight("normal").setFontColor(null);
+
+  if (memberRows.length === 0) return;
+
+  const groups = new Map();
+  memberRows.forEach(row => {
+    const key = row[dateColIndex] || "Unknown date";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const dateKeys = [...groups.keys()].sort((a, b) => {
+    const da = parseDateSafe(a), db = parseDateSafe(b);
+    if (!da || !db) return 0;
+    return db - da; // newest date first
+  });
+
+  // Same guard as elsewhere: getValues() already stripped any leading
+  // apostrophe from idNo/phone/emergencyPhone/date/time, so re-apply it
+  // before writing these rows back with setValues() below.
+  const phoneGuardCols = ["idNo", "phone", "emergencyPhone"].map(h => REGISTRATIONS_HEADERS.indexOf(h));
+  const dateTimeGuardCols = ["date", "time"].map(h => REGISTRATIONS_HEADERS.indexOf(h));
+  memberRows.forEach(row => {
+    phoneGuardCols.forEach(i => { row[i] = sheetSafeText(row[i]); });
+    dateTimeGuardCols.forEach(i => { row[i] = forceLiteralText(row[i]); });
+  });
+
+  const outRows = [];
+  const headerRowOffsets = []; // 0-based offsets into outRows
+
+  dateKeys.forEach(key => {
+    const rowsForDate = groups.get(key);
+    const headerRow = new Array(lastCol).fill("");
+    headerRow[idColIndex] =
+      `${dateLabelFor(key)}  —  ${rowsForDate.length} registration${rowsForDate.length === 1 ? "" : "s"}`;
+    headerRowOffsets.push(outRows.length);
+    outRows.push(headerRow);
+    rowsForDate.forEach(r => outRows.push(r));
+  });
+
+  sheet.getRange(2, 1, outRows.length, lastCol).setValues(outRows);
+
+  headerRowOffsets.forEach(offset => {
+    const rowNum = offset + 2; // +2: row 1 is the column header, outRows is 0-based
+    const range = sheet.getRange(rowNum, 1, 1, lastCol);
+    range.merge();
+    range.setFontWeight("bold");
+    range.setBackground("#DCE4F0");
+    range.setFontColor("#0F1D3B");
+    range.setHorizontalAlignment("left");
+    sheet.getRange(rowNum, idColIndex + 1, 1, 1).setNote(DATE_HEADER_MARKER);
+  });
+}
+
+// Run this by hand (Apps Script editor's function dropdown -> Run)
+// whenever you want every activity's Registrations sheet tidied into
+// dated, banner-grouped blocks. Takes a while on a large sheet — that's
+// exactly why it's no longer run automatically on every approval.
+function regroupAllRegistrations() {
+  Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
+}
+
+
+// ------------------------------------------------------------------
 // ONE-TIME REPAIR utilities
 // ------------------------------------------------------------------
 
@@ -1653,14 +1913,19 @@ function deleteUnusedAlertSheets() {
 // so "#ERROR!" can't happen again, and recovers what it can from cells
 // currently showing that error.
 function repairPhoneNumbers() {
-  [PENDING_SHEET_NAME, REGISTRATIONS_SHEET_NAME].forEach(name => {
-    const sheet = getOrCreateSheet(name, HEADERS);
-    ensureTextFormatForPhoneColumns(sheet, HEADERS); // re-applied here on purpose — this is the manual repair path
+  const sheetsToRepair = [{ name: PENDING_SHEET_NAME, headers: PENDING_HEADERS }];
+  Object.keys(ACTIVITIES).forEach(key => {
+    sheetsToRepair.push({ name: ACTIVITIES[key].registrationsSheet, headers: REGISTRATIONS_HEADERS });
+  });
+
+  sheetsToRepair.forEach(({ name, headers }) => {
+    const sheet = getOrCreateSheet(name, headers);
+    ensureTextFormatForPhoneColumns(sheet, headers); // re-applied here on purpose — this is the manual repair path
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return;
 
     ["idNo", "phone", "emergencyPhone"].forEach(h => {
-      const col = HEADERS.indexOf(h) + 1;
+      const col = headers.indexOf(h) + 1;
       if (col < 1) return;
       const range = sheet.getRange(2, col, lastRow - 1, 1);
       const formulas = range.getFormulas();
@@ -1688,11 +1953,12 @@ function repairPhoneNumbers() {
 // then redeploy. Switches date/time columns to Plain Text and rewrites
 // any cell that's still a real Date object as clean formatted text.
 function repairDateTimeColumns() {
-  const sheetsToRepair = [
-    { name: PENDING_SHEET_NAME, headers: HEADERS },
-    { name: REGISTRATIONS_SHEET_NAME, headers: HEADERS },
-    { name: VISITS_SHEET_NAME, headers: VISIT_HEADERS }
-  ];
+  const sheetsToRepair = [{ name: PENDING_SHEET_NAME, headers: PENDING_HEADERS }];
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    sheetsToRepair.push({ name: activity.registrationsSheet, headers: REGISTRATIONS_HEADERS });
+    sheetsToRepair.push({ name: activity.visitsSheet, headers: VISIT_HEADERS });
+  });
 
   sheetsToRepair.forEach(({ name, headers }) => {
     const sheet = getOrCreateSheet(name, headers);
@@ -1728,52 +1994,54 @@ function repairDateTimeColumns() {
 // ------------------------------------------------------------------
 
 // Closes out every still-open visit (no timeOut yet), across every
-// activity in one pass, as if that member had signed out at closing
-// time — for anyone who used the facility but forgot to sign out
-// themselves. Meant to run automatically once a day via a time-driven
-// trigger — see installNightlyMaintenanceTrigger() below, which sets
-// that up. Safe to run by hand too (Run > autoSignOutAt9pm) if you
-// ever need to close everything out early.
+// activity's own Visits sheet, as if that member had signed out at
+// closing time — for anyone who used the facility but forgot to sign
+// out themselves. Meant to run automatically once a day via a
+// time-driven trigger — see installNightlyMaintenanceTrigger() below,
+// which sets that up. Safe to run by hand too (Run > autoSignOutAt9pm)
+// if you ever need to close everything out early.
 function autoSignOutAt9pm() {
   const CLOSING_TIME_LABEL = "9:00 PM";
-  const visits = getOrCreateSheet(VISITS_SHEET_NAME, VISIT_HEADERS);
-  const lastRow = visits.getLastRow();
-  if (lastRow < 2) return;
+  let totalClosed = 0;
 
-  const activityColIndex = VISIT_HEADERS.indexOf("activity");
-  const idColIndex = VISIT_HEADERS.indexOf("idNo");
-  const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-  const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+    const lastRow = visits.getLastRow();
+    if (lastRow < 2) return;
 
-  const registrations = getOrCreateSheet(REGISTRATIONS_SHEET_NAME, HEADERS);
-  const regByKey = {};
-  sheetToObjects(registrations).forEach(r => { regByKey[r.activity + "|" + String(r.idNo).trim()] = r; });
+    const idColIndex = VISIT_HEADERS.indexOf("idNo");
+    const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
+    const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
-  let closedCount = 0;
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][timeOutColIndex]) continue; // already signed out
-    const rowNum = i + 2;
-    visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
-    closedCount++;
+    const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+    const regByIdNo = {};
+    sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
 
-    // Same session-cap bookkeeping a normal checkout does (see the
-    // "checkout" action above) — they used the facility today even
-    // though they didn't sign out themselves.
-    const activityKey = String(values[i][activityColIndex]).trim();
-    const idNo = String(values[i][idColIndex]).trim();
-    const match = regByKey[activityKey + "|" + idNo];
-    const activity = ACTIVITIES[activityKey];
-    const cfg = activity && match && getDurationConfig(activity, match.duration);
-    if (cfg && cfg.sessionCap) {
-      const regIdx = findRowIndexByIdNo(registrations, idNo, activityKey);
-      if (regIdx !== -1) {
-        const newUsed = (Number(match.sessionsUsed) || 0) + 1;
-        registrations.getRange(regIdx, HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][timeOutColIndex]) continue; // already signed out
+      const rowNum = i + 2;
+      visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
+      totalClosed++;
+
+      // Same session-cap bookkeeping a normal checkout does (see the
+      // "checkout" action above) — they used the facility today even
+      // though they didn't sign out themselves.
+      const idNo = String(values[i][idColIndex]).trim();
+      const match = regByIdNo[idNo];
+      const cfg = match && getDurationConfig(activity, match.duration);
+      if (cfg && cfg.sessionCap) {
+        const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
+        if (regIdx !== -1) {
+          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
+          registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+        }
       }
     }
-  }
-  if (closedCount > 0) {
-    Logger.log(`Auto sign-out: closed ${closedCount} open visit(s) across all activities.`);
+  });
+
+  if (totalClosed > 0) {
+    Logger.log(`Auto sign-out: closed ${totalClosed} open visit(s) across all activities.`);
   }
 }
 
