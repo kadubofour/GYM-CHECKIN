@@ -661,6 +661,85 @@ function findRowIndexByIdNo(sheet, idNo, headers, activityKey) {
   return -1;
 }
 
+// Fetches exactly one Registrations row by idNo, shaped the same way
+// sheetToObjects() would produce it, without reading or mapping the
+// rest of the sheet. checkin/checkout/verify only ever need one
+// member's row — reading (and note-scanning) the whole sheet just to
+// Array.find() one match gets slower every time the sheet grows,
+// which, now that a renewal appends a new row instead of updating in
+// place, happens faster than it used to. Returns null if idNo isn't
+// found.
+function getRegistrationRowByIdNo(sheet, headers, idNo) {
+  const rowIdx = findRowIndexByIdNo(sheet, idNo, headers);
+  if (rowIdx === -1) return null;
+  const row = sheet.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
+  const obj = {};
+  headers.forEach((h, i) => obj[h] = cellToDisplayValue(row[i], h));
+  return obj;
+}
+
+// Fetches every Registrations row whose idNo is in `codes` — used by
+// "checkApproved" to resolve a handful of freshly-submitted codes (at
+// most 5, a Family Package's cap) without reading the whole sheet.
+// Reads just the idNo column once (cheap) to find which rows match,
+// then reads only those matched rows in full.
+function getRegistrationRowsByIdNos(sheet, headers, codes) {
+  if (codes.length === 0) return [];
+  const idColIndex = headers.indexOf("idNo") + 1;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const ids = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
+  const wanted = new Set(codes);
+  const matchedRows = [];
+  for (let i = 0; i < ids.length; i++) {
+    if (wanted.has(String(ids[i][0]).trim())) matchedRows.push(i + 2);
+  }
+  return matchedRows.map(rowNum => {
+    const row = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = cellToDisplayValue(row[i], h));
+    return obj;
+  });
+}
+
+// Fetches every Registrations row with a given phone number — used by
+// "lookup" across all 5 activities' sheets. Same shape of optimization
+// as getRegistrationRowsByIdNos() above: one cheap single-column read
+// to find matches, then full reads of just those rows.
+function getRegistrationRowsByPhone(sheet, headers, phone) {
+  const phoneColIndex = headers.indexOf("phone") + 1;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !phone) return [];
+  const phones = sheet.getRange(2, phoneColIndex, lastRow - 1, 1).getValues();
+  const matchedRows = [];
+  for (let i = 0; i < phones.length; i++) {
+    if (String(phones[i][0]).trim() === phone) matchedRows.push(i + 2);
+  }
+  return matchedRows.map(rowNum => {
+    const row = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = cellToDisplayValue(row[i], h));
+    return obj;
+  });
+}
+
+// Counts Pending rows (any activity) with a given phone number — used
+// by "lookup" to report how many of a phone number's submissions are
+// still awaiting approval. A single phone-column read instead of
+// sheetToObjects() reading/mapping the whole (shared, so potentially
+// busiest) Pending sheet just to count matches.
+function countPendingByPhone(pending, phone) {
+  const phoneColIndex = PENDING_HEADERS.indexOf("phone") + 1;
+  const lastRow = pending.getLastRow();
+  if (lastRow < 2) return 0;
+  const phones = pending.getRange(2, phoneColIndex, lastRow - 1, 1).getValues();
+  let count = 0;
+  for (let i = 0; i < phones.length; i++) {
+    if (String(phones[i][0]).trim() === phone) count++;
+  }
+  return count;
+}
+
 // Every Pending row sharing one Family Package submission's
 // familyGroupId (within one activity), as 1-based sheet row numbers —
 // used by doApprove()/doReject() to act on a whole family at once
@@ -685,27 +764,53 @@ function findRowIndicesByFamilyGroup(sheet, groupId, activityKey) {
 }
 
 
-function idNoExists(activity, idNo) {
+// Loads every idNo currently used by this activity — Pending (filtered
+// to this activity, since Pending is shared across all 5) plus this
+// activity's own Registrations sheet — into one in-memory Set, with a
+// single column read from each sheet. Used by the "submit" handler so
+// validating/generating up to 5 idNos (a Family Package's primary
+// registrant plus up to 4 extra members) never re-reads either sheet:
+// the old idNoExists()/generateUniqueIdNo() re-read both idNo columns
+// on every single check, which meant up to 10 full-column reads for
+// one family submission, and got slower as the sheets grew.
+function loadUsedIdNoSet(activity) {
+  const set = new Set();
   const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+  const pLastRow = pending.getLastRow();
+  if (pLastRow >= 2) {
+    const idColIndex = PENDING_HEADERS.indexOf("idNo") + 1;
+    const actColIndex = PENDING_HEADERS.indexOf("activity") + 1;
+    const ids = pending.getRange(2, idColIndex, pLastRow - 1, 1).getValues();
+    const acts = pending.getRange(2, actColIndex, pLastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (String(acts[i][0]).trim() === activity.key) set.add(String(ids[i][0]).trim());
+    }
+  }
   const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-  return findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key) !== -1
-    || findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS) !== -1;
+  const rLastRow = registrations.getLastRow();
+  if (rLastRow >= 2) {
+    const idColIndex = REGISTRATIONS_HEADERS.indexOf("idNo") + 1;
+    const ids = registrations.getRange(2, idColIndex, rLastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) set.add(String(ids[i][0]).trim());
+  }
+  return set;
 }
 
-
 // Draws a random "<prefix><7 digits>" code and keeps re-rolling until
-// it finds one that isn't already used by a Pending or Registrations
-// row IN THIS ACTIVITY (codes from different activities can never
-// collide anyway, since each activity has its own prefix). Capped at
-// MAX_ATTEMPTS so this can never spin forever. Returns null if it
-// still comes up empty — the caller must handle that rather than
-// assume a code back.
-function generateUniqueIdNo(activity) {
+// it finds one not already in usedIdNos (see loadUsedIdNoSet() above)
+// — an in-memory check instead of re-reading a sheet on every attempt.
+// Capped at MAX_ATTEMPTS so this can never spin forever. Returns null
+// if it still comes up empty — the caller must handle that rather than
+// assume a code back. Does NOT add the code to usedIdNos itself — the
+// caller must do that once it's actually accepted, so a second call
+// (e.g. for the next family member) doesn't hand out the same code
+// twice.
+function generateUniqueIdNoFromSet(activity, usedIdNos) {
   const MAX_ATTEMPTS = 200;
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     const digits = String(Math.floor(1000000 + Math.random() * 9000000)); // 7 digits
     const code = activity.prefix + digits;
-    if (!idNoExists(activity, code)) return code;
+    if (!usedIdNos.has(code)) return code;
   }
   return null;
 }
@@ -715,16 +820,31 @@ function generateUniqueIdNo(activity) {
 // Photo storage
 // ------------------------------------------------------------------
 
+// DriveApp.getFoldersByName() is a Drive-wide search — one of the
+// slower calls in this whole project — and getPhotosFolder()/
+// getPendingPhotosFolder() used to run it on every single submit,
+// approve, and addPhoto. The folder's ID never changes once created,
+// so it's cached in Script Properties after the first lookup; every
+// call after that is a plain getFolderById(), which is fast.
+function getOrCreateFolderCached(name) {
+  const props = PropertiesService.getScriptProperties();
+  const key = "FOLDER_ID_" + name;
+  const cachedId = props.getProperty(key);
+  if (cachedId) {
+    try { return DriveApp.getFolderById(cachedId); } catch (err) { /* folder was deleted/moved by hand — fall through and re-resolve it */ }
+  }
+  const folders = DriveApp.getFoldersByName(name);
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(name);
+  props.setProperty(key, folder.getId());
+  return folder;
+}
+
 function getPhotosFolder() {
-  const folders = DriveApp.getFoldersByName(PHOTOS_FOLDER_NAME);
-  if (folders.hasNext()) return folders.next();
-  return DriveApp.createFolder(PHOTOS_FOLDER_NAME);
+  return getOrCreateFolderCached(PHOTOS_FOLDER_NAME);
 }
 
 function getPendingPhotosFolder() {
-  const folders = DriveApp.getFoldersByName(PENDING_PHOTOS_FOLDER_NAME);
-  if (folders.hasNext()) return folders.next();
-  return DriveApp.createFolder(PENDING_PHOTOS_FOLDER_NAME);
+  return getOrCreateFolderCached(PENDING_PHOTOS_FOLDER_NAME);
 }
 
 // Strips characters Drive/Windows/macOS dislike in filenames and
@@ -1104,6 +1224,14 @@ function doPost(e) {
         }
       }
 
+      // One read of every idNo already used in this activity (Pending +
+      // Registrations), instead of re-reading both sheets for every
+      // idNo checked/generated below — a Family Package checks/
+      // generates up to 5 of these in one submission. usedIdNos is
+      // updated in place as each one is accepted, so two family
+      // members can never end up handed the same generated code.
+      const usedIdNos = loadUsedIdNoSet(activity);
+
       // ID number is optional for categories NOT in idRequiredCategories
       // — an auto-generated "<prefix><7 digits>" code is used if they
       // don't have or didn't provide one. idRequiredCategories (UG
@@ -1113,18 +1241,19 @@ function doPost(e) {
       if (!idRequired) {
         idNo = String(data.idNo || "").trim();
         if (!idNo) {
-          idNo = generateUniqueIdNo(activity);
+          idNo = generateUniqueIdNoFromSet(activity, usedIdNos);
           if (!idNo) {
             return errorMsg("Couldn't generate a member code right now — the code pool may be full. Please ask the front desk to register you with a manual ID number instead.");
           }
-        } else if (idNoExists(activity, idNo)) {
+        } else if (usedIdNos.has(idNo)) {
           return errorMsg("This ID number is already registered or pending approval.");
         }
       } else {
         idNo = String(data.idNo || "").trim();
         if (!idNo) return errorMsg("An ID number is required for this category.");
-        if (idNoExists(activity, idNo)) return errorMsg("This ID number is already registered or pending approval.");
+        if (usedIdNos.has(idNo)) return errorMsg("This ID number is already registered or pending approval.");
       }
+      usedIdNos.add(idNo);
 
       // Name-first filenames (idNo tucked in parentheses for uniqueness)
       // so photos/signatures can be found by applicant name in Drive.
@@ -1168,10 +1297,11 @@ function doPost(e) {
           return errorMsg("A family package covers at most 5 people, including you — please list at most 4 additional family members.");
         }
         for (const m of members) {
-          const extraIdNo = generateUniqueIdNo(activity);
+          const extraIdNo = generateUniqueIdNoFromSet(activity, usedIdNos);
           if (!extraIdNo) {
             return errorMsg("Couldn't generate member codes for the whole family right now — the code pool may be full. Please ask the front desk to register the family manually instead.");
           }
+          usedIdNos.add(extraIdNo);
           extraFamilyMembers.push({
             name: m.name,
             idNo: extraIdNo,
@@ -1184,7 +1314,8 @@ function doPost(e) {
       }
 
       const sheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
-      sheet.appendRow(PENDING_HEADERS.map(h => {
+
+      const primaryRow = PENDING_HEADERS.map(h => {
         if (h === "activity") return activity.key;
         if (h === "idNo") return sheetSafeText(idNo);
         if (h === "photoUrl") return photoUrl;
@@ -1196,10 +1327,10 @@ function doPost(e) {
         if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
         if (h === "familyGroupId") return familyGroupId;
         return data[h] || "";
-      }));
+      });
 
-      extraFamilyMembers.forEach(member => {
-        sheet.appendRow(PENDING_HEADERS.map(h => {
+      const familyMemberRows = extraFamilyMembers.map(member =>
+        PENDING_HEADERS.map(h => {
           if (h === "activity") return activity.key;
           if (h === "idNo") return sheetSafeText(member.idNo);
           if (h === "name") return member.name;
@@ -1219,8 +1350,16 @@ function doPost(e) {
           // primary registrant, optional medical conditions, and the
           // shared contact details are collected.
           return "";
-        }));
-      });
+        })
+      );
+
+      // One write for the primary registrant plus every extra family
+      // member (up to 5 rows total), instead of a separate appendRow()
+      // per row — each appendRow() is its own round trip to the Sheets
+      // service, and a Family Package could mean up to 5 of them back
+      // to back.
+      const allNewRows = [primaryRow].concat(familyMemberRows);
+      sheet.getRange(sheet.getLastRow() + 1, 1, allNewRows.length, PENDING_HEADERS.length).setValues(allNewRows);
 
       const response = { idNo: idNo };
       if (data.class === FAMILY_CATEGORY) {
@@ -1242,9 +1381,8 @@ function doPost(e) {
 
     if (action === "checkin") {
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-      const rows = sheetToObjects(registrations);
       const code = String(data.code || "").trim();
-      const match = rows.find(r => String(r.idNo).trim() === code);
+      const match = getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, code);
       if (!match) return errorMsg("Code not recognized");
 
       const now = new Date();
@@ -1293,9 +1431,8 @@ function doPost(e) {
 
     if (action === "checkout") {
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-      const rows = sheetToObjects(registrations);
       const code = String(data.code || "").trim();
-      const match = rows.find(r => String(r.idNo).trim() === code);
+      const match = getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, code);
       if (!match) return errorMsg("Code not recognized");
 
       const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
@@ -1434,14 +1571,13 @@ function doPost(e) {
       const phone = String(data.phone || "").trim();
 
       const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
-      const pendingCount = sheetToObjects(pending).filter(r => String(r.phone).trim() === phone).length;
+      const pendingCount = countPendingByPhone(pending, phone);
 
       const approvedMembers = [];
       Object.keys(ACTIVITIES).forEach(key => {
         const act = ACTIVITIES[key];
         const registrations = getOrCreateSheet(act.registrationsSheet, REGISTRATIONS_HEADERS);
-        sheetToObjects(registrations)
-          .filter(r => String(r.phone).trim() === phone)
+        getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone)
           .forEach(r => { r.activity = act.key; approvedMembers.push(r); });
       });
 
@@ -1463,8 +1599,7 @@ function doPost(e) {
         : [];
       if (codes.length === 0) return errorMsg("No codes to check.");
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-      const approvedMembers = sheetToObjects(registrations)
-        .filter(r => codes.indexOf(String(r.idNo).trim()) !== -1);
+      const approvedMembers = getRegistrationRowsByIdNos(registrations, REGISTRATIONS_HEADERS, codes);
       return ok({ approvedMembers: approvedMembers });
     }
 
@@ -1475,7 +1610,7 @@ function doPost(e) {
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
       const code = String(data.code || "").trim();
       if (!code) return errorMsg("Enter your code or ID number.");
-      const match = sheetToObjects(registrations).find(r => String(r.idNo).trim() === code);
+      const match = getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, code);
       if (!match) return errorMsg("Code not recognized");
       return ok({ member: match });
     }
