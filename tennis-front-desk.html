@@ -238,31 +238,6 @@
   .medical-callout-value{ font-size:13px; color:var(--text); font-weight:600; word-break:break-word; }
   .medical-callout-empty{ color:var(--text-faint); font-weight:400; }
 
-  .walkin-card{
-    background:var(--panel-alt); border:1px solid var(--line); border-radius:12px;
-    padding:18px 20px; margin-bottom:18px;
-  }
-  .walkin-title{ font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:0.02em; margin:0 0 2px; color:var(--text); }
-  .walkin-sub{ font-size:12px; color:var(--text-dim); margin:0 0 16px; }
-  .walkin-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .walkin-card .field{ margin-bottom:12px; }
-  .walkin-card label{
-    display:block; font-size:11.5px; font-weight:700; color:var(--text-dim);
-    margin:0 0 5px; text-transform:uppercase; letter-spacing:0.03em;
-  }
-  .walkin-card input[type=text], .walkin-card select{
-    width:100%; background:var(--bg); border:1px solid var(--line-strong); color:var(--text);
-    padding:10px 11px; border-radius:8px; font-family:'Inter',sans-serif; font-size:14px; outline:none;
-  }
-  .walkin-card input:focus, .walkin-card select:focus{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-dim); }
-  .walkin-card .field-error{ font-size:11px; color:var(--danger); margin-top:4px; display:none; }
-  .walkin-card .field.invalid input, .walkin-card .field.invalid select{ border-color:var(--danger); }
-  .walkin-card .field.invalid .field-error{ display:block; }
-  .walkin-card .phone-group{ display:flex; gap:8px; }
-  .walkin-card .phone-group select{ flex:0 0 108px; }
-  .walkin-card .phone-group input{ flex:1; min-width:0; }
-  .walkin-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
-
   .alert-banner{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
   .alert-item{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -297,7 +272,6 @@
   @media (max-width:640px){
     #deskScreen .wrap{ padding:18px 12px 60px; }
     .panel{ padding:14px; }
-    .walkin-row{ grid-template-columns:1fr; }
     .approval-actions{ width:100%; }
     .approval-actions .approve-btn, .approval-actions .reject-btn{ flex:1; padding:11px 10px; }
     .table-toolbar .search-box{ width:100%; }
@@ -362,53 +336,7 @@
         <input type="text" class="search-box" id="searchBox" placeholder="Search name, phone, or ID/Code…">
         <div class="toolbar-actions">
           <button class="btn-ghost" id="refreshBtn">↻ Refresh</button>
-          <button class="btn-ghost" id="walkinToggleBtn">+ Add Walk-in</button>
         </div>
-      </div>
-
-      <div class="walkin-card" id="walkinCard" style="display:none;">
-        <p class="walkin-title">Quick Walk-in Entry</p>
-        <p class="walkin-sub">Goes into Pending — the main front desk still needs to approve it.</p>
-        <form id="walkinForm" novalidate>
-          <div class="field" id="wf-field-activity">
-            <label for="wfActivity">Program</label>
-            <select id="wfActivity"></select>
-          </div>
-          <div class="walkin-row">
-            <div class="field" id="wf-field-class">
-              <label for="wfClass">Category</label>
-              <select id="wfClass"></select>
-            </div>
-            <div class="field" id="wf-field-id" style="display:none;">
-              <label for="wfId">ID No.</label>
-              <input type="text" id="wfId" placeholder="ID number">
-              <p class="field-error">Required for this category.</p>
-            </div>
-          </div>
-          <div class="walkin-row">
-            <div class="field" id="wf-field-surname">
-              <label for="wfSurname">Surname</label>
-              <input type="text" id="wfSurname" placeholder="e.g. Owusu">
-              <p class="field-error">Required.</p>
-            </div>
-            <div class="field" id="wf-field-otherNames">
-              <label for="wfOtherNames">Other Names</label>
-              <input type="text" id="wfOtherNames" placeholder="e.g. Kwame">
-              <p class="field-error">Required.</p>
-            </div>
-          </div>
-          <div class="field" id="wf-field-phone">
-            <label for="wfPhone">Phone Number <span style="text-transform:none;font-weight:400;color:var(--text-dim);">(optional)</span></label>
-            <div class="phone-group">
-              <select id="wfPhoneCode"></select>
-              <input type="text" id="wfPhone" placeholder="24 123 4567" inputmode="tel">
-            </div>
-          </div>
-          <div class="walkin-actions">
-            <button type="button" class="btn-ghost" id="walkinCancelBtn">Cancel</button>
-            <button type="submit" class="approve-btn" id="walkinSubmitBtn" style="padding:9px 18px;">Add to Pending</button>
-          </div>
-        </form>
       </div>
 
       <div id="registrantsHost"></div>
@@ -425,7 +353,14 @@
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUCJRzZC--3sh2uOi9bRfLjgtMCNlZE4BmCJSURohckusFCxRatuemTUB1XpP-Al6vDQ/exec";
   // ----------------------------------------------------------------------------------
   const STAFF_PIN = "1234";
-  const AUTO_REFRESH_MS = 15000;
+  // Cut from 15s: staff waiting on a walk-in or registration to show up
+  // (submitted from the registrant app, or the main front desk) were
+  // feeling that delay directly. Safe to run this much tighter because
+  // scheduleAutoRefresh() below is self-rescheduling, not a plain
+  // setInterval — the next cycle is only queued once the current one
+  // fully settles, so a slow patch can never pile up overlapping
+  // requests the way a fixed interval would.
+  const AUTO_REFRESH_MS = 5000;
 
   if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
     document.getElementById('setupWarning').style.display = 'block';
@@ -654,144 +589,6 @@
       body: JSON.stringify({ action: "acknowledgeAlert", activity: currentActivity.key, alertId: alertId })
     }).catch(() => showToast("Couldn't reach the sheet — check connection", true));
   }
-
-  // ---- Add Walk-in (program-scoped: this desk covers 2 activities, so
-  // the walk-in form has its own Program selector separate from the page's
-  // activity switcher, since staff might be viewing one activity's pending
-  // list while a walk-in belongs to the other). ----
-  const COUNTRY_CODES = [
-    { code:"+233", label:"🇬🇭 +233", def:true },{ code:"+234", label:"🇳🇬 +234" },{ code:"+225", label:"🇨🇮 +225" },
-    { code:"+228", label:"🇹🇬 +228" },{ code:"+229", label:"🇧🇯 +229" },{ code:"+226", label:"🇧🇫 +226" },
-    { code:"+223", label:"🇲🇱 +223" },{ code:"+221", label:"🇸🇳 +221" },{ code:"+232", label:"🇸🇱 +232" },
-    { code:"+231", label:"🇱🇷 +231" },{ code:"+27",  label:"🇿🇦 +27" }, { code:"+254", label:"🇰🇪 +254" },
-    { code:"+1",   label:"🇺🇸 +1" },  { code:"+44",  label:"🇬🇧 +44" }, { code:"+91",  label:"🇮🇳 +91" },
-    { code:"+86",  label:"🇨🇳 +86" }
-  ];
-  const wfPhoneCode = document.getElementById('wfPhoneCode');
-  wfPhoneCode.innerHTML = COUNTRY_CODES.map(c => `<option value="${c.code}"${c.def ? ' selected' : ''}>${c.label}</option>`).join('');
-
-  // Ghanaian habit: local numbers are usually written with a leading 0
-  // ("024 123 4567") even though every phone field here already pairs
-  // with an explicit country code select that accounts for it — so a
-  // leading 0 is dropped the moment it's typed, and typing is capped
-  // at 9 digits (the length of a local number once that 0 is gone).
-  document.querySelectorAll('.phone-group input[type="text"]').forEach(input => {
-    input.addEventListener('input', () => {
-      let value = input.value.replace(/^0/, '');
-      let digitCount = 0, cutIndex = value.length;
-      for(let i = 0; i < value.length; i++){
-        if(/\d/.test(value[i])){
-          digitCount++;
-          if(digitCount > 9){ cutIndex = i; break; }
-        }
-      }
-      value = value.slice(0, cutIndex);
-      if(value !== input.value) input.value = value;
-    });
-  });
-
-  const wfActivity = document.getElementById('wfActivity');
-  wfActivity.innerHTML = Object.values(ACTIVITIES).map(a => `<option value="${a.key}">${escapeHtml(a.label)}</option>`).join('');
-
-  function populateCategorySelect(selectEl, activity){
-    selectEl.innerHTML = activity.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  }
-
-  const walkinCard = document.getElementById('walkinCard');
-  const walkinToggleBtn = document.getElementById('walkinToggleBtn');
-  const walkinCancelBtn = document.getElementById('walkinCancelBtn');
-  const walkinForm = document.getElementById('walkinForm');
-  const wfClass = document.getElementById('wfClass');
-  const wfIdField = document.getElementById('wf-field-id');
-  const wfId = document.getElementById('wfId');
-  const wfSurname = document.getElementById('wfSurname');
-  const wfOtherNames = document.getElementById('wfOtherNames');
-  const wfPhone = document.getElementById('wfPhone');
-  const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
-
-  function setFieldInvalid(el, invalid){ el.classList.toggle('invalid', !!invalid); }
-
-  function walkinActivity(){ return ACTIVITIES[wfActivity.value]; }
-
-  function openWalkinCard(){
-    wfActivity.value = currentActivity.key;
-    populateCategorySelect(wfClass, walkinActivity());
-    walkinCard.style.display = 'block';
-    walkinToggleBtn.style.display = 'none';
-  }
-  function closeWalkinCard(){
-    walkinCard.style.display = 'none';
-    walkinToggleBtn.style.display = 'inline-block';
-    walkinForm.reset();
-    wfIdField.style.display = 'none';
-    [wfIdField, document.getElementById('wf-field-surname'), document.getElementById('wf-field-otherNames')].forEach(f => setFieldInvalid(f, false));
-  }
-  walkinToggleBtn.addEventListener('click', openWalkinCard);
-  walkinCancelBtn.addEventListener('click', closeWalkinCard);
-
-  wfActivity.addEventListener('change', () => {
-    populateCategorySelect(wfClass, walkinActivity());
-    wfIdField.style.display = 'none';
-  });
-
-  wfClass.addEventListener('change', () => {
-    const needsId = walkinActivity().idRequiredCategories.indexOf(wfClass.value) !== -1;
-    wfIdField.style.display = needsId ? 'block' : 'none';
-    if(!needsId) setFieldInvalid(wfIdField, false);
-  });
-
-  walkinForm.addEventListener('submit', function(e){
-    e.preventDefault();
-    let valid = true;
-    const activity = walkinActivity();
-    const needsId = activity.idRequiredCategories.indexOf(wfClass.value) !== -1;
-
-    const surnameField = document.getElementById('wf-field-surname');
-    const otherNamesField = document.getElementById('wf-field-otherNames');
-    if(!wfSurname.value.trim()){ setFieldInvalid(surnameField, true); valid = false; } else setFieldInvalid(surnameField, false);
-    if(!wfOtherNames.value.trim()){ setFieldInvalid(otherNamesField, true); valid = false; } else setFieldInvalid(otherNamesField, false);
-    if(needsId && !wfId.value.trim()){ setFieldInvalid(wfIdField, true); valid = false; } else setFieldInvalid(wfIdField, false);
-    if(!valid) return;
-
-    const now = new Date();
-    const payload = {
-      action: "submit",
-      activity: activity.key,
-      class: wfClass.value,
-      name: `${wfSurname.value.trim()} ${wfOtherNames.value.trim()}`.trim(),
-      idNo: needsId ? wfId.value.trim() : "",
-      duration: "Walk-in",
-      phone: wfPhone.value.trim() ? `${wfPhoneCode.value} ${wfPhone.value.trim()}` : "",
-      date: formatDateMDY(now),
-      time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
-    };
-
-    walkinSubmitBtn.disabled = true;
-    walkinSubmitBtn.textContent = "Adding…";
-
-    fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-      walkinSubmitBtn.disabled = false;
-      walkinSubmitBtn.textContent = "Add to Pending";
-      if(data.status === "ok"){
-        showToast(`Walk-in added to ${activity.label} — awaiting approval at the main front desk ✓`);
-        closeWalkinCard();
-        if(activity.key !== currentActivity.key) switchActivity(activity.key); else loadAll();
-      } else {
-        showToast(data.message || "Couldn't add walk-in", true);
-      }
-    })
-    .catch(() => {
-      walkinSubmitBtn.disabled = false;
-      walkinSubmitBtn.textContent = "Add to Pending";
-      showToast("Couldn't reach the sheet — check connection", true);
-    });
-  });
 
   // ---- Registrants (full detail, read-only) ----
   // Both pulled out of the plain detail-grid into their own callouts so
