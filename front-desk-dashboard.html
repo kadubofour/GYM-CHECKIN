@@ -15,6 +15,7 @@
     --blue:#15369E; --blue-dark:#0C2568; --blue-dim:rgba(21,54,158,0.08); --blue-dim-strong:rgba(21,54,158,0.14);
     --gold:#B8860B; --gold-dark:#8C660A; --gold-dim:rgba(184,134,11,0.12);
     --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
+    --yellow:#CA8A04; --yellow-dark:#8A5D03; --yellow-dim:rgba(202,138,4,0.12);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -252,29 +253,28 @@
   }
   .detail-item .dvalue{ font-size:13px; color:var(--text); word-break:break-word; }
   /* Pulled out of the detail-grid so it can't get lost among a dozen
-     other fields — staff need to find this one fast. */
+     other fields — staff need to find this one fast. Yellow for
+     emergency contact, red for medical conditions, so the two are
+     still visually distinct from a glance. */
   .emergency-callout{
     display:flex; flex-wrap:wrap; align-items:center; gap:8px;
-    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.35); border-left:4px solid var(--danger);
+    background:var(--yellow-dim); border:1px solid rgba(202,138,4,0.35); border-left:4px solid var(--yellow);
     border-radius:8px; padding:10px 12px; margin-bottom:14px;
   }
   .emergency-callout-label{
     font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
-    color:var(--danger); font-weight:800; flex-shrink:0;
+    color:var(--yellow-dark); font-weight:800; flex-shrink:0;
   }
   .emergency-callout-value{ font-size:13px; color:var(--text); font-weight:600; word-break:break-word; }
   .emergency-callout-empty{ color:var(--text-faint); font-weight:400; }
-  /* Same treatment as the emergency-contact callout above, in gold
-     instead of red so the two are still visually distinct from a
-     glance. */
   .medical-callout{
     display:flex; flex-wrap:wrap; align-items:center; gap:8px;
-    background:var(--gold-dim); border:1px solid rgba(184,134,11,0.35); border-left:4px solid var(--gold);
+    background:var(--danger-dim); border:1px solid rgba(192,57,43,0.35); border-left:4px solid var(--danger);
     border-radius:8px; padding:10px 12px; margin-bottom:14px;
   }
   .medical-callout-label{
     font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
-    color:var(--gold-dark); font-weight:800; flex-shrink:0;
+    color:var(--danger); font-weight:800; flex-shrink:0;
   }
   .medical-callout-value{ font-size:13px; color:var(--text); font-weight:600; word-break:break-word; }
   .medical-callout-empty{ color:var(--text-faint); font-weight:400; }
@@ -446,7 +446,10 @@
           <span class="live-dot"><span class="dot"></span> live from Google Sheet</span>
         </p>
 
-        <button class="btn-ghost" id="walkinToggleBtn" style="margin-bottom:14px;">+ Add Walk-in</button>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+          <button class="btn-ghost" id="approvalsRefreshBtn">↻ Refresh</button>
+          <button class="btn-ghost" id="walkinToggleBtn">+ Add Walk-in</button>
+        </div>
         <p class="foot-note" id="walkinUnavailableNote" style="display:none;margin:0 0 14px;">Walk-ins aren't available for this program — members must register for the plan.</p>
 
         <div class="walkin-card" id="walkinCard" style="display:none;">
@@ -855,6 +858,7 @@
       .catch(() => showToast("Couldn't reach the sheet — check connection", true));
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
+  document.getElementById('approvalsRefreshBtn').addEventListener('click', loadAll);
 
   // One request covering every activity's pending count, instead of
   // one fetch per activity.
