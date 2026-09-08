@@ -567,6 +567,20 @@
     return d.innerHTML;
   }
 
+  // photoUrl/signatureUrl store Drive's "view" link (file.getUrl(), e.g.
+  // .../file/d/<ID>/view) — that's the right link for "View photo →"
+  // (opens Drive's own viewer in a new tab), but a browser can't render
+  // that page as an <img>, so a thumbnail dropped straight into <img
+  // src> just shows a broken-image icon. This pulls the file ID back
+  // out and builds Drive's thumbnail endpoint instead, which does serve
+  // raw image bytes and is what every inline <img> below should use.
+  function driveThumbUrl(url, size){
+    if(!url) return '';
+    const m = String(url).match(/\/d\/([-\w]{10,})/) || String(url).match(/[?&]id=([-\w]{10,})/);
+    if(!m) return url;
+    return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w${size || 200}`;
+  }
+
   /* ===================== ACTIVITIES (mirrors Code.gs ACTIVITIES — keep in sync) ===================== */
   const FAMILY_CATEGORY = "Family Package (Max 5)";
   const LESSON_STYLE_CATEGORIES = [
@@ -1083,7 +1097,7 @@
         const photoUrl = photoByIdNo[v.idNo];
         return `
         <tr>
-          <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(photoUrl)}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
+          <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(photoUrl, 100))}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
           <td class="name-cell">${escapeHtml(v.name)}</td>
           <td><span class="badge ${badgeClassFor(currentActivity, v.class)}">${escapeHtml(v.class||'')}</span></td>
           <td class="id-cell">${escapeHtml(v.idNo||'')}</td>
@@ -1187,7 +1201,7 @@
     <div class="approval-card">
       <div class="approval-head">
         <div style="display:flex; align-items:center; gap:12px;">
-          ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
           <div>
             <div class="approval-name">${escapeHtml(e.name)}${isRenewal ? ' <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">RENEWAL</span>' : ''}</div>
             <div class="approval-sub">${isRenewal ? 'Requested' : 'Submitted'} ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
@@ -1240,7 +1254,7 @@
     <div class="approval-card">
       <div class="approval-head">
         <div style="display:flex; align-items:center; gap:12px;">
-          ${primary.photoUrl ? `<img src="${escapeHtml(primary.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          ${primary.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(primary.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
           <div>
             <div class="approval-name">${escapeHtml(primary.name)} <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">FAMILY · ${members.length}</span></div>
             <div class="approval-sub">Submitted ${escapeHtml(primary.date||'')} · ${escapeHtml(primary.time||'')}</div>
@@ -1521,7 +1535,7 @@
         const expired = isExpired(e);
         return `
         <tr class="${expired ? 'expired-row' : ''}">
-          <td>${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
+          <td>${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
           <td class="name-cell">${escapeHtml(e.name)}</td>
           <td><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></td>
           <td class="id-cell">${e.department ? escapeHtml(e.department) : '<span style="color:var(--text-faint);">—</span>'}</td>

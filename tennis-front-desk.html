@@ -421,6 +421,19 @@
     return d.innerHTML;
   }
 
+  // photoUrl stores Drive's "view" link (file.getUrl(), e.g.
+  // .../file/d/<ID>/view) — right for "View photo →" (opens Drive's own
+  // viewer in a new tab), but a browser can't render that page as an
+  // <img>, so dropping it straight into <img src> just shows a broken-
+  // image icon. This pulls the file ID back out and builds Drive's
+  // thumbnail endpoint instead, which does serve raw image bytes.
+  function driveThumbUrl(url, size){
+    if(!url) return '';
+    const m = String(url).match(/\/d\/([-\w]{10,})/) || String(url).match(/[?&]id=([-\w]{10,})/);
+    if(!m) return url;
+    return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w${size || 200}`;
+  }
+
   // This app only ever touches these two activities (mirrors the matching
   // entries in Code.gs ACTIVITIES — keep in sync).
   const FAMILY_CATEGORY = "Family Package (Max 5)";
@@ -822,7 +835,7 @@
       <div class="approval-card">
         <div class="approval-head">
           <div style="display:flex; align-items:center; gap:12px;">
-            ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+            ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
             <div>
               <div class="approval-name">${escapeHtml(e.name)}</div>
               <div class="approval-sub">Registered ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
