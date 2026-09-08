@@ -385,10 +385,17 @@
               <p class="field-error">Required for this category.</p>
             </div>
           </div>
-          <div class="field" id="wf-field-name">
-            <label for="wfName">Full Name</label>
-            <input type="text" id="wfName" placeholder="e.g. Kwame Owusu">
-            <p class="field-error">Required.</p>
+          <div class="walkin-row">
+            <div class="field" id="wf-field-surname">
+              <label for="wfSurname">Surname</label>
+              <input type="text" id="wfSurname" placeholder="e.g. Owusu">
+              <p class="field-error">Required.</p>
+            </div>
+            <div class="field" id="wf-field-otherNames">
+              <label for="wfOtherNames">Other Names</label>
+              <input type="text" id="wfOtherNames" placeholder="e.g. Kwame">
+              <p class="field-error">Required.</p>
+            </div>
           </div>
           <div class="field" id="wf-field-phone">
             <label for="wfPhone">Phone Number <span style="text-transform:none;font-weight:400;color:var(--text-dim);">(optional)</span></label>
@@ -697,7 +704,8 @@
   const wfClass = document.getElementById('wfClass');
   const wfIdField = document.getElementById('wf-field-id');
   const wfId = document.getElementById('wfId');
-  const wfName = document.getElementById('wfName');
+  const wfSurname = document.getElementById('wfSurname');
+  const wfOtherNames = document.getElementById('wfOtherNames');
   const wfPhone = document.getElementById('wfPhone');
   const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
 
@@ -716,7 +724,7 @@
     walkinToggleBtn.style.display = 'inline-block';
     walkinForm.reset();
     wfIdField.style.display = 'none';
-    [wfIdField, document.getElementById('wf-field-name')].forEach(f => setFieldInvalid(f, false));
+    [wfIdField, document.getElementById('wf-field-surname'), document.getElementById('wf-field-otherNames')].forEach(f => setFieldInvalid(f, false));
   }
   walkinToggleBtn.addEventListener('click', openWalkinCard);
   walkinCancelBtn.addEventListener('click', closeWalkinCard);
@@ -738,8 +746,10 @@
     const activity = walkinActivity();
     const needsId = activity.idRequiredCategories.indexOf(wfClass.value) !== -1;
 
-    const nameField = document.getElementById('wf-field-name');
-    if(!wfName.value.trim()){ setFieldInvalid(nameField, true); valid = false; } else setFieldInvalid(nameField, false);
+    const surnameField = document.getElementById('wf-field-surname');
+    const otherNamesField = document.getElementById('wf-field-otherNames');
+    if(!wfSurname.value.trim()){ setFieldInvalid(surnameField, true); valid = false; } else setFieldInvalid(surnameField, false);
+    if(!wfOtherNames.value.trim()){ setFieldInvalid(otherNamesField, true); valid = false; } else setFieldInvalid(otherNamesField, false);
     if(needsId && !wfId.value.trim()){ setFieldInvalid(wfIdField, true); valid = false; } else setFieldInvalid(wfIdField, false);
     if(!valid) return;
 
@@ -748,7 +758,7 @@
       action: "submit",
       activity: activity.key,
       class: wfClass.value,
-      name: wfName.value.trim(),
+      name: `${wfSurname.value.trim()} ${wfOtherNames.value.trim()}`.trim(),
       idNo: needsId ? wfId.value.trim() : "",
       duration: "Walk-in",
       phone: wfPhone.value.trim() ? `${wfPhoneCode.value} ${wfPhone.value.trim()}` : "",

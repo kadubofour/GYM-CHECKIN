@@ -514,16 +514,21 @@
       <div class="field" id="field-staffRelation" style="display:none;">
         <label>Related UG Staff Member <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(Spouse or Child only)</span></label>
         <div class="field-row">
-          <div class="field" id="field-relatedStaffName">
-            <label for="regRelatedStaffName">Full Name</label>
-            <input type="text" id="regRelatedStaffName" placeholder="Surname first, e.g. Owusu Kwame">
+          <div class="field" id="field-relatedStaffSurname">
+            <label for="regRelatedStaffSurname">Surname</label>
+            <input type="text" id="regRelatedStaffSurname" placeholder="e.g. Owusu">
             <p class="field-error">Required.</p>
           </div>
-          <div class="field" id="field-relatedStaffIdNo">
-            <label for="regRelatedStaffIdNo">ID No.</label>
-            <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
+          <div class="field" id="field-relatedStaffOtherNames">
+            <label for="regRelatedStaffOtherNames">Other Names</label>
+            <input type="text" id="regRelatedStaffOtherNames" placeholder="e.g. Kwame">
             <p class="field-error">Required.</p>
           </div>
+        </div>
+        <div class="field" id="field-relatedStaffIdNo">
+          <label for="regRelatedStaffIdNo">ID No.</label>
+          <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
+          <p class="field-error">Required.</p>
         </div>
         <div class="field" id="field-staffRelationship" style="margin-bottom:0;">
           <label>Relationship to Staff Member</label>
@@ -629,10 +634,9 @@
 
       <div class="field" id="field-familyMembers" style="display:none;">
         <label>Additional Family Members <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(up to 4 more — you're member 1 of up to 5)</span></label>
-        <p class="renew-option-sub" style="margin:-6px 0 10px;">Enter each name surname first.</p>
         <div id="familyMembersList"></div>
         <button type="button" class="btn btn-secondary" id="addFamilyMemberBtn" style="margin-top:2px;">+ Add Family Member</button>
-        <p class="field-error" id="familyMembersError">Enter a full name (surname first), gender, and relationship to you for each family member, or remove the row.</p>
+        <p class="field-error" id="familyMembersError">Enter a surname, other names, gender, and relationship to you for each family member, or remove the row.</p>
       </div>
 
       </div>
@@ -791,10 +795,17 @@
           <select id="walkinClass"></select>
           <p class="field-error">Please select a category.</p>
         </div>
-        <div class="field" id="field-walkin-name">
-          <label for="walkinName">Full Name</label>
-          <input type="text" id="walkinName" placeholder="e.g. Kwame Owusu">
-          <p class="field-error">Required.</p>
+        <div class="field-row">
+          <div class="field" id="field-walkin-surname">
+            <label for="walkinSurname">Surname</label>
+            <input type="text" id="walkinSurname" placeholder="e.g. Owusu">
+            <p class="field-error">Required.</p>
+          </div>
+          <div class="field" id="field-walkin-otherNames">
+            <label for="walkinOtherNames">Other Names</label>
+            <input type="text" id="walkinOtherNames" placeholder="e.g. Kwame">
+            <p class="field-error">Required.</p>
+          </div>
         </div>
         <div class="field" id="field-walkin-id" style="display:none;">
           <label for="walkinId">ID Number</label>
@@ -1286,7 +1297,8 @@
   const idOptionalTag = document.getElementById('idOptionalTag');
   const idOptionalHint = document.getElementById('idOptionalHint');
   const staffRelationSection = document.getElementById('field-staffRelation');
-  const relatedStaffNameField = document.getElementById('regRelatedStaffName');
+  const relatedStaffSurnameField = document.getElementById('regRelatedStaffSurname');
+  const relatedStaffOtherNamesField = document.getElementById('regRelatedStaffOtherNames');
   const relatedStaffIdNoField = document.getElementById('regRelatedStaffIdNo');
   const staffRelationshipRow = document.getElementById('staffRelationshipRow');
   const photoUploadBox = document.getElementById('photoUploadBox');
@@ -1353,7 +1365,8 @@
     row.className = 'family-member-row';
     row.innerHTML = `
       <div class="family-member-top">
-        <input type="text" class="family-member-name" placeholder="Surname first, e.g. Owusu Kwame">
+        <input type="text" class="family-member-surname" placeholder="Surname, e.g. Owusu">
+        <input type="text" class="family-member-otherNames" placeholder="Other Names, e.g. Kwame">
         <button type="button" class="family-member-remove" aria-label="Remove">&times;</button>
       </div>
       <div class="family-member-fields-row">
@@ -1377,7 +1390,7 @@
     });
     familyMembersList.appendChild(row);
     updateAddFamilyMemberBtn();
-    row.querySelector('.family-member-name').focus();
+    row.querySelector('.family-member-surname').focus();
   }
   function updateAddFamilyMemberBtn(){
     addFamilyMemberBtn.style.display = familyMembersList.children.length >= MAX_EXTRA_FAMILY_MEMBERS ? 'none' : 'block';
@@ -1390,8 +1403,12 @@
   function collectFamilyMembers(){
     return [...familyMembersList.children].map(row => {
       const activeGender = row.querySelector('.family-member-gender.active');
+      const surname = row.querySelector('.family-member-surname').value.trim();
+      const otherNames = row.querySelector('.family-member-otherNames').value.trim();
       return {
-        name: row.querySelector('.family-member-name').value.trim(),
+        surname: surname,
+        otherNames: otherNames,
+        name: `${surname} ${otherNames}`.trim(),
         gender: activeGender ? activeGender.dataset.value : '',
         relationship: row.querySelector('.family-member-relationship').value.trim(),
         medicalConditions: row.querySelector('.family-member-medical').value.trim()
@@ -1424,11 +1441,13 @@
     const isStaffRelation = UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1;
     staffRelationSection.style.display = isStaffRelation ? 'block' : 'none';
     if(!isStaffRelation){
-      relatedStaffNameField.value = '';
+      relatedStaffSurnameField.value = '';
+      relatedStaffOtherNamesField.value = '';
       relatedStaffIdNoField.value = '';
       selectedStaffRelationship = null;
       [...staffRelationshipRow.children].forEach(c => c.classList.remove('active'));
-      clearFieldError('field-relatedStaffName');
+      clearFieldError('field-relatedStaffSurname');
+      clearFieldError('field-relatedStaffOtherNames');
       clearFieldError('field-relatedStaffIdNo');
       clearFieldError('field-staffRelationship');
     }
@@ -1766,7 +1785,8 @@
     if(dept && !deptField.value.trim()){ markInvalid('field-dept'); valid = false; } else clearFieldError('field-dept');
     if(isIdRequired() && !idField.value.trim()){ markInvalid('field-id'); valid = false; } else clearFieldError('field-id');
     if(UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1){
-      if(!relatedStaffNameField.value.trim()){ markInvalid('field-relatedStaffName'); valid = false; } else clearFieldError('field-relatedStaffName');
+      if(!relatedStaffSurnameField.value.trim()){ markInvalid('field-relatedStaffSurname'); valid = false; } else clearFieldError('field-relatedStaffSurname');
+      if(!relatedStaffOtherNamesField.value.trim()){ markInvalid('field-relatedStaffOtherNames'); valid = false; } else clearFieldError('field-relatedStaffOtherNames');
       if(!relatedStaffIdNoField.value.trim()){ markInvalid('field-relatedStaffIdNo'); valid = false; } else clearFieldError('field-relatedStaffIdNo');
       if(!selectedStaffRelationship){ markInvalid('field-staffRelationship'); valid = false; } else clearFieldError('field-staffRelationship');
     }
@@ -1795,7 +1815,7 @@
     if(!selectedDuration){ markInvalid('field-duration'); valid = false; } else clearFieldError('field-duration');
     if(classField.value === FAMILY_CATEGORY){
       const members = collectFamilyMembers();
-      if(members.some(m => !m.name || !m.gender || !m.relationship)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
+      if(members.some(m => !m.surname || !m.otherNames || !m.gender || !m.relationship)){ markInvalid('field-familyMembers'); valid = false; } else clearFieldError('field-familyMembers');
     }
     return valid;
   }
@@ -1919,7 +1939,7 @@
       name: fullName,
       department: deptField.value.trim(),
       idNo: idField.value.trim(),
-      relatedStaffName: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? relatedStaffNameField.value.trim() : "",
+      relatedStaffName: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? `${relatedStaffSurnameField.value.trim()} ${relatedStaffOtherNamesField.value.trim()}`.trim() : "",
       relatedStaffIdNo: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? relatedStaffIdNoField.value.trim() : "",
       staffRelationship: UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1 ? selectedStaffRelationship : "",
       familyMembers: classField.value === FAMILY_CATEGORY ? collectFamilyMembers() : undefined,
@@ -2010,7 +2030,7 @@
     document.getElementById('walkinSigninForm').reset();
     if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
     document.getElementById('field-walkin-id').style.display = 'none';
-    ['field-walkin-class','field-walkin-name','field-walkin-id','field-walkin-phone'].forEach(clearFieldError);
+    ['field-walkin-class','field-walkin-surname','field-walkin-otherNames','field-walkin-id','field-walkin-phone'].forEach(clearFieldError);
   }
 
   const walkinClass = document.getElementById('walkinClass');
@@ -2028,13 +2048,15 @@
 
   walkinSigninForm.addEventListener('submit', function(e){
     e.preventDefault();
-    const nameEl = document.getElementById('walkinName');
+    const surnameEl = document.getElementById('walkinSurname');
+    const otherNamesEl = document.getElementById('walkinOtherNames');
     const phoneEl = document.getElementById('walkinPhone');
     const needsId = currentActivity && currentActivity.idRequiredCategories.indexOf(walkinClass.value) !== -1;
     let valid = true;
 
     if(!walkinClass.value){ markInvalid('field-walkin-class'); valid = false; } else clearFieldError('field-walkin-class');
-    if(!nameEl.value.trim()){ markInvalid('field-walkin-name'); valid = false; } else clearFieldError('field-walkin-name');
+    if(!surnameEl.value.trim()){ markInvalid('field-walkin-surname'); valid = false; } else clearFieldError('field-walkin-surname');
+    if(!otherNamesEl.value.trim()){ markInvalid('field-walkin-otherNames'); valid = false; } else clearFieldError('field-walkin-otherNames');
     if(needsId && !walkinId.value.trim()){ markInvalid('field-walkin-id'); valid = false; } else clearFieldError('field-walkin-id');
     if(!/^\d{6,}$/.test(phoneEl.value.replace(/\D/g,''))){ markInvalid('field-walkin-phone'); valid = false; } else clearFieldError('field-walkin-phone');
     if(!valid) return;
@@ -2052,7 +2074,7 @@
         class: walkinClass.value,
         idNo: needsId ? walkinId.value.trim() : "",
         duration: "Walk-in",
-        name: nameEl.value.trim(),
+        name: `${surnameEl.value.trim()} ${otherNamesEl.value.trim()}`.trim(),
         phone: `${walkinPhoneCode.value} ${phoneEl.value.trim()}`,
         date: formatDateMDY(now),
         time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
