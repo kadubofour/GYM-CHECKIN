@@ -9,6 +9,7 @@
 <style>
   :root{
     --bg:#FFFFFF; --panel:#FFFFFF; --panel-alt:#F2F6FC;
+    --page-bg:#0A1128;
     --line:#DCE4F0; --line-strong:#B9C7DE;
     --text:#0F1D3B; --text-dim:#5B6B85; --text-faint:#8B98AC;
     --blue:#15369E; --blue-dark:#0C2568; --blue-dim:rgba(21,54,158,0.08); --blue-dim-strong:rgba(21,54,158,0.14);
@@ -21,7 +22,7 @@
     background:
       radial-gradient(1100px 560px at 88% -8%, var(--blue-dim), transparent 60%),
       radial-gradient(900px 500px at 8% 108%, var(--gold-dim), transparent 55%),
-      var(--bg);
+      var(--page-bg);
     color:var(--text); font-family:'Inter',sans-serif;
     min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px;
   }
@@ -36,6 +37,9 @@
     font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.18em;
     text-transform:uppercase; color:var(--blue); margin:0 0 6px; text-align:center;
   }
+  .brand-lockup{ display:flex; align-items:center; justify-content:center; gap:10px; margin:0 0 6px; }
+  .brand-lockup .brand-eyebrow{ margin:0; }
+  .brand-logo{ height:34px; width:auto; flex-shrink:0; }
   h1{
     font-family:'Bebas Neue',sans-serif; font-size:40px; letter-spacing:0.02em; line-height:0.9;
     margin:0 0 20px; text-align:center; color:var(--text);
@@ -420,7 +424,10 @@
 
 <div class="screen active" id="screen-picker">
   <div class="card">
-    <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
+    <div class="brand-lockup">
+      <img class="brand-logo" src="UoG_CoA_2017.svg" alt="University of Ghana coat of arms">
+      <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
+    </div>
     <button type="button" class="switch-link back-link" id="activityPickerBack" style="display:none;margin:0 0 8px;">← Back</button>
     <h1 id="activityPickerTitle">CHOOSE YOUR ACTIVITY</h1>
     <p class="subhead" id="activityPickerSub" style="display:none;"></p>
