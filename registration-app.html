@@ -852,7 +852,13 @@
 
   <!-- ============ SIGN OUT TAB ============ -->
   <div class="tab-panel" id="tab-signout">
-    <div class="view active" id="view-out-code">
+    <div class="view active" id="view-out-start">
+      <p class="subhead">Ready to head out?</p>
+      <button type="button" class="btn btn-primary" id="toOutCodeFromStartBtn">Sign Out</button>
+      <button class="btn btn-gold" id="toOutPhoneFromStartBtn">Walk-in Sign Out →</button>
+    </div>
+
+    <div class="view" id="view-out-code">
       <p class="subhead">Enter your member code or ID number to sign out.</p>
       <form id="codeOutForm" novalidate>
         <div class="field" id="field-code-out">
@@ -862,7 +868,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="checkoutBtn">Sign Out</button>
       </form>
-      <button class="btn btn-gold" id="toOutPhoneBtn">Walk-in Sign Out →</button>
+      <button class="switch-link" id="toOutStartBtn">← Back</button>
     </div>
 
     <div class="view" id="view-out-phone">
@@ -878,7 +884,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="checkoutPhoneBtn">Sign Out</button>
       </form>
-      <button class="switch-link" id="toOutCodeBtn">← Back to sign out</button>
+      <button class="switch-link" id="toOutCodeBtn">← Back</button>
     </div>
 
     <div class="view" id="view-out-result">
@@ -1278,7 +1284,7 @@
     // ever needs signing out by phone instead of by code).
     const hasWalkin = !!(currentActivity && currentActivity.durations['Walk-in']);
     document.getElementById('toWalkinBtn').style.display = hasWalkin ? 'block' : 'none';
-    document.getElementById('toOutPhoneBtn').style.display = hasWalkin ? 'block' : 'none';
+    document.getElementById('toOutPhoneFromStartBtn').style.display = hasWalkin ? 'block' : 'none';
   }
 
   /* ===================== Top-level tabs (inside the app screen) ===================== */
@@ -2479,7 +2485,13 @@
   }
 
   /* ===================== SIGN OUT ===================== */
+  // Sign Out now opens on a bare landing page with just "Sign Out" /
+  // "Walk-in Sign Out" buttons — no code field in sight until you tap
+  // one, and tapping it is a full page change (showOutView), not an
+  // inline reveal, so it reads as moving forward rather than a form
+  // just unfolding in place.
   const outViews = {
+    start: document.getElementById('view-out-start'),
     code: document.getElementById('view-out-code'),
     phone: document.getElementById('view-out-phone'),
     result: document.getElementById('view-out-result')
@@ -2489,15 +2501,22 @@
     outViews[name].classList.add('active');
   }
 
-  document.getElementById('toOutPhoneBtn').addEventListener('click', () => {
+  document.getElementById('toOutCodeFromStartBtn').addEventListener('click', () => {
+    showOutView('code');
+    codeOutInput.focus();
+  });
+  document.getElementById('toOutPhoneFromStartBtn').addEventListener('click', () => {
+    showOutView('phone');
+  });
+  document.getElementById('toOutStartBtn').addEventListener('click', () => {
     document.getElementById('codeOutForm').reset();
     clearFieldError('field-code-out');
-    showOutView('phone');
+    showOutView('start');
   });
   document.getElementById('toOutCodeBtn').addEventListener('click', () => {
     document.getElementById('phoneOutForm').reset();
     clearFieldError('field-phone-out');
-    showOutView('code');
+    showOutView('start');
   });
 
   function renderOutMemberResult(member){
@@ -2529,7 +2548,7 @@
     clearFieldError('field-code-out');
     document.getElementById('phoneOutForm').reset();
     clearFieldError('field-phone-out');
-    showOutView('code');
+    showOutView('start');
   }
 
   const codeOutForm = document.getElementById('codeOutForm');
