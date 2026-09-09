@@ -1464,7 +1464,7 @@ function doPost(e) {
       // time zone and the venue's, could leave a member unable to sign
       // out at all even though their visit was genuinely still open;
       // scanning from the last row down already finds the newest one
-      // first, and the nightly auto sign-out (see autoSignOutAt9pm)
+      // first, and the nightly auto sign-out (see autoSignOutAt10pm)
       // closes anything left open at day's end anyway, so there's
       // nothing an exact-date check was actually protecting against.
       let targetRow = -1;
@@ -2262,7 +2262,7 @@ function repairDateTimeColumns() {
 
 
 // ------------------------------------------------------------------
-// Automatic 9pm sign-out
+// Automatic 10pm sign-out
 // ------------------------------------------------------------------
 
 // Closes out every still-open visit (no timeOut yet), across every
@@ -2270,10 +2270,10 @@ function repairDateTimeColumns() {
 // closing time — for anyone who used the facility but forgot to sign
 // out themselves. Meant to run automatically once a day via a
 // time-driven trigger — see installNightlyMaintenanceTrigger() below,
-// which sets that up. Safe to run by hand too (Run > autoSignOutAt9pm)
+// which sets that up. Safe to run by hand too (Run > autoSignOutAt10pm)
 // if you ever need to close everything out early.
-function autoSignOutAt9pm() {
-  const CLOSING_TIME_LABEL = "9:00 PM";
+function autoSignOutAt10pm() {
+  const CLOSING_TIME_LABEL = "10:00 PM";
   let totalClosed = 0;
 
   Object.keys(ACTIVITIES).forEach(key => {
@@ -2318,23 +2318,23 @@ function autoSignOutAt9pm() {
 }
 
 function runNightlyMaintenance() {
-  autoSignOutAt9pm();
+  autoSignOutAt10pm();
   regroupAllRegistrations();
 }
 
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
 // then approve the permissions prompt. Schedules runNightlyMaintenance()
-// (the 9pm auto sign-out, then the date-grouped Registrations
+// (the 10pm auto sign-out, then the date-grouped Registrations
 // tidy-up — kept as its own wrapper in case more nightly jobs get
-// added later) to run automatically every day at 9pm, in this
+// added later) to run automatically every day at 10pm, in this
 // project's time zone (Project Settings (gear icon) -> Time zone —
 // set that first if it isn't already the venue's local time zone).
 // Safe to re-run: it removes any existing trigger for this function
-// (and the older autoSignOutAt9pm/compiled-sheet triggers, if you'd
-// set either of those up before) first, so you'll never end up with
-// duplicates firing the same night.
+// (and the older autoSignOutAt9pm/autoSignOutAt10pm/compiled-sheet
+// triggers, if you'd set any of those up before) first, so you'll
+// never end up with duplicates firing the same night.
 function installNightlyMaintenanceTrigger() {
-  ["autoSignOutAt9pm", "runNightlyMaintenance"].forEach(fn => {
+  ["autoSignOutAt9pm", "autoSignOutAt10pm", "runNightlyMaintenance"].forEach(fn => {
     ScriptApp.getProjectTriggers().forEach(t => {
       if (t.getHandlerFunction() === fn) ScriptApp.deleteTrigger(t);
     });
@@ -2342,7 +2342,7 @@ function installNightlyMaintenanceTrigger() {
   ScriptApp.newTrigger("runNightlyMaintenance")
     .timeBased()
     .everyDays(1)
-    .atHour(21)
+    .atHour(22)
     .create();
-  Logger.log("Installed: runNightlyMaintenance will now run automatically every day at 9pm.");
+  Logger.log("Installed: runNightlyMaintenance will now run automatically every day at 10pm.");
 }

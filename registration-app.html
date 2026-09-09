@@ -1693,8 +1693,8 @@
   const approvalWaitPendingDetail = document.getElementById('approvalWaitPendingDetail');
   const approvalWaitApprovedDetail = document.getElementById('approvalWaitApprovedDetail');
   const approvalWaitCodes = document.getElementById('approvalWaitCodes');
-  const APPROVAL_POLL_INTERVAL_MS = 6000;
-  const APPROVAL_POLL_MAX_ATTEMPTS = 100; // ~10 minutes, then fall back to telling them to check later
+  const APPROVAL_POLL_INTERVAL_MS = 3000;
+  const APPROVAL_POLL_MAX_ATTEMPTS = 200; // ~10 minutes, then fall back to telling them to check later
   let approvalPollTimer = null;
 
   function stopApprovalPoll(){
