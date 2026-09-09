@@ -1413,6 +1413,44 @@ function doPost(e) {
     }
 
 
+    // Front desk's own "Add Walk-in" quick-entry card — a staff member
+    // typing someone in themselves, as opposed to a registrant's
+    // self-service Sign In tab (still "submit" + doApprove, since that
+    // flow's live "pending approval" -> "signed" poll is deliberate —
+    // see checkWalkinStatus above). A staff-entered walk-in is checked
+    // in immediately: straight to a Visits row, no Pending row, nothing
+    // to approve. And since it's a one-off same-day visit with nothing
+    // to look up later, no code is generated for them either — idNo
+    // stays blank unless their category requires a real ID card number
+    // (UG Student/UG Staff), in which case that's what's stored, not an
+    // auto-generated code. checkoutByPhone already exists precisely for
+    // members without a usable code.
+    if (action === "addWalkinVisit") {
+      if (activity.categories.indexOf(data.class) === -1) {
+        return errorMsg("Invalid category for this activity.");
+      }
+      const idRequired = activity.idRequiredCategories.indexOf(data.class) !== -1;
+      let idNo = "";
+      if (idRequired) {
+        idNo = String(data.idNo || "").trim();
+        if (!idNo) return errorMsg("An ID number is required for this category.");
+      }
+      const now = new Date();
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      visits.appendRow(VISIT_HEADERS.map(h => {
+        if (h === "visitId") return Utilities.getUuid();
+        if (h === "idNo") return idNo ? sheetSafeText(idNo) : "";
+        if (h === "name") return String(data.name || "").trim();
+        if (h === "class") return data.class;
+        if (h === "date") return forceLiteralText(formatDateMDY(now));
+        if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
+        if (h === "phone") return sheetSafeText(data.phone || "");
+        return ""; // timeOut
+      }));
+      return ok({ name: data.name, idNo: idNo });
+    }
+
+
     if (action === "approve") {
       return doApprove(activity, data.idNo);
     }

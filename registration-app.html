@@ -16,9 +16,12 @@
     --gold:#BA8F4A; --gold-dark:#8F6B32; --gold-dim:rgba(186,143,74,0.12);
     --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
     /* One extra color each for Sign In / Sign Out, so all four top
-       tabs (Register=blue, Renewal=gold, Sign In=green, Sign Out=
-       violet) read as distinct at a glance, not just active-vs-not. */
-    --green:#3E7C5F; --green-dark:#2A5A44; --green-dim:rgba(62,124,95,0.12);
+       tabs (Register=blue, Renewal=gold, Sign In=teal, Sign Out=
+       violet) read as distinct at a glance, not just active-vs-not.
+       Kept the --green variable name (only used by the Sign In tab)
+       but swapped the value to a muted teal so it doesn't read as a
+       "success/go" traffic-light green. */
+    --green:#2A6F77; --green-dark:#1D4E54; --green-dim:rgba(42,111,119,0.12);
     --violet:#6B4FA0; --violet-dark:#4C3773; --violet-dim:rgba(107,79,160,0.12);
   }
   *{box-sizing:border-box;}
@@ -94,7 +97,7 @@
   .tab-btn:not(.active):hover{ border-color:currentColor; }
   .tab-btn[data-tab="register"]{ background:var(--blue-dim); color:var(--blue); border-color:var(--blue-dim-strong); }
   .tab-btn[data-tab="renew"]{ background:var(--gold-dim); color:var(--gold-dark); border-color:rgba(186,143,74,0.35); }
-  .tab-btn[data-tab="signin"]{ background:var(--green-dim); color:var(--green-dark); border-color:rgba(62,124,95,0.3); }
+  .tab-btn[data-tab="signin"]{ background:var(--green-dim); color:var(--green-dark); border-color:rgba(42,111,119,0.3); }
   .tab-btn[data-tab="signout"]{ background:var(--violet-dim); color:var(--violet-dark); border-color:rgba(107,79,160,0.3); }
   .tab-btn.active{ color:#fff; font-weight:800; box-shadow:0 2px 6px rgba(15,29,59,0.18); }
   .tab-btn.active[data-tab="register"]{ background:var(--blue); border-color:var(--blue); }
