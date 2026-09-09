@@ -1633,6 +1633,45 @@ function doPost(e) {
     }
 
 
+    if (action === "checkWalkinStatus") {
+      // "checkApproved" (above) can't be reused for a Walk-in: approving
+      // one never creates a Registrations row at all — it's a one-off
+      // visit, so approvePendingRow()'s Walk-in branch writes straight
+      // to that activity's Visits sheet instead (see the comment there).
+      // So a Walk-in's live status is: still in Pending -> "pending";
+      // gone from Pending and it shows up in TODAY's Visits -> "signedIn"
+      // (approved and checked in); gone from Pending and not in today's
+      // Visits -> "notFound" (rejected, or something else removed it).
+      const idNo = String(data.idNo || "").trim();
+      if (!idNo) return errorMsg("Missing code.");
+
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      if (findRowIndexByIdNo(pending, idNo, PENDING_HEADERS, activity.key) !== -1) {
+        return ok({ state: "pending" });
+      }
+
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const lastRow = visits.getLastRow();
+      let signedIn = false;
+      if (lastRow >= 2) {
+        const idColIndex = VISIT_HEADERS.indexOf("idNo") + 1;
+        const dateColIndex = VISIT_HEADERS.indexOf("date") + 1;
+        const ids = visits.getRange(2, idColIndex, lastRow - 1, 1).getValues();
+        const dates = visits.getRange(2, dateColIndex, lastRow - 1, 1).getValues();
+        // Restricted to today so a long-since-reused generated code
+        // from an earlier visit can never look like a fresh match.
+        const todayLabel = formatDateMDY(new Date());
+        for (let i = 0; i < ids.length; i++) {
+          if (String(ids[i][0]).trim() === idNo && String(dates[i][0]).trim() === todayLabel) {
+            signedIn = true;
+            break;
+          }
+        }
+      }
+      return ok({ state: signedIn ? "signedIn" : "notFound" });
+    }
+
+
     if (action === "verify") {
       // Looks a member up by code for the Renew tab's gate — deliberately
       // does NOT log a Visits row (unlike "checkin"). Approved members only.

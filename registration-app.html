@@ -71,10 +71,15 @@
   .tab-bar{ display:flex; gap:5px; margin-bottom:22px; background:var(--panel-alt); padding:5px; border-radius:11px; }
   .tab-btn{
     flex:1; background:transparent; border:none; color:var(--text-dim);
-    padding:10px 4px; border-radius:8px; cursor:pointer; font-weight:700; font-size:11px;
-    font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:0.01em;
+    padding:11px 4px; border-radius:8px; cursor:pointer; font-weight:700; font-size:12.5px;
+    font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:0.02em;
+    transition:background .12s ease, color .12s ease, box-shadow .12s ease;
   }
-  .tab-btn.active{ background:var(--panel); color:var(--blue); box-shadow:0 1px 3px rgba(15,29,59,0.08); }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{
+    background:var(--panel); color:var(--blue); font-weight:800;
+    box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--gold);
+  }
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
 
@@ -301,6 +306,7 @@
   .renew-option:hover, .renew-option:focus-visible{ border-color:var(--blue); background:var(--blue-dim); outline:none; }
   .renew-option-title{ font-weight:700; font-size:14.5px; color:var(--text); }
   .renew-option-sub{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .renew-option-sub.expired{ color:var(--danger); font-weight:700; }
   .renew-option-arrow{ font-size:18px; color:var(--text-faint); flex-shrink:0; transition:color .12s ease; }
   .renew-option:hover .renew-option-arrow, .renew-option:focus-visible .renew-option-arrow{ color:var(--blue); }
   .back-link{ display:block; text-align:left; margin:0 0 16px; }
@@ -383,13 +389,15 @@
   }
   .lookup-result-name{ font-weight:700; font-size:14px; color:var(--text); }
   .lookup-result-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
-  .countdown-box.expired{ border-color:rgba(192,57,43,0.3); background:var(--danger-dim); }
+  .countdown-box.expired{ border:2px solid var(--danger); background:var(--danger-dim); }
   .countdown-num{ font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; color:var(--gold-dark); }
-  .countdown-box.expired .countdown-num{ color:var(--danger); font-size:26px; }
+  .countdown-box.expired .countdown-num{ color:var(--danger); font-size:34px; font-weight:800; }
   .countdown-label{
     font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
     color:var(--text-dim); margin-top:6px;
   }
+  .countdown-box.expired .countdown-label{ color:var(--danger); font-weight:700; }
+  .expired-tag{ color:var(--danger); font-weight:700; }
   .code-chip{
     display:inline-block; background:var(--gold-dim); color:var(--gold-dark); font-family:'JetBrains Mono',monospace;
     font-size:22px; font-weight:700; letter-spacing:0.12em; padding:10px 18px; border-radius:8px; margin-bottom:16px;
@@ -2048,7 +2056,84 @@
     });
   }
 
+  // A Walk-in's approval never shows up via "checkApproved" (that only
+  // ever looks at Registrations, and a Walk-in never becomes a
+  // Registrations row — see checkWalkinStatus in Code.gs), so this is
+  // its own small self-rescheduling poll instead of reusing
+  // startApprovalWait() below, which is built around Registrations
+  // rows and showing off a member code — a Walk-in has neither.
+  const WALKIN_POLL_INTERVAL_MS = 3000;
+  const WALKIN_POLL_MAX_ATTEMPTS = 200; // ~10 minutes, then fall back to telling them to check with the front desk
+  let walkinPollTimer = null;
+  function stopWalkinPoll(){
+    if(walkinPollTimer){ clearTimeout(walkinPollTimer); walkinPollTimer = null; }
+  }
+  function startWalkinStatusWait(idNo, activityForPoll){
+    stopWalkinPoll();
+    let attempts = 0;
+
+    function renderPending(){
+      document.getElementById('resultBody').innerHTML = `
+        <div class="result-icon">⏳</div>
+        <div class="result-name">Pending Approval</div>
+        <p class="error-msg">Wait for the front desk to approve your walk-in — this updates automatically.</p>
+        <button class="btn btn-secondary" id="doneSigninBtn">Done</button>
+      `;
+      document.querySelector('#view-result .result').className = 'result';
+      showView('result');
+      document.getElementById('doneSigninBtn').addEventListener('click', () => {
+        stopWalkinPoll();
+        resetWalkinForm();
+        showView('code');
+      });
+    }
+    function renderSignedIn(){
+      document.getElementById('resultBody').innerHTML = `
+        <div class="result-icon">✓</div>
+        <div class="result-name">Signed In</div>
+        <p class="error-msg">You're all set — enjoy!</p>
+        <button class="btn btn-secondary" id="doneSigninBtn">Done</button>
+      `;
+      document.querySelector('#view-result .result').className = 'result';
+      showView('result');
+      document.getElementById('doneSigninBtn').addEventListener('click', () => {
+        resetWalkinForm();
+        showView('code');
+      });
+    }
+
+    function poll(){
+      if(activityForPoll.key !== currentActivity.key) return; // switched away — stop quietly
+      if(attempts >= WALKIN_POLL_MAX_ATTEMPTS){
+        renderSigninMessage(false, "Still Pending", "This is taking a while — please check with the front desk.");
+        return;
+      }
+      attempts++;
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "checkWalkinStatus", activity: activityForPoll.key, idNo: idNo })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if(data.status === "ok" && data.state === "signedIn"){
+          renderSignedIn();
+        } else if(data.status === "ok" && data.state === "notFound"){
+          renderSigninMessage(true, "Not approved", "Please check with the front desk.");
+        } else {
+          // "pending", or a transient error — either way, keep polling.
+          walkinPollTimer = setTimeout(poll, WALKIN_POLL_INTERVAL_MS);
+        }
+      })
+      .catch(() => { walkinPollTimer = setTimeout(poll, WALKIN_POLL_INTERVAL_MS); });
+    }
+
+    renderPending();
+    poll();
+  }
+
   function resetWalkinForm(){
+    stopWalkinPoll();
     document.getElementById('walkinSigninForm').reset();
     if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
     document.getElementById('field-walkin-id').style.display = 'none';
@@ -2107,7 +2192,8 @@
       walkinSubmitBtn.disabled = false;
       walkinSubmitBtn.textContent = "Submit Walk-in";
       if(data.status === "ok"){
-        renderSigninMessage(false, "You're on the list!", "Wait for the front desk to approve your walk-in, then you're good to go — no code needed for a one-off visit.");
+        const activityForPoll = currentActivity;
+        startWalkinStatusWait(data.idNo, activityForPoll);
       } else {
         renderSigninMessage(true, "Couldn't submit", data.message || "Please try again or tell the front desk.");
       }
@@ -2345,7 +2431,7 @@
       return `<div class="lookup-result-row">
         <div>
           <div class="lookup-result-name">${escapeHtml(m.name||'')}</div>
-          <div class="lookup-result-sub">${activityLabel ? `<strong>${escapeHtml(activityLabel)}</strong> · ` : ''}${escapeHtml(m.class||'')}${info.expired ? ' · Expired / used up' : ''}${activityLabel && !sameActivity ? ' · switch activity to sign in with this code' : ''}</div>
+          <div class="lookup-result-sub">${activityLabel ? `<strong>${escapeHtml(activityLabel)}</strong> · ` : ''}${escapeHtml(m.class||'')}${info.expired ? ' · <span class="expired-tag">Expired / used up</span>' : ''}${activityLabel && !sameActivity ? ' · switch activity to sign in with this code' : ''}</div>
         </div>
         ${codeChipWithCopyHtml(m.idNo)}
       </div>`;
@@ -2559,10 +2645,12 @@
       else statusText += ` · ${info.left} day${info.left===1?'':'s'} left`;
     }
     document.getElementById('renewMemberSub').textContent = statusText;
-    document.getElementById('renewSubStatus').textContent =
+    const renewSubStatusEl = document.getElementById('renewSubStatus');
+    renewSubStatusEl.textContent =
       info.expired
         ? "Your plan has expired — request a renewal at the front desk"
         : "Extend your plan — needs front-desk approval";
+    renewSubStatusEl.classList.toggle('expired', info.expired);
     showRenewView('menu');
   }
 
