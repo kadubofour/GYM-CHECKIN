@@ -1011,6 +1011,24 @@
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUCJRzZC--3sh2uOi9bRfLjgtMCNlZE4BmCJSURohckusFCxRatuemTUB1XpP-Al6vDQ/exec";
   // ---------------------------------------------------
 
+  // Wraps fetch+json with a couple of quick, silent retries before
+  // giving up — a single dropped packet or a slow Apps Script cold
+  // start used to surface immediately as a scary "No connection" error
+  // on the very first hiccup. Retrying almost always clears it before
+  // the person registering/signing in ever sees anything.
+  function fetchJSON(url, options, retries){
+    if(retries === undefined) retries = 2;
+    return fetch(url, options)
+      .then(r => r.json())
+      .catch(err => {
+        if(retries > 0){
+          return new Promise(resolve => setTimeout(resolve, 500))
+            .then(() => fetchJSON(url, options, retries - 1));
+        }
+        throw err;
+      });
+  }
+
   if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
     document.getElementById('setupWarning').style.display = 'block';
     document.getElementById('setupWarningPicker').style.display = 'block';
@@ -1762,12 +1780,11 @@
     function poll(){
       if(stillPending.length === 0){ stopApprovalPoll(); return; }
       attempts++;
-      fetch(SCRIPT_URL, {
+      fetchJSON(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "checkApproved", activity: activityForPoll.key, idNos: stillPending.map(m => m.idNo) })
       })
-      .then(r => r.json())
       .then(data => {
         if(data.status !== "ok") return;
         const approvedNow = data.approvedMembers || [];
@@ -1995,12 +2012,11 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     })
-    .then(res => res.json())
     .then(data => {
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
@@ -2127,12 +2143,11 @@
         return;
       }
       attempts++;
-      fetch(SCRIPT_URL, {
+      fetchJSON(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "checkWalkinStatus", activity: activityForPoll.key, idNo: idNo })
       })
-      .then(res => res.json())
       .then(data => {
         if(data.status === "ok" && data.state === "signedIn"){
           renderSignedIn();
@@ -2190,7 +2205,7 @@
     walkinSubmitBtn.textContent = "Submitting…";
 
     const now = new Date();
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
@@ -2205,7 +2220,6 @@
         time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
       })
     })
-    .then(res => res.json())
     .then(data => {
       walkinSubmitBtn.disabled = false;
       walkinSubmitBtn.textContent = "Submit Walk-in";
@@ -2381,12 +2395,11 @@
     checkinBtn.disabled = true;
     checkinBtn.textContent = "Signing in…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "checkin", activity: currentActivity.key, code: code })
     })
-    .then(res => res.json())
     .then(data => {
       checkinBtn.disabled = false;
       checkinBtn.textContent = "Sign In";
@@ -2416,12 +2429,11 @@
     lookupBtn.disabled = true;
     lookupBtn.textContent = "Looking up…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "lookup", activity: currentActivity.key, phone: `${document.getElementById('phoneInputCode').value} ${phoneInput.value.trim()}` })
     })
-    .then(res => res.json())
     .then(data => {
       lookupBtn.disabled = false;
       lookupBtn.textContent = "Find My Status";
@@ -2564,12 +2576,11 @@
     checkoutBtn.disabled = true;
     checkoutBtn.textContent = "Signing out…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "checkout", activity: currentActivity.key, code: code })
     })
-    .then(res => res.json())
     .then(data => {
       checkoutBtn.disabled = false;
       checkoutBtn.textContent = "Sign Out";
@@ -2598,7 +2609,7 @@
     checkoutPhoneBtn.disabled = true;
     checkoutPhoneBtn.textContent = "Signing out…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
@@ -2607,7 +2618,6 @@
         phone: `${document.getElementById('phoneOutCode').value} ${phoneOutInput.value.trim()}`
       })
     })
-    .then(res => res.json())
     .then(data => {
       checkoutPhoneBtn.disabled = false;
       checkoutPhoneBtn.textContent = "Sign Out";
@@ -2654,12 +2664,11 @@
     renewVerifyBtn.disabled = true;
     renewVerifyBtn.textContent = "Checking…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "verify", activity: currentActivity.key, code: code })
     })
-    .then(res => res.json())
     .then(data => {
       renewVerifyBtn.disabled = false;
       renewVerifyBtn.textContent = "Continue";
@@ -2740,12 +2749,11 @@
     renewConfirmBtn.disabled = true;
     renewConfirmBtn.textContent = "Submitting…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "requestRenewal", activity: currentActivity.key, code: verifiedCode, duration: selectedRenewDuration })
     })
-    .then(res => res.json())
     .then(data => {
       renewConfirmBtn.disabled = false;
       renewConfirmBtn.textContent = "Submit Renewal Request";
@@ -2832,7 +2840,7 @@
     renewDetailsSubmitBtn.disabled = true;
     renewDetailsSubmitBtn.textContent = "Saving…";
 
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
@@ -2847,7 +2855,6 @@
         emergencyRelationship: renEmergencyRelationship.value.trim()
       })
     })
-    .then(res => res.json())
     .then(data => {
       renewDetailsSubmitBtn.disabled = false;
       renewDetailsSubmitBtn.textContent = "Save Changes";

@@ -350,6 +350,25 @@
   // ---- PASTE YOUR APPS SCRIPT WEB APP URL HERE (same one used everywhere else) ----
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUCJRzZC--3sh2uOi9bRfLjgtMCNlZE4BmCJSURohckusFCxRatuemTUB1XpP-Al6vDQ/exec";
   // ----------------------------------------------------------------------------------
+
+  // Wraps fetch+json with a couple of quick, silent retries before
+  // giving up — a single dropped packet or a slow Apps Script cold
+  // start used to surface immediately as a scary "couldn't reach the
+  // sheet" toast on the very first hiccup. Retrying almost always
+  // clears it before the user ever sees anything.
+  function fetchJSON(url, options, retries){
+    if(retries === undefined) retries = 2;
+    return fetch(url, options)
+      .then(r => r.json())
+      .catch(err => {
+        if(retries > 0){
+          return new Promise(resolve => setTimeout(resolve, 500))
+            .then(() => fetchJSON(url, options, retries - 1));
+        }
+        throw err;
+      });
+  }
+
   const STAFF_PIN = "1234";
   // Cut from 15s (then 5s): staff waiting on a walk-in or registration
   // to show up (submitted from the registrant app, or the main front
@@ -519,11 +538,17 @@
   // the main front desk) — so "registrantsDashboard" is a leaner view
   // than the main dashboard's, and one request still covers everything
   // this page needs per refresh cycle.
+  // Auto-refresh already retries itself every AUTO_REFRESH_MS regardless
+  // of what happened last cycle — no need to alarm the user over one
+  // blip on top of fetchJSON's own retries. Only surface a toast once a
+  // run of consecutive failures has lasted long enough to actually
+  // matter, and only once (not every cycle after that).
+  let consecutiveLoadFailures = 0;
   function loadAll(){
     const activity = currentActivity;
-    return fetch(SCRIPT_URL + "?activity=" + activity.key + "&view=registrantsDashboard&t=" + Date.now())
-      .then(r => r.json())
+    return fetchJSON(SCRIPT_URL + "?activity=" + activity.key + "&view=registrantsDashboard&t=" + Date.now())
       .then(res => {
+        consecutiveLoadFailures = 0;
         if(activity.key !== currentActivity.key) return;
         if(res.status !== "ok"){ showToast(res.message || "Couldn't reach the sheet — check connection", true); return; }
         approvedEntries = res.registrations || [];
@@ -532,7 +557,12 @@
         renderRegistrants();
         renderAlerts();
       })
-      .catch(() => showToast("Couldn't reach the sheet — check connection", true));
+      .catch(() => {
+        consecutiveLoadFailures++;
+        if(consecutiveLoadFailures === 4){
+          showToast("Couldn't reach the sheet — check connection", true);
+        }
+      });
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
 
@@ -583,7 +613,7 @@
     if(!alertId) return;
     alertEntries = alertEntries.filter(a => a.alertId !== alertId);
     renderAlerts();
-    fetch(SCRIPT_URL, {
+    fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "acknowledgeAlert", activity: currentActivity.key, alertId: alertId })
