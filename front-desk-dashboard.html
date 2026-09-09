@@ -1235,11 +1235,11 @@
         const photoUrl = photoByIdNo[v.idNo];
         return `
         <tr>
-          <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(photoUrl, 100))}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
+          <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(photoUrl, 100))}" class="photo-thumb-cell" loading="lazy" decoding="async" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
           <td class="name-cell">${escapeHtml(v.name)}</td>
           <td><span class="badge ${badgeClassFor(currentActivity, v.class)}">${escapeHtml(v.class||'')}</span></td>
           <td class="id-cell">${escapeHtml(v.duration||'—')}</td>
-          <td class="id-cell">${escapeHtml(v.idNo||'')}</td>
+          <td class="id-cell">${(v.duration === 'Walk-in' && currentActivity.idRequiredCategories.indexOf(v.class) === -1) ? '<span style="color:var(--text-faint);">—</span>' : escapeHtml(v.idNo||'')}</td>
           <td class="id-cell">${escapeHtml(v.timeIn||'—')}</td>
           <td class="id-cell">${v.timeOut ? escapeHtml(v.timeOut) : '<span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);">Still in</span>'}</td>
         </tr>`;
@@ -1341,7 +1341,7 @@
     <div class="approval-card">
       <div class="approval-head">
         <div style="display:flex; align-items:center; gap:12px;">
-          ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" loading="lazy" decoding="async" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
           <div>
             <div class="approval-name">${escapeHtml(e.name)}${isRenewal ? ' <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">RENEWAL</span>' : ''}</div>
             <div class="approval-sub">${isRenewal ? 'Requested' : 'Submitted'} ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
@@ -1394,7 +1394,7 @@
     <div class="approval-card">
       <div class="approval-head">
         <div style="display:flex; align-items:center; gap:12px;">
-          ${primary.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(primary.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+          ${primary.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(primary.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" loading="lazy" decoding="async" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
           <div>
             <div class="approval-name">${escapeHtml(primary.name)} <span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);font-size:10px;vertical-align:middle;">FAMILY · ${members.length}</span></div>
             <div class="approval-sub">Submitted ${escapeHtml(primary.date||'')} · ${escapeHtml(primary.time||'')}</div>
@@ -1672,7 +1672,7 @@
         const expired = isExpired(e);
         return `
         <tr class="${expired ? 'expired-row' : ''}">
-          <td>${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
+          <td>${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" loading="lazy" decoding="async" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
           <td class="name-cell">${escapeHtml(e.name)}</td>
           <td><span class="badge ${badgeClassFor(currentActivity, e.class)}">${escapeHtml(e.class||'')}</span></td>
           <td class="id-cell">${e.department ? escapeHtml(e.department) : '<span style="color:var(--text-faint);">—</span>'}</td>

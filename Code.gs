@@ -325,23 +325,39 @@ function getActivity(key) {
 }
 
 
-// All server-generated dates/times are formatted with these, in the
-// spreadsheet's own timezone (File -> Settings -> Time zone in the
-// Sheet — set that to your facility's actual timezone once). Keeping
-// one format used everywhere means the "date" column never
-// accidentally carries a time, and the "time"/"timeIn"/"timeOut"
-// columns never accidentally carry a date.
+// All server-generated dates/times are formatted with these. Hardcoded
+// to Ghana's timezone (UTC+0, no DST, so this never needs revisiting)
+// instead of Session.getScriptTimeZone() — that reads the Apps Script
+// project's own timezone setting, which doesn't necessarily match the
+// front desk devices' and registrants' phones actually running in
+// Ghana, and a mismatch there is exactly what causes visits/approvals
+// near midnight to land under the wrong day, or "Today"/"Yesterday"
+// labels (computed client-side, in the device's own timezone) to
+// disagree with what the server just wrote. Keeping one format used
+// everywhere also means the "date" column never accidentally carries a
+// time, and the "time"/"timeIn"/"timeOut" columns never accidentally
+// carry a date.
+const TIMEZONE = "Africa/Accra";
 const DATE_FORMAT = "M/d/yyyy";
 const TIME_FORMAT = "h:mm a";
 
 function formatNowDate() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
+  return Utilities.formatDate(new Date(), TIMEZONE, DATE_FORMAT);
+}
+// Every "time"/"timeIn"/"timeOut" write goes through this — never the
+// bare Date.prototype.toLocaleTimeString(), which (with no explicit
+// timezone argument) falls back to the Apps Script runtime's own
+// default rather than TIMEZONE. Two different mechanisms computing
+// "the current time" is exactly the kind of thing that quietly drifts
+// out of sync with the "date" written right alongside it.
+function formatTime(d) {
+  return Utilities.formatDate(d, TIMEZONE, TIME_FORMAT);
 }
 function formatNowTime() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), TIME_FORMAT);
+  return formatTime(new Date());
 }
 function formatDateMDY(d) {
-  return Utilities.formatDate(d, Session.getScriptTimeZone(), DATE_FORMAT);
+  return Utilities.formatDate(d, TIMEZONE, DATE_FORMAT);
 }
 
 // Approved members' photos/signatures live here — this is the folder
@@ -618,7 +634,7 @@ function cellToDisplayValue(v, headerName) {
   if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
     const fmt = (headerName === "time" || headerName === "timeIn" || headerName === "timeOut")
       ? TIME_FORMAT : DATE_FORMAT;
-    return Utilities.formatDate(v, Session.getScriptTimeZone(), fmt);
+    return Utilities.formatDate(v, TIMEZONE, fmt);
   }
   return v;
 }
@@ -974,7 +990,7 @@ function parseDateSafe(v) {
 function dateLabelFor(dateStr) {
   const d = parseDateSafe(dateStr);
   if (!d) return String(dateStr || "Unknown date");
-  return Utilities.formatDate(d, Session.getScriptTimeZone(), "EEEE, MMM d, yyyy");
+  return Utilities.formatDate(d, TIMEZONE, "EEEE, MMM d, yyyy");
 }
 
 
@@ -1003,14 +1019,18 @@ function approvePendingRow(activity, pending, registrations, idx) {
     const now = new Date();
     // The idNo on this row is either a real ID card number (a category
     // that requires one, e.g. UG Student/UG Staff) or, for everyone
-    // else, just the UUID "submit" generated purely to track this row
-    // through Pending — never a real member code, so it's never carried
-    // into Visits either.
-    const walkinClass = String(rowValues[PENDING_HEADERS.indexOf("class")]).trim();
-    const walkinIdRequired = activity.idRequiredCategories.indexOf(walkinClass) !== -1;
+    // else, the UUID "submit" generated purely to track this row through
+    // Pending — never a real member code, but it still has to be carried
+    // into Visits as-is: the registrant app's checkWalkinStatus poll
+    // (see doPost's "checkWalkinStatus" action) finds this exact Visits
+    // row by matching that same idNo, and blanking it here would make
+    // every self-service walk-in poll forever as "not approved" even
+    // after being approved. The front desk UI hides this value from
+    // view (it's not a usable code to anyone) rather than the data layer
+    // dropping it.
     visits.appendRow(VISIT_HEADERS.map(h => {
       if (h === "visitId") return Utilities.getUuid();
-      if (h === "idNo") return walkinIdRequired ? sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]) : "";
+      if (h === "idNo") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]);
       if (h === "name") return rowValues[PENDING_HEADERS.indexOf("name")];
       if (h === "class") return rowValues[PENDING_HEADERS.indexOf("class")];
       if (h === "duration") return rowValues[PENDING_HEADERS.indexOf("duration")];
@@ -1019,7 +1039,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
       // real Date, and "checkout" below compares this column against a
       // plain string, which would then never match.
       if (h === "date") return forceLiteralText(formatDateMDY(now));
-      if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
+      if (h === "timeIn") return forceLiteralText(formatTime(now));
       if (h === "phone") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("phone")]);
       return ""; // timeOut
     }));
@@ -1056,7 +1076,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // what the expiry countdown is based on.
   const approvedNow = new Date();
   rowValues[PENDING_HEADERS.indexOf("date")] = forceLiteralText(formatDateMDY(approvedNow));
-  rowValues[PENDING_HEADERS.indexOf("time")] = forceLiteralText(approvedNow.toLocaleTimeString());
+  rowValues[PENDING_HEADERS.indexOf("time")] = forceLiteralText(formatTime(approvedNow));
   // A freshly (re)approved package always starts with 0 sessions used.
   rowValues[PENDING_HEADERS.indexOf("sessionsUsed")] = "";
 
@@ -1405,6 +1425,17 @@ function doPost(e) {
 
       const sheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
 
+      // Stamped with the server's own clock/timezone (see TIMEZONE),
+      // never the client's date/time — a registrant's or walk-in
+      // registrant's device clock isn't a reliable source of truth
+      // (wrong timezone, wrong clock, whatever), and the front desk
+      // card's "Submitted {date} {time}" should always agree with the
+      // server that just received it. Overwritten again with a fresh
+      // server timestamp at approval anyway (see approvePendingRow) —
+      // this is only what shows on the card while it's still Pending.
+      const submittedDate = formatNowDate();
+      const submittedTime = formatNowTime();
+
       const primaryRow = PENDING_HEADERS.map(h => {
         if (h === "activity") return activity.key;
         if (h === "idNo") return sheetSafeText(idNo);
@@ -1412,9 +1443,8 @@ function doPost(e) {
         if (h === "signatureUrl") return signatureUrl;
         if (h === "sessionsUsed") return "";
         if (h === "phone" || h === "emergencyPhone" || h === "relatedStaffIdNo") return sheetSafeText(data[h] || "");
-        // Force "date"/"time" to literal text too — otherwise Sheets
-        // silently converts them to real date/time values.
-        if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
+        if (h === "date") return forceLiteralText(submittedDate);
+        if (h === "time") return forceLiteralText(submittedTime);
         if (h === "familyGroupId") return familyGroupId;
         return data[h] || "";
       });
@@ -1432,7 +1462,8 @@ function doPost(e) {
           if (h === "medicalConditionDetails") return member.medicalConditionDetails;
           if (h === "phone" || h === "emergencyPhone") return sheetSafeText(data[h] || "");
           if (h === "email" || h === "address" || h === "emergencyName" || h === "emergencyRelationship") return data[h] || "";
-          if (h === "date" || h === "time") return forceLiteralText(data[h] || "");
+          if (h === "date") return forceLiteralText(submittedDate);
+          if (h === "time") return forceLiteralText(submittedTime);
           if (h === "familyGroupId") return familyGroupId;
           // dob/nationality/department/photo/signature/sessionsUsed/
           // isRenewal are all left blank for an additional family
@@ -1492,7 +1523,7 @@ function doPost(e) {
         if (h === "class") return data.class;
         if (h === "duration") return "Walk-in";
         if (h === "date") return forceLiteralText(formatDateMDY(now));
-        if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
+        if (h === "timeIn") return forceLiteralText(formatTime(now));
         if (h === "phone") return sheetSafeText(data.phone || "");
         return ""; // timeOut
       }));
@@ -1524,7 +1555,7 @@ function doPost(e) {
       // work.
       if (isExpired(activity, match.date, match.duration, match.sessionsUsed)) {
         const expiry = getExpiryDate(activity, match.date, match.duration);
-        const expiredOnLabel = expiry ? Utilities.formatDate(expiry, Session.getScriptTimeZone(), DATE_FORMAT) : "";
+        const expiredOnLabel = expiry ? Utilities.formatDate(expiry, TIMEZONE, DATE_FORMAT) : "";
         addAlert(activity, {
           alertId: Utilities.getUuid(),
           idNo: match.idNo,
@@ -1533,7 +1564,7 @@ function doPost(e) {
           duration: match.duration,
           expiredOn: expiredOnLabel,
           date: formatDateMDY(now),
-          time: now.toLocaleTimeString()
+          time: formatTime(now)
         });
         const cfg = getDurationConfig(activity, match.duration);
         const usedUp = cfg && cfg.sessionCap && (Number(match.sessionsUsed) || 0) >= cfg.sessionCap;
@@ -1554,7 +1585,7 @@ function doPost(e) {
         // a real Date, and "checkout" below compares this column
         // against a plain string, which would then never match.
         if (h === "date") return forceLiteralText(formatDateMDY(now));
-        if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
+        if (h === "timeIn") return forceLiteralText(formatTime(now));
         return ""; // timeOut, phone stay blank at check-in
       }));
       return ok({ member: match });
@@ -1595,7 +1626,10 @@ function doPost(e) {
       }
       if (targetRow === -1) return errorMsg("No open sign-in found for this code. Please sign in first.");
 
-      visits.getRange(targetRow, timeOutColIndex + 1).setValue(new Date().toLocaleTimeString());
+      // forceLiteralText — same reason as every other time write: a
+      // plain "3:45 PM"-shaped string set via setValue() can otherwise
+      // get silently reinterpreted by Sheets as a real time value.
+      visits.getRange(targetRow, timeOutColIndex + 1).setValue(forceLiteralText(formatTime(new Date())));
 
       // Duration has a session cap (Swimming Lessons' package) — a
       // session only counts as "used" once the member actually signs
@@ -1646,7 +1680,10 @@ function doPost(e) {
         return errorMsg("No open sign-in found for this phone number. Please sign in first, or ask the front desk.");
       }
 
-      visits.getRange(targetRow, timeOutColIndex + 1).setValue(new Date().toLocaleTimeString());
+      // forceLiteralText — same reason as every other time write: a
+      // plain "3:45 PM"-shaped string set via setValue() can otherwise
+      // get silently reinterpreted by Sheets as a real time value.
+      visits.getRange(targetRow, timeOutColIndex + 1).setValue(forceLiteralText(formatTime(new Date())));
       const rowValues = visits.getRange(targetRow, 1, 1, VISIT_HEADERS.length).getValues()[0];
       const visit = {};
       VISIT_HEADERS.forEach((h, i) => visit[h] = rowValues[i]);
@@ -1833,7 +1870,7 @@ function doPost(e) {
         if (h === "activity") return activity.key;
         if (h === "duration") return duration;
         if (h === "date") return forceLiteralText(formatDateMDY(now));
-        if (h === "time") return forceLiteralText(now.toLocaleTimeString());
+        if (h === "time") return forceLiteralText(formatTime(now));
         if (h === "isRenewal") return "TRUE";
         const regFieldIdx = REGISTRATIONS_HEADERS.indexOf(h);
         const raw = regFieldIdx === -1 ? "" : rowValues[regFieldIdx];

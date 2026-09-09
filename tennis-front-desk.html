@@ -705,7 +705,7 @@
       <div class="approval-card">
         <div class="approval-head">
           <div style="display:flex; align-items:center; gap:12px;">
-            ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
+            ${e.photoUrl ? `<img src="${escapeHtml(driveThumbUrl(e.photoUrl, 100))}" class="photo-thumb-cell" style="width:44px;height:44px;" loading="lazy" decoding="async" alt="">` : `<span class="photo-thumb-placeholder" style="width:44px;height:44px;">—</span>`}
             <div>
               <div class="approval-name">${escapeHtml(e.name)}</div>
               <div class="approval-sub">Registered ${escapeHtml(e.date||'')} · ${escapeHtml(e.time||'')}</div>
