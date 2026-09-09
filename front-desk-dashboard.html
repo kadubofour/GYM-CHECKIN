@@ -680,6 +680,18 @@
   let alertEntries = [];
   let registrationsClearedAt = null;
   let pendingCounts = {};
+  // Snapshots of the last data loadAll() actually rendered, so a 3s
+  // poll that comes back identical (the common case — nothing changed
+  // in the sheet since the last check) can skip re-rendering entirely
+  // instead of tearing down and rebuilding every panel's full HTML.
+  // That rebuild work was competing with the main thread right when a
+  // staff member might be clicking a tab, which is what made tab
+  // switching feel like it stuttered instead of being instant. Reset
+  // to null on every activity switch (see switchActivity()) so the
+  // first load for a newly-selected activity always renders, even in
+  // the edge case where its data happens to serialize identically to
+  // the previous activity's (e.g. both empty).
+  let lastPendingJSON = null, lastApprovedJSON = null, lastVisitsJSON = null, lastAlertsJSON = null, lastClearedAtSeen = undefined;
   let sortKey = "class";
   let sortDir = 1;
   let searchTerm = "";
@@ -827,6 +839,11 @@
     searchTerm = ""; document.getElementById('searchBox').value = "";
     visitSearchTerm = ""; document.getElementById('visitSearchBox').value = "";
     sortKey = "class"; sortDir = 1;
+    // Force the next loadAll() to render every panel regardless of
+    // whether the new activity's data happens to serialize the same as
+    // the old one's (e.g. both empty) — see the snapshot vars' comment.
+    lastPendingJSON = lastApprovedJSON = lastVisitsJSON = lastAlertsJSON = null;
+    lastClearedAtSeen = undefined;
     renderActivitySwitcher();
     loadAll();
   }
@@ -888,16 +905,40 @@
       .then(res => {
         if(activity.key !== currentActivity.key) return; // switched while in flight
         if(res.status !== "ok"){ showToast(res.message || "Couldn't reach the sheet — check connection", true); return; }
+
+        const newPendingJSON = JSON.stringify(res.pending || []);
+        const newApprovedJSON = JSON.stringify(res.registrations || []);
+        const newVisitsJSON = JSON.stringify(res.visits || []);
+        const newAlertsJSON = JSON.stringify(res.alerts || []);
+        const newClearedAt = res.clearedAt || null;
+
+        const pendingChanged = newPendingJSON !== lastPendingJSON;
+        const approvedChanged = newApprovedJSON !== lastApprovedJSON || newClearedAt !== lastClearedAtSeen;
+        const visitsChanged = newVisitsJSON !== lastVisitsJSON;
+        const alertsChanged = newAlertsJSON !== lastAlertsJSON;
+
         pendingEntries = res.pending || [];
         approvedEntries = res.registrations || [];
-        registrationsClearedAt = res.clearedAt || null;
+        registrationsClearedAt = newClearedAt;
         visitEntries = res.visits || [];
         alertEntries = res.alerts || [];
-        renderTally();
-        renderApprovals();
-        renderTable();
-        renderVisitsTable();
-        renderAlerts();
+
+        // Every render() below rebuilds its panel's full innerHTML from
+        // scratch — skip whichever ones the sheet hasn't actually
+        // changed since last time, so a poll that comes back identical
+        // (the common case) is nearly free instead of tearing down and
+        // rebuilding tables that can run to hundreds of rows.
+        if(pendingChanged || approvedChanged) renderTally();
+        if(pendingChanged) renderApprovals();
+        if(approvedChanged) renderTable();
+        if(visitsChanged) renderVisitsTable();
+        if(alertsChanged) renderAlerts();
+
+        lastPendingJSON = newPendingJSON;
+        lastApprovedJSON = newApprovedJSON;
+        lastVisitsJSON = newVisitsJSON;
+        lastAlertsJSON = newAlertsJSON;
+        lastClearedAtSeen = newClearedAt;
       })
       .catch(() => showToast("Couldn't reach the sheet — check connection", true));
   }
