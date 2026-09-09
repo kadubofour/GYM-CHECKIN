@@ -2278,37 +2278,49 @@ function autoSignOutAt10pm() {
 
   Object.keys(ACTIVITIES).forEach(key => {
     const activity = ACTIVITIES[key];
-    const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-    const lastRow = visits.getLastRow();
-    if (lastRow < 2) return;
+    // Each activity is isolated in its own try/catch — this used to be
+    // one plain forEach with no isolation, so a single bad row or sheet
+    // issue in ANY one activity would throw, stop the forEach dead, and
+    // silently skip sign-out for every activity after it (Gym signs
+    // everyone out fine, but if Leisure Tennis throws, Leisure
+    // Swimming/Tennis Lessons/Swimming Lessons never even get looked
+    // at). A failure here is logged and skipped instead, so one
+    // activity's problem can never take the other four down with it.
+    try {
+      const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+      const lastRow = visits.getLastRow();
+      if (lastRow < 2) return;
 
-    const idColIndex = VISIT_HEADERS.indexOf("idNo");
-    const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-    const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+      const idColIndex = VISIT_HEADERS.indexOf("idNo");
+      const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
+      const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
-    const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-    const regByIdNo = {};
-    sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      const regByIdNo = {};
+      sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
 
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][timeOutColIndex]) continue; // already signed out
-      const rowNum = i + 2;
-      visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
-      totalClosed++;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][timeOutColIndex]) continue; // already signed out
+        const rowNum = i + 2;
+        visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
+        totalClosed++;
 
-      // Same session-cap bookkeeping a normal checkout does (see the
-      // "checkout" action above) — they used the facility today even
-      // though they didn't sign out themselves.
-      const idNo = String(values[i][idColIndex]).trim();
-      const match = regByIdNo[idNo];
-      const cfg = match && getDurationConfig(activity, match.duration);
-      if (cfg && cfg.sessionCap) {
-        const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
-        if (regIdx !== -1) {
-          const newUsed = (Number(match.sessionsUsed) || 0) + 1;
-          registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+        // Same session-cap bookkeeping a normal checkout does (see the
+        // "checkout" action above) — they used the facility today even
+        // though they didn't sign out themselves.
+        const idNo = String(values[i][idColIndex]).trim();
+        const match = regByIdNo[idNo];
+        const cfg = match && getDurationConfig(activity, match.duration);
+        if (cfg && cfg.sessionCap) {
+          const regIdx = findRowIndexByIdNo(registrations, idNo, REGISTRATIONS_HEADERS);
+          if (regIdx !== -1) {
+            const newUsed = (Number(match.sessionsUsed) || 0) + 1;
+            registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+          }
         }
       }
+    } catch (err) {
+      Logger.log(`Auto sign-out failed for ${activity.key}: ${err}`);
     }
   });
 
@@ -2317,9 +2329,14 @@ function autoSignOutAt10pm() {
   }
 }
 
+// Each job gets its own try/catch for the same reason as the one
+// inside autoSignOutAt10pm() above: without it, an error in the sign-
+// out job would propagate up and stop regroupAllRegistrations() from
+// ever running at all that night, and vice versa. One job's failure
+// is logged and the other still gets its chance to run.
 function runNightlyMaintenance() {
-  autoSignOutAt10pm();
-  regroupAllRegistrations();
+  try { autoSignOutAt10pm(); } catch (err) { Logger.log(`autoSignOutAt10pm failed: ${err}`); }
+  try { regroupAllRegistrations(); } catch (err) { Logger.log(`regroupAllRegistrations failed: ${err}`); }
 }
 
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
