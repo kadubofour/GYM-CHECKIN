@@ -777,8 +777,9 @@
   <!-- ============ SIGN IN TAB ============ -->
   <div class="tab-panel active" id="tab-signin">
     <div class="view active" id="view-code">
-      <p class="subhead">Enter your member code or ID number to sign in.</p>
-      <form id="codeForm" novalidate>
+      <p class="subhead">Tap Sign In, then enter your member code or ID number.</p>
+      <button type="button" class="btn btn-primary" id="revealCodeBtn">Sign In</button>
+      <form id="codeForm" novalidate style="display:none;">
         <div class="field" id="field-code">
           <label for="codeInput">Member Code</label>
           <input type="text" id="codeInput" class="code-input" placeholder="Code or ID number">
@@ -2341,12 +2342,29 @@
     resetWalkinForm();
     clearFieldError('field-code');
     clearFieldError('field-phone-lookup');
+    hideCodeEntry();
     showView('code');
   }
 
   const codeForm = document.getElementById('codeForm');
   const codeInput = document.getElementById('codeInput');
   const checkinBtn = document.getElementById('checkinBtn');
+  const revealCodeBtn = document.getElementById('revealCodeBtn');
+
+  // The Member Code field stays hidden behind the "Sign In" button until
+  // tapped — landing on this tab shouldn't dump a bare code box on
+  // someone who hasn't decided to sign in yet. Once revealed, the field
+  // is a normal <form>, so pressing Enter after typing the code submits
+  // it just like tapping the button does.
+  function hideCodeEntry(){
+    codeForm.style.display = 'none';
+    revealCodeBtn.style.display = '';
+  }
+  revealCodeBtn.addEventListener('click', function(){
+    revealCodeBtn.style.display = 'none';
+    codeForm.style.display = '';
+    codeInput.focus();
+  });
 
   codeForm.addEventListener('submit', function(e){
     e.preventDefault();
