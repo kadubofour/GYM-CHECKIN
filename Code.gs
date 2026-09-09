@@ -448,8 +448,12 @@ const PENDING_HEADERS = [
 // (see approvePendingRow()).
 const REGISTRATIONS_HEADERS = PENDING_HEADERS.filter(h => h !== "activity");
 
-// Visits sheets are per-activity too, for the same reason.
-const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone"];
+// Visits sheets are per-activity too, for the same reason. "duration"
+// added at the end (not inserted earlier in the row) so a Visits sheet
+// created before this field existed keeps its original column order —
+// see addDurationColumnToVisitSheets() for backfilling that sheet's
+// header row by hand.
+const VISIT_HEADERS = ["visitId", "idNo", "name", "class", "date", "timeIn", "timeOut", "phone", "duration"];
 
 // Expired/used-up-membership sign-in attempts, so every front desk for
 // that activity (main and satellite alike) can be alerted even when
@@ -1009,6 +1013,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
       if (h === "idNo") return walkinIdRequired ? sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]) : "";
       if (h === "name") return rowValues[PENDING_HEADERS.indexOf("name")];
       if (h === "class") return rowValues[PENDING_HEADERS.indexOf("class")];
+      if (h === "duration") return rowValues[PENDING_HEADERS.indexOf("duration")];
       // forceLiteralText, same as everywhere else a "date"/time-shaped
       // string is written — otherwise Sheets can silently store it as a
       // real Date, and "checkout" below compares this column against a
@@ -1485,6 +1490,7 @@ function doPost(e) {
         if (h === "idNo") return idNo ? sheetSafeText(idNo) : "";
         if (h === "name") return String(data.name || "").trim();
         if (h === "class") return data.class;
+        if (h === "duration") return "Walk-in";
         if (h === "date") return forceLiteralText(formatDateMDY(now));
         if (h === "timeIn") return forceLiteralText(now.toLocaleTimeString());
         if (h === "phone") return sheetSafeText(data.phone || "");
@@ -1542,6 +1548,7 @@ function doPost(e) {
         if (h === "idNo") return sheetSafeText(match.idNo);
         if (h === "name") return match.name;
         if (h === "class") return match.class;
+        if (h === "duration") return match.duration;
         // forceLiteralText, same as everywhere else a "date"/time-shaped
         // string is written — otherwise Sheets can silently store it as
         // a real Date, and "checkout" below compares this column
@@ -2408,6 +2415,28 @@ function repairDateTimeColumns() {
 
   Logger.log("Date/time formatting repaired. Any date or time cells that had been " +
     "auto-converted by Sheets are now plain text, formatted as " + DATE_FORMAT + " / " + TIME_FORMAT + ".");
+}
+
+// Run once from the function dropdown (Run > addDurationColumnToVisitSheets),
+// then redeploy. VISIT_HEADERS gained a "duration" column so the front
+// desk's Visit Log can show a member's plan — but getOrCreateSheet()
+// only ever writes headers once, when a sheet is brand new, so a
+// Visits sheet created before this change still has its original
+// header row. This appends the missing "duration" header by hand,
+// without touching any existing data — older rows simply have no plan
+// recorded in that column (blank), same as any other older column that
+// gained a new field later; every new visit from here on gets one.
+function addDurationColumnToVisitSheets() {
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+    const lastCol = sheet.getLastColumn();
+    const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (headerRow.indexOf("duration") === -1) {
+      sheet.getRange(1, lastCol + 1).setValue("duration");
+    }
+  });
+  Logger.log("Visit Log sheets now have a duration column.");
 }
 
 

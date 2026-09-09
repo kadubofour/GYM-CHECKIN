@@ -1238,6 +1238,7 @@
           <td>${photoUrl ? `<a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(driveThumbUrl(photoUrl, 100))}" class="photo-thumb-cell" alt=""></a>` : '<span class="photo-thumb-placeholder">—</span>'}</td>
           <td class="name-cell">${escapeHtml(v.name)}</td>
           <td><span class="badge ${badgeClassFor(currentActivity, v.class)}">${escapeHtml(v.class||'')}</span></td>
+          <td class="id-cell">${escapeHtml(v.duration||'—')}</td>
           <td class="id-cell">${escapeHtml(v.idNo||'')}</td>
           <td class="id-cell">${escapeHtml(v.timeIn||'—')}</td>
           <td class="id-cell">${v.timeOut ? escapeHtml(v.timeOut) : '<span class="status-tag" style="background:var(--gold-dim);color:var(--gold-dark);">Still in</span>'}</td>
@@ -1245,7 +1246,7 @@
       }).join('');
       return `
         <tr class="group-row">
-          <td colspan="6">${dateLabel(g.date)} <span class="group-count">— ${g.rows.length} visit${g.rows.length===1?'':'s'}</span></td>
+          <td colspan="7">${dateLabel(g.date)} <span class="group-count">— ${g.rows.length} visit${g.rows.length===1?'':'s'}</span></td>
         </tr>
         ${groupRows}`;
     }).join('');
@@ -1256,6 +1257,7 @@
           <th>Photo</th>
           <th>Name</th>
           <th>Category</th>
+          <th>Plan</th>
           <th>ID No. / Code</th>
           <th>Time In</th>
           <th>Time Out</th>
