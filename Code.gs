@@ -845,26 +845,6 @@ function generateUniqueIdNoFromSet(activity, usedIdNos) {
   return null;
 }
 
-// A real UG Student/Staff ID (as opposed to an auto-generated member
-// code, which has its own "<prefix><7 digits>" shape) has to match the
-// university's actual ID format — digits only, no letters — or it's
-// rejected right here rather than stored and discovered wrong later.
-// Returns an error message string, or null if idNo is fine for that
-// category. Only "UG Student" and "UG Staff" have a required shape;
-// every other category (including a UG Staff Relation's own class,
-// which is separate from the staff member they're related to) passes
-// through untouched.
-function idFormatError(category, idNo) {
-  if (category === "UG Student" && !/^\d{8}$/.test(idNo)) {
-    return "Invalid ID number.";
-  }
-  if (category === "UG Staff" && !/^\d{5}$/.test(idNo)) {
-    return "Invalid ID number.";
-  }
-  return null;
-}
-
-
 // ------------------------------------------------------------------
 // Photo storage
 // ------------------------------------------------------------------
@@ -1310,8 +1290,6 @@ function doPost(e) {
         if (!relatedStaffName || !relatedStaffIdNo) {
           return errorMsg("Please provide the full name and ID number of the UG staff member you're related to.");
         }
-        const relatedStaffIdError = idFormatError("UG Staff", relatedStaffIdNo);
-        if (relatedStaffIdError) return errorMsg(relatedStaffIdError);
         if (STAFF_RELATIONSHIP_OPTIONS.indexOf(staffRelationship) === -1) {
           return errorMsg("Only a Spouse or Child of a UG staff member is eligible to register under this category.");
         }
@@ -1355,8 +1333,6 @@ function doPost(e) {
       } else {
         idNo = String(data.idNo || "").trim();
         if (!idNo) return errorMsg("An ID number is required for this category.");
-        const idError = idFormatError(data.class, idNo);
-        if (idError) return errorMsg(idError);
         if (usedIdNos.has(idNo)) return errorMsg("This ID number is already registered or pending approval.");
       }
       usedIdNos.add(idNo);
@@ -1511,8 +1487,6 @@ function doPost(e) {
       if (idRequired) {
         idNo = String(data.idNo || "").trim();
         if (!idNo) return errorMsg("An ID number is required for this category.");
-        const idError = idFormatError(data.class, idNo);
-        if (idError) return errorMsg(idError);
       }
       const now = new Date();
       const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
