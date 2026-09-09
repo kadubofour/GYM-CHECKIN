@@ -478,7 +478,7 @@
               </div>
               <div class="field" id="wf-field-id" style="display:none;">
                 <label for="wfId">ID No.</label>
-                <input type="text" id="wfId" placeholder="ID number">
+                <input type="text" id="wfId" inputmode="numeric" placeholder="Student: 8 digits · Staff: 5 digits">
                 <p class="field-error">Required for this category.</p>
               </div>
             </div>
@@ -1101,7 +1101,24 @@
   const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
   populateCategorySelect(wfClass, currentActivity);
 
-  function setFieldInvalid(el, invalid){ el.classList.toggle('invalid', !!invalid); }
+  function setFieldInvalid(el, invalid, message){
+    el.classList.toggle('invalid', !!invalid);
+    if(invalid && message){
+      const msgEl = el.querySelector('.field-error');
+      if(msgEl) msgEl.textContent = message;
+    }
+  }
+
+  // Mirrors Code.gs's idFormatError() — a real UG Student/Staff ID has
+  // a fixed shape (digits only), unlike an auto-generated member code.
+  // Checked here too so a wrong ID is caught immediately instead of
+  // round-tripping to the server first; the server still re-checks this
+  // itself as the final authority.
+  function idFormatError(category, idNo){
+    if(category === 'UG Student' && !/^\d{8}$/.test(idNo)) return 'UG Student ID must be exactly 8 digits, numbers only.';
+    if(category === 'UG Staff' && !/^\d{5}$/.test(idNo)) return 'UG Staff ID must be exactly 5 digits, numbers only.';
+    return null;
+  }
 
   function openWalkinCard(){ walkinCard.style.display = 'block'; walkinToggleBtn.style.display = 'none'; }
   function closeWalkinCard(){
@@ -1130,7 +1147,11 @@
     const otherNamesField = document.getElementById('wf-field-otherNames');
     if(!wfSurname.value.trim()){ setFieldInvalid(surnameField, true); valid = false; } else setFieldInvalid(surnameField, false);
     if(!wfOtherNames.value.trim()){ setFieldInvalid(otherNamesField, true); valid = false; } else setFieldInvalid(otherNamesField, false);
-    if(needsId && !wfId.value.trim()){ setFieldInvalid(wfIdField, true); valid = false; } else setFieldInvalid(wfIdField, false);
+    if(needsId){
+      const wfIdVal = wfId.value.trim();
+      const wfIdErr = !wfIdVal ? 'Required for this category.' : idFormatError(wfClass.value, wfIdVal);
+      if(wfIdErr){ setFieldInvalid(wfIdField, true, wfIdErr); valid = false; } else setFieldInvalid(wfIdField, false);
+    } else setFieldInvalid(wfIdField, false);
     if(!valid) return;
 
     const payload = {

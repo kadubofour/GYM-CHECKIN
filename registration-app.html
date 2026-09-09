@@ -523,7 +523,7 @@
 
       <div class="field" id="field-id">
         <label for="regId">ID No. <span id="idOptionalTag" style="display:none;color:var(--text-dim);text-transform:none;font-weight:400;">(optional)</span></label>
-        <input type="text" id="regId" placeholder="e.g. 10123456 / Staff ID">
+        <input type="text" id="regId" inputmode="numeric" placeholder="Student: 8 digits · Staff: 5 digits">
         <p class="field-error">Please enter your ID number.</p>
       </div>
       <div class="id-hint" id="idOptionalHint" style="display:none;">
@@ -546,7 +546,7 @@
         </div>
         <div class="field" id="field-relatedStaffIdNo">
           <label for="regRelatedStaffIdNo">ID No.</label>
-          <input type="text" id="regRelatedStaffIdNo" placeholder="Staff ID">
+          <input type="text" id="regRelatedStaffIdNo" inputmode="numeric" placeholder="5-digit staff ID">
           <p class="field-error">Required.</p>
         </div>
         <div class="field" id="field-staffRelationship" style="margin-bottom:0;">
@@ -829,7 +829,7 @@
         </div>
         <div class="field" id="field-walkin-id" style="display:none;">
           <label for="walkinId">ID Number</label>
-          <input type="text" id="walkinId" placeholder="Your student/staff ID">
+          <input type="text" id="walkinId" inputmode="numeric" placeholder="Student: 8 digits · Staff: 5 digits">
           <p class="field-error">Required for this category.</p>
         </div>
         <div class="field" id="field-walkin-phone">
@@ -1717,6 +1717,25 @@
   function markInvalid(id){ document.getElementById(id).classList.add('invalid'); }
   function isValidEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
+  // Mirrors Code.gs's idFormatError() — a real UG Student/Staff ID has
+  // a fixed shape (digits only), unlike an auto-generated member code.
+  // Checked here too so a wrong ID is caught immediately instead of
+  // round-tripping to the server first; the server still re-checks this
+  // itself as the final authority.
+  function idFormatError(category, idNo){
+    if(category === 'UG Student' && !/^\d{8}$/.test(idNo)) return 'UG Student ID must be exactly 8 digits, numbers only.';
+    if(category === 'UG Staff' && !/^\d{5}$/.test(idNo)) return 'UG Staff ID must be exactly 5 digits, numbers only.';
+    return null;
+  }
+  // Same as markInvalid(), but also swaps in a specific reason instead
+  // of whatever static message is sitting in that field's .field-error.
+  function setFieldError(id, message){
+    const field = document.getElementById(id);
+    const msgEl = field.querySelector('.field-error');
+    if(msgEl && message) msgEl.textContent = message;
+    field.classList.add('invalid');
+  }
+
   function showConfirm(isError, title, detail){
     confirmOverlay.classList.toggle('error', isError);
     confirmIcon.textContent = isError ? '✕' : '✓';
@@ -1826,11 +1845,17 @@
     if(!otherNamesField.value.trim()){ markInvalid('field-otherNames'); valid = false; } else clearFieldError('field-otherNames');
     if(!surnameField.value.trim()){ markInvalid('field-surname'); valid = false; } else clearFieldError('field-surname');
     if(dept && !deptField.value.trim()){ markInvalid('field-dept'); valid = false; } else clearFieldError('field-dept');
-    if(isIdRequired() && !idField.value.trim()){ markInvalid('field-id'); valid = false; } else clearFieldError('field-id');
+    if(isIdRequired()){
+      const idVal = idField.value.trim();
+      const idErr = !idVal ? 'Please enter your ID number.' : idFormatError(classField.value, idVal);
+      if(idErr){ setFieldError('field-id', idErr); valid = false; } else clearFieldError('field-id');
+    } else clearFieldError('field-id');
     if(UG_STAFF_RELATION_CATEGORIES.indexOf(classField.value) !== -1){
       if(!relatedStaffSurnameField.value.trim()){ markInvalid('field-relatedStaffSurname'); valid = false; } else clearFieldError('field-relatedStaffSurname');
       if(!relatedStaffOtherNamesField.value.trim()){ markInvalid('field-relatedStaffOtherNames'); valid = false; } else clearFieldError('field-relatedStaffOtherNames');
-      if(!relatedStaffIdNoField.value.trim()){ markInvalid('field-relatedStaffIdNo'); valid = false; } else clearFieldError('field-relatedStaffIdNo');
+      const staffIdVal = relatedStaffIdNoField.value.trim();
+      const staffIdErr = !staffIdVal ? 'Required.' : idFormatError('UG Staff', staffIdVal);
+      if(staffIdErr){ setFieldError('field-relatedStaffIdNo', staffIdErr); valid = false; } else clearFieldError('field-relatedStaffIdNo');
       if(!selectedStaffRelationship){ markInvalid('field-staffRelationship'); valid = false; } else clearFieldError('field-staffRelationship');
     }
     if(!photoBase64){ markInvalid('field-photo'); valid = false; } else clearFieldError('field-photo');
@@ -2197,7 +2222,11 @@
     if(!walkinClass.value){ markInvalid('field-walkin-class'); valid = false; } else clearFieldError('field-walkin-class');
     if(!surnameEl.value.trim()){ markInvalid('field-walkin-surname'); valid = false; } else clearFieldError('field-walkin-surname');
     if(!otherNamesEl.value.trim()){ markInvalid('field-walkin-otherNames'); valid = false; } else clearFieldError('field-walkin-otherNames');
-    if(needsId && !walkinId.value.trim()){ markInvalid('field-walkin-id'); valid = false; } else clearFieldError('field-walkin-id');
+    if(needsId){
+      const walkinIdVal = walkinId.value.trim();
+      const walkinIdErr = !walkinIdVal ? 'Required.' : idFormatError(walkinClass.value, walkinIdVal);
+      if(walkinIdErr){ setFieldError('field-walkin-id', walkinIdErr); valid = false; } else clearFieldError('field-walkin-id');
+    } else clearFieldError('field-walkin-id');
     if(!/^\d{6,}$/.test(phoneEl.value.replace(/\D/g,''))){ markInvalid('field-walkin-phone'); valid = false; } else clearFieldError('field-walkin-phone');
     if(!valid) return;
 
