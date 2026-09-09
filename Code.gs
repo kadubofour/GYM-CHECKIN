@@ -1119,13 +1119,43 @@ function registrationTimestampMs(row) {
   return isNaN(ms) ? Infinity : ms;
 }
 
-// One activity's Registrations rows, with the Clear List cutoff (if
-// any) already applied. Shared by the plain "registrations" view, the
-// main "dashboard" view, and the satellite "registrantsDashboard" view
-// so the filtering logic lives in one place.
+// A renewal is its own new row (see approvePendingRow()'s comment) —
+// the same person can have several rows here, one per renewal, all
+// sharing the same idNo, kept as history rather than edited/removed
+// in place. That's the right call for the sheet itself, but any front
+// desk view built to answer "who's registered" would otherwise show
+// that one person 2 or 3 times over, as if they were separate people,
+// and every headcount built from that list (the dashboard's Total/
+// per-category tally, an Excel export) would over-count the same way.
+// This keeps only each idNo's most recent row (by date+time — the
+// timestamp a renewal restamps, same as a fresh approval) — their
+// current registration — so a front desk view lists (and counts)
+// distinct PEOPLE. Every older row for that idNo stays exactly as it
+// is in the sheet, just not surfaced here as if it were someone else.
+function dedupeRegistrationsByIdNo(rows) {
+  const latestByIdNo = new Map();
+  rows.forEach(row => {
+    const idNo = String(row.idNo || "").trim();
+    if (!idNo) return; // never collapse rows that don't share a real idNo
+    const existing = latestByIdNo.get(idNo);
+    if (!existing || registrationTimestampMs(row) >= registrationTimestampMs(existing)) {
+      latestByIdNo.set(idNo, row);
+    }
+  });
+  return rows.filter(row => {
+    const idNo = String(row.idNo || "").trim();
+    return !idNo || latestByIdNo.get(idNo) === row;
+  });
+}
+
+// One activity's Registrations rows, deduplicated to one (current) row
+// per person and with the Clear List cutoff (if any) already applied.
+// Shared by the plain "registrations" view, the main "dashboard" view,
+// and the satellite "registrantsDashboard" view so the filtering logic
+// lives in one place.
 function getVisibleRegistrations(activity) {
   const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
-  let rows = sheetToObjects(sheet);
+  let rows = dedupeRegistrationsByIdNo(sheetToObjects(sheet));
   const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
   if (clearedAt) {
     const cutoffMs = new Date(clearedAt).getTime();
