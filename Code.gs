@@ -978,9 +978,16 @@ function approvePendingRow(activity, pending, registrations, idx) {
   if (String(rowValues[PENDING_HEADERS.indexOf("duration")]).trim() === "Walk-in") {
     const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
     const now = new Date();
+    // The idNo on this row is either a real ID card number (a category
+    // that requires one, e.g. UG Student/UG Staff) or, for everyone
+    // else, just the UUID "submit" generated purely to track this row
+    // through Pending — never a real member code, so it's never carried
+    // into Visits either.
+    const walkinClass = String(rowValues[PENDING_HEADERS.indexOf("class")]).trim();
+    const walkinIdRequired = activity.idRequiredCategories.indexOf(walkinClass) !== -1;
     visits.appendRow(VISIT_HEADERS.map(h => {
       if (h === "visitId") return Utilities.getUuid();
-      if (h === "idNo") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]);
+      if (h === "idNo") return walkinIdRequired ? sheetSafeText(rowValues[PENDING_HEADERS.indexOf("idNo")]) : "";
       if (h === "name") return rowValues[PENDING_HEADERS.indexOf("name")];
       if (h === "class") return rowValues[PENDING_HEADERS.indexOf("class")];
       // forceLiteralText, same as everywhere else a "date"/time-shaped
@@ -1277,8 +1284,19 @@ function doPost(e) {
       // don't have or didn't provide one. idRequiredCategories (UG
       // Student / UG Staff) must supply their own.
       const idRequired = activity.idRequiredCategories.indexOf(data.class) !== -1;
+      const isWalkin = String(data.duration || "").trim() === "Walk-in";
       let idNo;
-      if (!idRequired) {
+      if (isWalkin && !idRequired) {
+        // A walk-in never gets a real member code — that pool is for
+        // actual memberships, and a walk-in is a one-off same-day visit
+        // that's never looked up again. This UUID is only ever used
+        // internally, to find this exact Pending row again while it
+        // waits on approval (see checkWalkinStatus/doApprove below) — it
+        // is never shown to the person walking in, and approvePendingRow
+        // writes a blank idNo into Visits for it, same as a walk-in
+        // added directly at the front desk.
+        idNo = Utilities.getUuid();
+      } else if (!idRequired) {
         idNo = String(data.idNo || "").trim();
         if (!idNo) {
           idNo = generateUniqueIdNoFromSet(activity, usedIdNos);

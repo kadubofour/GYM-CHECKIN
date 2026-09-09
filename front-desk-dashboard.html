@@ -1342,7 +1342,7 @@
         <div class="detail-item"><div class="dlabel">Nationality</div><div class="dvalue">${escapeHtml(e.nationality||'—')}</div></div>
         <div class="detail-item"><div class="dlabel">Phone</div><div class="dvalue">${escapeHtml(e.phone||'—')}</div></div>
         <div class="detail-item"><div class="dlabel">Email</div><div class="dvalue">${escapeHtml(e.email||'—')}</div></div>
-        <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${e.idNo ? escapeHtml(e.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>'}</div></div>
+        <div class="detail-item"><div class="dlabel">ID No. / Code</div><div class="dvalue">${(e.duration === 'Walk-in' && currentActivity.idRequiredCategories.indexOf(e.class) === -1) ? '<span style="color:var(--text-faint);">walk-in — no code issued</span>' : (e.idNo ? escapeHtml(e.idNo) : '<span style="color:var(--text-faint);">generated on approval</span>')}</div></div>
         <div class="detail-item"><div class="dlabel">Photo</div><div class="dvalue">${e.photoUrl ? `<a href="${escapeHtml(e.photoUrl)}" target="_blank" rel="noopener" style="color:var(--blue);">View photo →</a>` : '—'}</div></div>
         <div class="detail-item"><div class="dlabel">Signature</div><div class="dvalue">${e.signatureUrl ? `<a href="${escapeHtml(e.signatureUrl)}" target="_blank" rel="noopener" style="color:var(--blue);">View signature →</a>` : '—'}</div></div>
         <div class="detail-item"><div class="dlabel">Address</div><div class="dvalue">${escapeHtml(e.address||'—')}</div></div>
