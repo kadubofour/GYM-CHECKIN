@@ -836,10 +836,10 @@ function generateUniqueIdNoFromSet(activity, usedIdNos) {
 // through untouched.
 function idFormatError(category, idNo) {
   if (category === "UG Student" && !/^\d{8}$/.test(idNo)) {
-    return "UG Student ID must be exactly 8 digits, numbers only.";
+    return "Invalid ID number.";
   }
   if (category === "UG Staff" && !/^\d{5}$/.test(idNo)) {
-    return "UG Staff ID must be exactly 5 digits, numbers only.";
+    return "Invalid ID number.";
   }
   return null;
 }

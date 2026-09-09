@@ -1723,8 +1723,8 @@
   // round-tripping to the server first; the server still re-checks this
   // itself as the final authority.
   function idFormatError(category, idNo){
-    if(category === 'UG Student' && !/^\d{8}$/.test(idNo)) return 'UG Student ID must be exactly 8 digits, numbers only.';
-    if(category === 'UG Staff' && !/^\d{5}$/.test(idNo)) return 'UG Staff ID must be exactly 5 digits, numbers only.';
+    if(category === 'UG Student' && !/^\d{8}$/.test(idNo)) return 'Invalid ID number.';
+    if(category === 'UG Staff' && !/^\d{5}$/.test(idNo)) return 'Invalid ID number.';
     return null;
   }
   // Same as markInvalid(), but also swaps in a specific reason instead
