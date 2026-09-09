@@ -15,6 +15,11 @@
     --blue:#232559; --blue-dark:#14152F; --blue-dim:rgba(35,37,89,0.08); --blue-dim-strong:rgba(35,37,89,0.14);
     --gold:#BA8F4A; --gold-dark:#8F6B32; --gold-dim:rgba(186,143,74,0.12);
     --danger:#C0392B; --danger-dim:rgba(192,57,43,0.09);
+    /* One extra color each for Sign In / Sign Out, so all four top
+       tabs (Register=blue, Renewal=gold, Sign In=green, Sign Out=
+       violet) read as distinct at a glance, not just active-vs-not. */
+    --green:#1F7A4D; --green-dark:#145235; --green-dim:rgba(31,122,77,0.12);
+    --violet:#6B4FA0; --violet-dark:#4C3773; --violet-dim:rgba(107,79,160,0.12);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -77,9 +82,20 @@
   }
   .tab-btn:hover{ color:var(--text); }
   .tab-btn.active{
-    background:var(--panel); color:var(--blue); font-weight:800;
-    box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--gold);
+    background:var(--panel); font-weight:800;
+    box-shadow:0 1px 3px rgba(15,29,59,0.08);
   }
+  /* Each tab keeps its own color even at rest (a faint underline), so
+     the four read as distinct from a glance — not just active-vs-not —
+     and goes solid + tints the label once selected. */
+  .tab-btn[data-tab="register"]{ box-shadow:inset 0 -3px 0 var(--blue-dim-strong); }
+  .tab-btn[data-tab="renew"]{ box-shadow:inset 0 -3px 0 var(--gold-dim); }
+  .tab-btn[data-tab="signin"]{ box-shadow:inset 0 -3px 0 var(--green-dim); }
+  .tab-btn[data-tab="signout"]{ box-shadow:inset 0 -3px 0 var(--violet-dim); }
+  .tab-btn.active[data-tab="register"]{ color:var(--blue); box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--blue); }
+  .tab-btn.active[data-tab="renew"]{ color:var(--gold-dark); box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--gold); }
+  .tab-btn.active[data-tab="signin"]{ color:var(--green-dark); box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--green); }
+  .tab-btn.active[data-tab="signout"]{ color:var(--violet-dark); box-shadow:0 1px 3px rgba(15,29,59,0.08), inset 0 -3px 0 var(--violet); }
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
 
