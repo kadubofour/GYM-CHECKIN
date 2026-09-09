@@ -18,7 +18,7 @@
     /* One extra color each for Sign In / Sign Out, so all four top
        tabs (Register=blue, Renewal=gold, Sign In=green, Sign Out=
        violet) read as distinct at a glance, not just active-vs-not. */
-    --green:#1F7A4D; --green-dark:#145235; --green-dim:rgba(31,122,77,0.12);
+    --green:#3E7C5F; --green-dark:#2A5A44; --green-dim:rgba(62,124,95,0.12);
     --violet:#6B4FA0; --violet-dark:#4C3773; --violet-dim:rgba(107,79,160,0.12);
   }
   *{box-sizing:border-box;}
@@ -72,14 +72,19 @@
   }
   #changeActivityBtn{ display:block; text-align:right; margin:0; width:auto; font-size:10.5px; }
 
-  /* Tabs — every tab (not just the active one) carries its own
-     visible colored background and border at all times, so all four
-     read immediately as separate pressable buttons rather than plain
-     labels that only reveal themselves as buttons once you notice the
-     one that happens to be selected. The active tab then goes solid +
-     white text, an unmistakable jump from "tinted and pressable" to
-     "this one's selected." */
-  .tab-bar{ display:flex; gap:6px; margin-bottom:22px; }
+  /* Tabs — the bar itself is a rounded "arranger" pill (like the
+     original design) so the four tabs read as one grouped control, and
+     each tab additionally carries its own visible colored background
+     and border at all times, so all four read immediately as separate
+     pressable buttons rather than plain labels that only reveal
+     themselves as buttons once you notice the one that happens to be
+     selected. The active tab then goes solid + white text, an
+     unmistakable jump from "tinted and pressable" to "this one's
+     selected." */
+  .tab-bar{
+    display:flex; gap:6px; margin-bottom:22px;
+    background:var(--panel-alt); padding:5px; border-radius:12px;
+  }
   .tab-btn{
     flex:1; border:1.5px solid transparent; border-radius:9px; cursor:pointer;
     padding:11px 4px; font-weight:700; font-size:12.5px;
@@ -89,7 +94,7 @@
   .tab-btn:not(.active):hover{ border-color:currentColor; }
   .tab-btn[data-tab="register"]{ background:var(--blue-dim); color:var(--blue); border-color:var(--blue-dim-strong); }
   .tab-btn[data-tab="renew"]{ background:var(--gold-dim); color:var(--gold-dark); border-color:rgba(186,143,74,0.35); }
-  .tab-btn[data-tab="signin"]{ background:var(--green-dim); color:var(--green-dark); border-color:rgba(31,122,77,0.3); }
+  .tab-btn[data-tab="signin"]{ background:var(--green-dim); color:var(--green-dark); border-color:rgba(62,124,95,0.3); }
   .tab-btn[data-tab="signout"]{ background:var(--violet-dim); color:var(--violet-dark); border-color:rgba(107,79,160,0.3); }
   .tab-btn.active{ color:#fff; font-weight:800; box-shadow:0 2px 6px rgba(15,29,59,0.18); }
   .tab-btn.active[data-tab="register"]{ background:var(--blue); border-color:var(--blue); }
