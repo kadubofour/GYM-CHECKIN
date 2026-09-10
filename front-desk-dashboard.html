@@ -606,8 +606,12 @@
     document.getElementById('setupWarning').style.display = 'block';
   }
 
-  function formatDateMDY(d){
-    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  // Matches Code.gs's DATE_FORMAT ("dd/MM/yyyy") — zero-padded day,
+  // then month, then year.
+  function formatDateDMY(d){
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
   }
   function escapeHtml(str){
     const d = document.createElement('div');
@@ -1486,8 +1490,17 @@
   const searchBox = document.getElementById('searchBox');
   searchBox.addEventListener('input', function(){ searchTerm = this.value.trim().toLowerCase(); renderTable(); });
 
+  // The "date" column is always DATE_FORMAT-shaped ("dd/MM/yyyy") — the
+  // bare Date constructor treats an ambiguous slash-separated string as
+  // M/D/Y and mangles (or fails to parse) any day-of-month above 12, so
+  // this matches that shape explicitly first.
   function parseRegDate(dateStr){
     if(!dateStr) return null;
+    const m = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m) {
+      const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? null : d;
   }
@@ -1514,7 +1527,7 @@
   }
   function formatExpiry(entry){
     const expiry = getExpiryDate(entry);
-    return expiry ? formatDateMDY(expiry) : '—';
+    return expiry ? formatDateDMY(expiry) : '—';
   }
   function statusCellHtml(entry){
     const cfg = currentActivity.durations[entry.duration];
@@ -1582,7 +1595,7 @@
     const note = document.getElementById('clearedNote');
     if(!registrationsClearedAt){ note.style.display = 'none'; note.innerHTML = ''; return; }
     const when = new Date(registrationsClearedAt);
-    const whenLabel = isNaN(when.getTime()) ? '' : (formatDateMDY(when) + ' ' + when.toLocaleTimeString());
+    const whenLabel = isNaN(when.getTime()) ? '' : (formatDateDMY(when) + ' ' + when.toLocaleTimeString());
     note.style.display = 'flex';
     note.innerHTML = `<span>List cleared${whenLabel ? ' as of ' + escapeHtml(whenLabel) : ''} — nothing was deleted, everyone before this point is still in the Google Sheet.</span>`;
     const restoreBtn = document.createElement('button');

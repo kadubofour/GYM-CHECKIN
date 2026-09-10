@@ -338,7 +338,7 @@ function getActivity(key) {
 // time, and the "time"/"timeIn"/"timeOut" columns never accidentally
 // carry a date.
 const TIMEZONE = "Africa/Accra";
-const DATE_FORMAT = "M/d/yyyy";
+const DATE_FORMAT = "dd/MM/yyyy";
 const TIME_FORMAT = "h:mm a";
 
 function formatNowDate() {
@@ -356,7 +356,7 @@ function formatTime(d) {
 function formatNowTime() {
   return formatTime(new Date());
 }
-function formatDateMDY(d) {
+function formatDateDMY(d) {
   return Utilities.formatDate(d, TIMEZONE, DATE_FORMAT);
 }
 
@@ -961,8 +961,20 @@ function parseDriveFileId(input) {
 // Date helpers
 // ------------------------------------------------------------------
 
+// Every "date" column is written as DATE_FORMAT ("dd/MM/yyyy") — never
+// hand that to the bare Date constructor, which treats an ambiguous
+// slash-separated string as M/D/Y and silently mangles (or outright
+// fails to parse) any date whose day-of-month is above 12. Matches the
+// dd/MM/yyyy shape explicitly first; only for something that isn't in
+// that shape (an ISO timestamp, say) does it fall back to native
+// parsing.
 function parseDateSafe(v) {
   if (!v) return null;
+  const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    return isNaN(d.getTime()) ? null : d;
+  }
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -1018,7 +1030,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
       // string is written — otherwise Sheets can silently store it as a
       // real Date, and "checkout" below compares this column against a
       // plain string, which would then never match.
-      if (h === "date") return forceLiteralText(formatDateMDY(now));
+      if (h === "date") return forceLiteralText(formatDateDMY(now));
       if (h === "timeIn") return forceLiteralText(formatTime(now));
       if (h === "phone") return sheetSafeText(rowValues[PENDING_HEADERS.indexOf("phone")]);
       return ""; // timeOut
@@ -1055,7 +1067,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // Stamp "date"/"time" with the actual moment of approval — that's
   // what the expiry countdown is based on.
   const approvedNow = new Date();
-  rowValues[PENDING_HEADERS.indexOf("date")] = forceLiteralText(formatDateMDY(approvedNow));
+  rowValues[PENDING_HEADERS.indexOf("date")] = forceLiteralText(formatDateDMY(approvedNow));
   rowValues[PENDING_HEADERS.indexOf("time")] = forceLiteralText(formatTime(approvedNow));
   // A freshly (re)approved package always starts with 0 sessions used.
   rowValues[PENDING_HEADERS.indexOf("sessionsUsed")] = "";
@@ -1078,7 +1090,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // first approval of the day) instead of a plain append, so the sheet
   // stays grouped by date immediately — not just after the nightly
   // regroupAllRegistrations() backstop. Cheap: touches only the one block.
-  insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, regRowValues, formatDateMDY(approvedNow));
+  insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, regRowValues, formatDateDMY(approvedNow));
   pending.deleteRow(idx);
   return idNo;
 }
@@ -1496,7 +1508,7 @@ function doPost(e) {
         if (h === "name") return String(data.name || "").trim();
         if (h === "class") return data.class;
         if (h === "duration") return "Walk-in";
-        if (h === "date") return forceLiteralText(formatDateMDY(now));
+        if (h === "date") return forceLiteralText(formatDateDMY(now));
         if (h === "timeIn") return forceLiteralText(formatTime(now));
         if (h === "phone") return sheetSafeText(data.phone || "");
         return ""; // timeOut
@@ -1537,7 +1549,7 @@ function doPost(e) {
           class: match.class,
           duration: match.duration,
           expiredOn: expiredOnLabel,
-          date: formatDateMDY(now),
+          date: formatDateDMY(now),
           time: formatTime(now)
         });
         const cfg = getDurationConfig(activity, match.duration);
@@ -1558,7 +1570,7 @@ function doPost(e) {
         // string is written — otherwise Sheets can silently store it as
         // a real Date, and "checkout" below compares this column
         // against a plain string, which would then never match.
-        if (h === "date") return forceLiteralText(formatDateMDY(now));
+        if (h === "date") return forceLiteralText(formatDateDMY(now));
         if (h === "timeIn") return forceLiteralText(formatTime(now));
         return ""; // timeOut, phone stay blank at check-in
       }));
@@ -1789,7 +1801,7 @@ function doPost(e) {
         const dates = visits.getRange(2, dateColIndex, lastRow - 1, 1).getValues();
         // Restricted to today so a long-since-reused generated code
         // from an earlier visit can never look like a fresh match.
-        const todayLabel = formatDateMDY(new Date());
+        const todayLabel = formatDateDMY(new Date());
         for (let i = 0; i < ids.length; i++) {
           if (String(ids[i][0]).trim() === idNo && String(dates[i][0]).trim() === todayLabel) {
             signedIn = true;
@@ -1843,7 +1855,7 @@ function doPost(e) {
       const pendingRow = PENDING_HEADERS.map(h => {
         if (h === "activity") return activity.key;
         if (h === "duration") return duration;
-        if (h === "date") return forceLiteralText(formatDateMDY(now));
+        if (h === "date") return forceLiteralText(formatDateDMY(now));
         if (h === "time") return forceLiteralText(formatTime(now));
         if (h === "isRenewal") return "TRUE";
         const regFieldIdx = REGISTRATIONS_HEADERS.indexOf(h);

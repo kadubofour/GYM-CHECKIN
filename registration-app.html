@@ -1044,8 +1044,12 @@
   // match how it's stored and parsed server-side. Plain toLocaleDateString()
   // depends on the browser's locale (day-first in many regions, including
   // Ghana), so build the string explicitly instead of relying on it.
-  function formatDateMDY(d){
-    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  // Matches Code.gs's DATE_FORMAT ("dd/MM/yyyy") — zero-padded day,
+  // then month, then year.
+  function formatDateDMY(d){
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
   }
 
   /* ===================== ACTIVITIES (mirrors Code.gs ACTIVITIES — keep in sync) ===================== */
@@ -1998,7 +2002,7 @@
       emergencyName: `${emergencySurnameField.value.trim()} ${emergencyOtherNamesField.value.trim()}`.trim(),
       emergencyPhone: `${regEmergencyPhoneCode.value} ${emergencyPhoneField.value.trim()}`,
       emergencyRelationship: emergencyRelationshipField.value.trim(),
-      date: formatDateMDY(now),
+      date: formatDateDMY(now),
       time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
       declarationAccepted: selectedDeclaration === 'Yes',
       infoConfirmedCorrect: infoCorrectAgreed
@@ -2216,7 +2220,7 @@
         duration: "Walk-in",
         name: `${surnameEl.value.trim()} ${otherNamesEl.value.trim()}`.trim(),
         phone: `${walkinPhoneCode.value} ${phoneEl.value.trim()}`,
-        date: formatDateMDY(now),
+        date: formatDateDMY(now),
         time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
       })
     })
@@ -2237,8 +2241,17 @@
     });
   });
 
+  // The "date" column is always DATE_FORMAT-shaped ("dd/MM/yyyy") — the
+  // bare Date constructor treats an ambiguous slash-separated string as
+  // M/D/Y and mangles (or fails to parse) any day-of-month above 12, so
+  // this matches that shape explicitly first.
   function parseRegDate(dateStr){
     if(!dateStr) return null;
+    const m = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m) {
+      const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? null : d;
   }
