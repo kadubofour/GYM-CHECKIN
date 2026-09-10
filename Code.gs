@@ -1631,7 +1631,12 @@ function doPost(e) {
 
       const idColIndex = VISIT_HEADERS.indexOf("idNo");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-      const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+      // Two narrow single-column reads instead of the whole row width —
+      // this sheet only ever grows (visits are never deleted), so
+      // reading all 9 columns of the entire history on every checkout
+      // gets slower every month; idNo + timeOut is all this needs.
+      const ids = visits.getRange(2, idColIndex + 1, lastRow - 1, 1).getValues();
+      const timeOuts = visits.getRange(2, timeOutColIndex + 1, lastRow - 1, 1).getValues();
 
       // Finds this member's most recent STILL-OPEN visit (no timeOut
       // yet), whatever day it was signed in on — not just one recorded
@@ -1644,9 +1649,8 @@ function doPost(e) {
       // closes anything left open at day's end anyway, so there's
       // nothing an exact-date check was actually protecting against.
       let targetRow = -1;
-      for (let i = values.length - 1; i >= 0; i--) {
-        const row = values[i];
-        if (String(row[idColIndex]).trim() === match.idNo && !row[timeOutColIndex]) {
+      for (let i = ids.length - 1; i >= 0; i--) {
+        if (String(ids[i][0]).trim() === match.idNo && !timeOuts[i][0]) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -1690,15 +1694,18 @@ function doPost(e) {
 
       const phoneColIndex = VISIT_HEADERS.indexOf("phone");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-      const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+      // Two narrow single-column reads instead of the whole row width —
+      // same reasoning as "checkout" above: this sheet only ever grows,
+      // so phone + timeOut is all this scan actually needs.
+      const phones = visits.getRange(2, phoneColIndex + 1, lastRow - 1, 1).getValues();
+      const timeOuts = visits.getRange(2, timeOutColIndex + 1, lastRow - 1, 1).getValues();
 
       // Most recent STILL-OPEN visit for this phone number, whatever day
       // it was signed in on — see the matching comment in "checkout"
       // above for why an exact same-day match isn't required.
       let targetRow = -1;
-      for (let i = values.length - 1; i >= 0; i--) {
-        const row = values[i];
-        if (String(row[phoneColIndex]).trim() === phone && !row[timeOutColIndex]) {
+      for (let i = phones.length - 1; i >= 0; i--) {
+        if (String(phones[i][0]).trim() === phone && !timeOuts[i][0]) {
           targetRow = i + 2; // sheet row number
           break;
         }
@@ -2540,7 +2547,11 @@ function autoSignOutAt10pm() {
 
       const idColIndex = VISIT_HEADERS.indexOf("idNo");
       const timeOutColIndex = VISIT_HEADERS.indexOf("timeOut");
-      const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
+      // Two narrow single-column reads instead of the whole row width —
+      // same reasoning as "checkout" above: this sheet only ever grows,
+      // so idNo + timeOut is all this pass actually needs.
+      const ids = visits.getRange(2, idColIndex + 1, lastRow - 1, 1).getValues();
+      const timeOuts = visits.getRange(2, timeOutColIndex + 1, lastRow - 1, 1).getValues();
 
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
       // dedupeRegistrationsByIdNo() first — a renewed member has more
@@ -2551,8 +2562,8 @@ function autoSignOutAt10pm() {
       const regByIdNo = {};
       dedupeRegistrationsByIdNo(sheetToObjects(registrations)).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
 
-      for (let i = 0; i < values.length; i++) {
-        if (values[i][timeOutColIndex]) continue; // already signed out
+      for (let i = 0; i < ids.length; i++) {
+        if (timeOuts[i][0]) continue; // already signed out
         const rowNum = i + 2;
         // forceLiteralText — same reason as every other time write: a
         // plain "10:00 PM"-shaped string set via setValue() can
@@ -2564,7 +2575,7 @@ function autoSignOutAt10pm() {
         // Same session-cap bookkeeping a normal checkout does (see the
         // "checkout" action above) — they used the facility today even
         // though they didn't sign out themselves.
-        const idNo = String(values[i][idColIndex]).trim();
+        const idNo = String(ids[i][0]).trim();
         const match = regByIdNo[idNo];
         const cfg = match && getDurationConfig(activity, match.duration);
         if (cfg && cfg.sessionCap) {
