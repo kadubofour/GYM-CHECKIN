@@ -1153,12 +1153,25 @@ function doReject(activity, idNo) {
 
 // Registration rows are stamped with "date"/"time" at the moment
 // they're approved (see doApprove) — that pair is what a Clear List
-// cutoff compares against. Unparseable values are treated as "new"
+// cutoff compares against, and what dedupeRegistrationsByIdNo() below
+// uses to pick a renewed member's most recent row. "date" is
+// DATE_FORMAT-shaped ("dd/MM/yyyy") and "time" is TIME_FORMAT-shaped
+// ("h:mm a", e.g. "3:45 PM") — handing that combined string straight to
+// the bare Date constructor is exactly the ambiguous-parsing trap
+// parseDateSafe() exists to avoid (silently wrong for day <= 12,
+// Invalid Date for day > 12), so this parses both pieces explicitly via
+// parseDateSafe() instead. Unparseable values are treated as "new"
 // (kept visible) rather than silently hidden.
 function registrationTimestampMs(row) {
-  const raw = `${row.date || ""} ${row.time || ""}`.trim();
-  if (!raw) return Infinity;
-  const ms = new Date(raw).getTime();
+  const d = parseDateSafe(row.date);
+  if (!d) return Infinity;
+  const timeMatch = String(row.time || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (timeMatch) {
+    let hours = Number(timeMatch[1]) % 12;
+    if (/pm/i.test(timeMatch[3])) hours += 12;
+    d.setHours(hours, Number(timeMatch[2]), 0, 0);
+  }
+  const ms = d.getTime();
   return isNaN(ms) ? Infinity : ms;
 }
 
@@ -1743,12 +1756,18 @@ function doPost(e) {
       const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
       const pendingCount = countPendingByPhone(pending, phone);
 
+      // A renewed member has several rows sharing this phone number
+      // within the same activity (one per renewal — see
+      // approvePendingRow()'s comment) — dedupeRegistrationsByIdNo()
+      // (the same helper the front desk's own view uses) collapses that
+      // down to their one current row per activity, so a phone lookup
+      // doesn't hand back the same code two or three times over.
       const approvedMembers = [];
       Object.keys(ACTIVITIES).forEach(key => {
         const act = ACTIVITIES[key];
         const registrations = getOrCreateSheet(act.registrationsSheet, REGISTRATIONS_HEADERS);
-        getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone)
-          .forEach(r => { r.activity = act.key; approvedMembers.push(r); });
+        const matches = dedupeRegistrationsByIdNo(getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone));
+        matches.forEach(r => { r.activity = act.key; approvedMembers.push(r); });
       });
 
       if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
@@ -2281,15 +2300,13 @@ function regroupAllRegistrations() {
 // this is safe to run on every single approval, including several back
 // to back for a Family Package.
 //
-// Only ever called for a FRESH (non-renewal) approval, and dateKey is
-// always today's date (every fresh approval is stamped with "now" —
-// see approvePendingRow()), which is why this never needs to search
-// for a sorted insertion point among older blocks: a brand new block
-// is always the newest one, so it always goes at the very top. A
-// renewal updates its member's row in place instead of moving it, so
-// it can end up sitting inside a stale (non-today) block until the
-// next nightly regroupAllRegistrations() run sorts it back out —
-// that's an accepted, self-healing gap, not a bug.
+// Called for EVERY approval, renewal included — a renewal is stamped
+// with "now" and appended as its own brand-new row exactly like a
+// fresh approval (see approvePendingRow()'s comment: the member's
+// prior row is never edited or moved), so dateKey is always today's
+// date here, which is why this never needs to search for a sorted
+// insertion point among older blocks: a brand new block is always the
+// newest one, so it always goes at the very top.
 function insertRegistrationIntoDateGroup(sheet, headers, regRowValues, dateKey) {
   const lastCol = headers.length;
   const idColIndex = headers.indexOf("idNo");
@@ -2504,7 +2521,11 @@ function autoSignOutAt10pm() {
       for (let i = 0; i < values.length; i++) {
         if (values[i][timeOutColIndex]) continue; // already signed out
         const rowNum = i + 2;
-        visits.getRange(rowNum, timeOutColIndex + 1).setValue(CLOSING_TIME_LABEL);
+        // forceLiteralText — same reason as every other time write: a
+        // plain "10:00 PM"-shaped string set via setValue() can
+        // otherwise get silently reinterpreted by Sheets as a real time
+        // value.
+        visits.getRange(rowNum, timeOutColIndex + 1).setValue(forceLiteralText(CLOSING_TIME_LABEL));
         totalClosed++;
 
         // Same session-cap bookkeeping a normal checkout does (see the
