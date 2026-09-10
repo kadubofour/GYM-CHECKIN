@@ -673,9 +673,24 @@ function sheetToObjects(sheet) {
 //   and omit activityKey — the sheet is already scoped to one
 //   activity, so there's nothing to filter (REGISTRATIONS_HEADERS has
 //   no "activity" column to check against anyway).
+//
+// A renewed member has more than one Registrations row sharing an idNo
+// (one per renewal — see approvePendingRow()'s comment) — when that
+// happens, the row with the latest date/time wins, not just whichever
+// happens to be closest to the top of the sheet. Physical sheet order
+// is normally newest-first (see insertRegistrationIntoDateGroup()), so
+// "first match" and "most recent" usually agree, but that ordering is
+// an invariant a manual edit in the sheet could break, and sign-in/
+// checkout/renewal silently acting on a stale row because of that would
+// be a real, hard-to-notice mistake. The common case (no duplicates for
+// this idNo) still costs exactly one pass over the idNo/activity
+// columns already being read, same as before — the extra date/time
+// read below only happens when there's more than one match to break
+// the tie between.
 function findRowIndexByIdNo(sheet, idNo, headers, activityKey) {
   const idColIndex = headers.indexOf("idNo") + 1; // 1-based
   const activityColIndex = headers.indexOf("activity") + 1; // 0 if headers has no "activity" column
+  const dateColIndex = headers.indexOf("date") + 1; // 0 if headers has no "date" column
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   const ids = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
@@ -683,12 +698,25 @@ function findRowIndexByIdNo(sheet, idNo, headers, activityKey) {
     ? sheet.getRange(2, activityColIndex, lastRow - 1, 1).getValues()
     : null;
   const targetId = String(idNo).trim();
+  const matches = [];
   for (let i = 0; i < ids.length; i++) {
     if (String(ids[i][0]).trim() !== targetId) continue;
     if (activities && String(activities[i][0]).trim() !== activityKey) continue;
-    return i + 2;
+    matches.push(i + 2);
   }
-  return -1;
+  if (matches.length <= 1 || dateColIndex < 1) return matches.length ? matches[0] : -1;
+
+  const timeColIndex = headers.indexOf("time") + 1;
+  const dates = sheet.getRange(2, dateColIndex, lastRow - 1, 1).getValues();
+  const times = timeColIndex > 0 ? sheet.getRange(2, timeColIndex, lastRow - 1, 1).getValues() : null;
+  let best = matches[0];
+  let bestMs = -Infinity;
+  matches.forEach(rowNum => {
+    const i = rowNum - 2;
+    const ms = registrationTimestampMs({ date: dates[i][0], time: times ? times[i][0] : "" });
+    if (ms >= bestMs) { bestMs = ms; best = rowNum; }
+  });
+  return best;
 }
 
 // Fetches exactly one Registrations row by idNo, shaped the same way
@@ -2515,8 +2543,13 @@ function autoSignOutAt10pm() {
       const values = visits.getRange(2, 1, lastRow - 1, VISIT_HEADERS.length).getValues();
 
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      // dedupeRegistrationsByIdNo() first — a renewed member has more
+      // than one row sharing an idNo, and a plain forEach here would
+      // just end up keyed on whichever one happens to be processed
+      // last, not their actual current row (same underlying issue
+      // findRowIndexByIdNo() now guards against above).
       const regByIdNo = {};
-      sheetToObjects(registrations).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
+      dedupeRegistrationsByIdNo(sheetToObjects(registrations)).forEach(r => { regByIdNo[String(r.idNo).trim()] = r; });
 
       for (let i = 0; i < values.length; i++) {
         if (values[i][timeOutColIndex]) continue; // already signed out
