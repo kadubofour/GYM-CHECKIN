@@ -1033,14 +1033,30 @@
   // start used to surface immediately as a scary "No connection" error
   // on the very first hiccup. Retrying almost always clears it before
   // the person registering/signing in ever sees anything.
-  function fetchJSON(url, options, retries){
-    if(retries === undefined) retries = 2;
+  // Apps Script Web Apps on a free/consumer account have a real cap on
+  // how many executions of this script can run at once — every open
+  // front desk tab polling every few seconds, every registrant sitting
+  // on an approval-wait or walk-in-status poll, all hitting the same
+  // script, can genuinely exceed it at a busy moment. That shows up
+  // here as fetch() rejecting or the response not being valid JSON
+  // (Google serves an HTML "too many requests" page instead) — not a
+  // real network outage, just the script momentarily too busy to take
+  // one more concurrent execution, which normally clears within a
+  // couple of seconds as other requests finish. The old 2-retry/500ms
+  // policy gave that under 1.5 seconds total to clear before giving up
+  // and telling someone "No connection" — nowhere near enough. This
+  // retries more patiently (5 attempts total, roughly doubling the
+  // wait each time: 0.6s, 1.2s, 2.4s, 4.8s) so a genuine busy-moment
+  // failure gets a real chance to resolve itself before surfacing as
+  // an error.
+  function fetchJSON(url, options, attempt){
+    if(attempt === undefined) attempt = 0;
     return fetch(url, options)
       .then(r => r.json())
       .catch(err => {
-        if(retries > 0){
-          return new Promise(resolve => setTimeout(resolve, 500))
-            .then(() => fetchJSON(url, options, retries - 1));
+        if(attempt < 4){
+          return new Promise(resolve => setTimeout(resolve, 600 * Math.pow(2, attempt)))
+            .then(() => fetchJSON(url, options, attempt + 1));
         }
         throw err;
       });
@@ -1777,8 +1793,15 @@
   const approvalWaitPendingDetail = document.getElementById('approvalWaitPendingDetail');
   const approvalWaitApprovedDetail = document.getElementById('approvalWaitApprovedDetail');
   const approvalWaitCodes = document.getElementById('approvalWaitCodes');
-  const APPROVAL_POLL_INTERVAL_MS = 3000;
-  const APPROVAL_POLL_MAX_ATTEMPTS = 200; // ~10 minutes, then fall back to telling them to check later
+  // Bumped from 3000 to 5000 — every registrant sitting on this screen
+  // is its own poll against the same Apps Script backend the front
+  // desks are also polling; at a busy moment (a rush of new
+  // registrants, each polling every few seconds) that's real
+  // concurrent load against a real per-script execution cap. Max
+  // attempts scaled down to match so the overall ~10 minute timeout
+  // window stays the same.
+  const APPROVAL_POLL_INTERVAL_MS = 5000;
+  const APPROVAL_POLL_MAX_ATTEMPTS = 120; // ~10 minutes, then fall back to telling them to check later
   let approvalPollTimer = null;
 
   function stopApprovalPoll(){
@@ -2136,8 +2159,11 @@
   // its own small self-rescheduling poll instead of reusing
   // startApprovalWait() below, which is built around Registrations
   // rows and showing off a member code — a Walk-in has neither.
-  const WALKIN_POLL_INTERVAL_MS = 3000;
-  const WALKIN_POLL_MAX_ATTEMPTS = 200; // ~10 minutes, then fall back to telling them to check with the front desk
+  // Same reasoning as APPROVAL_POLL_INTERVAL_MS above — fewer
+  // concurrent polls against the shared Apps Script backend, same
+  // overall ~10 minute timeout window.
+  const WALKIN_POLL_INTERVAL_MS = 5000;
+  const WALKIN_POLL_MAX_ATTEMPTS = 120; // ~10 minutes, then fall back to telling them to check with the front desk
   let walkinPollTimer = null;
   function stopWalkinPoll(){
     if(walkinPollTimer){ clearTimeout(walkinPollTimer); walkinPollTimer = null; }
