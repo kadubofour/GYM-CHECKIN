@@ -955,27 +955,11 @@ function deleteDriveFileIfAny(url) {
   try { DriveApp.getFileById(fileId).setTrashed(true); } catch (err) { /* already gone, or never a real file — nothing to clean up */ }
 }
 
-// Moves a photo/signature file (saved into the Pending folder at
-// submission time) into the given folder — used on approval to move it
-// out of PENDING_PHOTOS_FOLDER_NAME into PHOTOS_FOLDER_NAME. Safe to
-// call on a file that's already in the destination folder (a no-op) —
-// e.g. a renewal's pending row reuses the member's existing, already-
-// approved photo rather than a freshly uploaded one.
-function moveDriveFileIfAny(url, folder) {
-  const fileId = parseDriveFileId(url);
-  if (!fileId) return;
-  try {
-    const file = DriveApp.getFileById(fileId);
-    const parents = file.getParents();
-    while (parents.hasNext()) parents.next().removeFile(file);
-    folder.addFile(file);
-  } catch (err) { /* already gone, or never a real file — nothing to move */ }
-}
-
 // Parses either a bare Drive file ID or a full Drive URL
 // (".../file/d/<ID>/view", "...?id=<ID>", etc.) into just the ID — used
-// by deleteDriveFileIfAny()/moveDriveFileIfAny() above to resolve a
-// photoUrl/signatureUrl cell back to the file it points at.
+// by deleteDriveFileIfAny() above and moveApprovedPhotosOutOfPending()
+// below to resolve a photoUrl/signatureUrl cell back to the file it
+// points at.
 function parseDriveFileId(input) {
   const s = String(input || "").trim();
   if (!s) return "";
@@ -1091,14 +1075,22 @@ function approvePendingRow(activity, pending, registrations, idx) {
   }
 
   // The photo/signature were uploaded into the Pending folder at
-  // submission time (see the "submit" handler) — now that this row is
-  // becoming a real member, move them into the approved folder. Safe to
-  // call even for a renewal, whose rowValues.photoUrl/signatureUrl are
-  // just copied from the member's existing (already-approved) row —
-  // moving a file into the folder it's already in is a no-op.
-  const approvedPhotosFolder = getPhotosFolder();
-  moveDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("photoUrl")], approvedPhotosFolder);
-  moveDriveFileIfAny(rowValues[PENDING_HEADERS.indexOf("signatureUrl")], approvedPhotosFolder);
+  // submission time (see the "submit" handler) and stay there for now —
+  // moving a file into the approved folder is NOT done here anymore.
+  // moveDriveFileIfAny() costs 3-4 separate Drive API round trips per
+  // file (get file, list parents, remove from each, add to the new
+  // folder) — 6-8 calls for photo+signature together, and up to 5x that
+  // for a Family Package approved in one go, since approvePendingRow()
+  // runs once per family member. That was adding several, sometimes
+  // dozens of, real seconds to every approval. The file's already
+  // viewable either way (sharing was set to ANYONE_WITH_LINK at upload
+  // time in savePhotoAndGetUrl, regardless of folder), so which folder
+  // it currently sits in has no effect on the app actually working —
+  // it's purely a Drive tidiness detail. moveApprovedPhotosOutOfPending()
+  // (below, run nightly — see runNightlyMaintenance) sweeps every
+  // Registrations sheet and moves any photo/signature it finds still
+  // sitting in the Pending folder into the approved one, in bulk,
+  // instead of one-by-one on the clock during a front-desk approval.
 
   // getValues() strips any leading apostrophe on the way out, so a
   // value like "+233 24 123 4567" comes back plain again — re-guard it
@@ -2636,14 +2628,59 @@ function runNightlyMaintenance() {
   const ranAt = new Date();
   let signOutResult = "ok";
   let regroupResult = "ok";
+  let photoMoveResult = "ok";
   try { autoSignOutAt10pm(); } catch (err) { signOutResult = `failed: ${err}`; Logger.log(`autoSignOutAt10pm failed: ${err}`); }
   try { regroupAllRegistrations(); } catch (err) { regroupResult = `failed: ${err}`; Logger.log(`regroupAllRegistrations failed: ${err}`); }
+  try { moveApprovedPhotosOutOfPending(); } catch (err) { photoMoveResult = `failed: ${err}`; Logger.log(`moveApprovedPhotosOutOfPending failed: ${err}`); }
   PropertiesService.getScriptProperties().setProperty(LAST_NIGHTLY_RUN_PROPERTY, JSON.stringify({
     ranAtIso: ranAt.toISOString(),
     ranAtLocal: Utilities.formatDate(ranAt, TIMEZONE, "EEEE, MMM d, yyyy 'at' h:mm:ss a") + " (" + TIMEZONE + ")",
     signOutResult: signOutResult,
-    regroupResult: regroupResult
+    regroupResult: regroupResult,
+    photoMoveResult: photoMoveResult
   }));
+}
+
+// Approving a member no longer moves their photo/signature out of the
+// Pending Photos folder on the spot (see the comment in
+// approvePendingRow() — that used to cost 3-4 Drive API round trips per
+// file, several real seconds per approval). This is the batch catch-up:
+// once a day, build the set of every photoUrl/signatureUrl a Registrations
+// sheet actually references (narrow two-column reads, same pattern as
+// everywhere else in this file), then walk the Pending Photos folder
+// once and move any file whose ID is in that set — one folder listing
+// instead of one Drive lookup per approval. A file that's already in the
+// approved folder (nothing left to move) is simply never found sitting
+// in Pending, so this is always safe to run even if nothing changed.
+function moveApprovedPhotosOutOfPending() {
+  const approvedFileIds = new Set();
+  Object.keys(ACTIVITIES).forEach(key => {
+    const activity = ACTIVITIES[key];
+    const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    const photoCol = REGISTRATIONS_HEADERS.indexOf("photoUrl") + 1;
+    const sigCol = REGISTRATIONS_HEADERS.indexOf("signatureUrl") + 1;
+    const photos = sheet.getRange(2, photoCol, lastRow - 1, 1).getValues();
+    const sigs = sheet.getRange(2, sigCol, lastRow - 1, 1).getValues();
+    photos.forEach(r => { const id = parseDriveFileId(r[0]); if (id) approvedFileIds.add(id); });
+    sigs.forEach(r => { const id = parseDriveFileId(r[0]); if (id) approvedFileIds.add(id); });
+  });
+  if (approvedFileIds.size === 0) { Logger.log("No approved photo/signature URLs found — nothing to move."); return; }
+
+  const approvedFolder = getPhotosFolder();
+  const pendingFolder = getPendingPhotosFolder();
+  const files = pendingFolder.getFiles();
+  let moved = 0;
+  while (files.hasNext()) {
+    const file = files.next();
+    if (approvedFileIds.has(file.getId())) {
+      pendingFolder.removeFile(file);
+      approvedFolder.addFile(file);
+      moved++;
+    }
+  }
+  Logger.log(`${moved} approved photo/signature file(s) moved from the Pending folder into the approved folder.`);
 }
 
 // Run any time from the function dropdown (Run > checkLastNightlyRun)
@@ -2666,7 +2703,8 @@ function checkLastNightlyRun() {
     return;
   }
   const info = JSON.parse(raw);
-  Logger.log(`Last ran: ${info.ranAtLocal}\nAuto sign-out: ${info.signOutResult}\nDate regrouping: ${info.regroupResult}`);
+  Logger.log(`Last ran: ${info.ranAtLocal}\nAuto sign-out: ${info.signOutResult}\nDate regrouping: ${info.regroupResult}\n` +
+    `Approved photo move: ${info.photoMoveResult || "(not recorded — ran before this job existed)"}`);
 }
 
 // Edit ACTIVITY_KEY/CODE below to a real activity + member code that's
