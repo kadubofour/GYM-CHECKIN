@@ -2662,6 +2662,45 @@ function checkLastNightlyRun() {
   Logger.log(`Last ran: ${info.ranAtLocal}\nAuto sign-out: ${info.signOutResult}\nDate regrouping: ${info.regroupResult}`);
 }
 
+// Edit ACTIVITY_KEY/CODE below to a real activity + member code that's
+// (supposedly) expired but still signing in, then run this from the
+// function dropdown (Run > diagnoseExpiry) and read the Execution log —
+// it prints every value isExpired() actually bases its decision on, so
+// "still signs in when it shouldn't" turns into a concrete answer:
+// wrong stored date, a duration string that doesn't match any
+// configured plan (cfg found: false — isExpired() always returns false
+// in that case, date math never even runs), a date that parses to the
+// wrong calendar day, or a genuine logic problem to report back with
+// these exact numbers.
+function diagnoseExpiry() {
+  const ACTIVITY_KEY = "gym"; // change to the activity to check
+  const CODE = "";            // change to the member's code/ID
+
+  const activity = getActivity(ACTIVITY_KEY);
+  if (!activity) { Logger.log(`Unknown activity key: "${ACTIVITY_KEY}"`); return; }
+  if (!CODE) { Logger.log("Set CODE to a real member code/ID near the top of diagnoseExpiry() first."); return; }
+
+  const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+  const match = getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, CODE);
+  if (!match) { Logger.log(`No ${activity.label} registration found for code "${CODE}".`); return; }
+
+  const cfg = getDurationConfig(activity, match.duration);
+  const parsedDate = parseDateSafe(match.date);
+  const expiry = getExpiryDate(activity, match.date, match.duration);
+  const expired = isExpired(activity, match.date, match.duration, match.sessionsUsed);
+
+  Logger.log(
+    `Member: ${match.name} (${match.class})\n` +
+    `Stored "date": "${match.date}"  ->  parsed as: ${parsedDate}\n` +
+    `Stored "duration": "${match.duration}"  ->  matching plan found: ${!!cfg}` +
+    (cfg ? ` (${cfg.days} days${cfg.sessionCap ? `, ${cfg.sessionCap}-session cap` : ""})` : " <- NOT FOUND, isExpired() always returns false for this row") + `\n` +
+    `sessionsUsed: "${match.sessionsUsed}"\n` +
+    `Computed expiry date: ${expiry}\n` +
+    `Server's "today": ${new Date()}\n` +
+    `isExpired() result: ${expired}`
+  );
+}
+
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
 // then approve the permissions prompt. Schedules runNightlyMaintenance()
 // (the 10pm auto sign-out, then the date-grouped Registrations
