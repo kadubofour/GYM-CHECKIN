@@ -1044,6 +1044,24 @@
       });
   }
 
+  // A page left open a long time — a front-desk kiosk tab, or a
+  // registrant's phone locked and reopened later — can lose its
+  // activity selection out from under it: Android Chrome in particular
+  // will silently reload a backgrounded tab under memory pressure,
+  // which resets currentActivity to null along with the rest of the
+  // JS state. Without this guard, submitting from that now-stale form
+  // sends the server a request with no activity and gets back "Unknown
+  // or missing activity" — a dead end that doesn't explain anything.
+  // Called at the top of every action that depends on currentActivity;
+  // sends them back to pick their activity again instead of failing.
+  function requireCurrentActivity(){
+    if(currentActivity) return true;
+    pickerSection = null;
+    renderActivityPicker();
+    showScreen('picker');
+    return false;
+  }
+
   if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
     document.getElementById('setupWarning').style.display = 'block';
     document.getElementById('setupWarningPicker').style.display = 'block';
@@ -2432,6 +2450,7 @@
 
   codeForm.addEventListener('submit', function(e){
     e.preventDefault();
+    if(!requireCurrentActivity()) return;
     const code = codeInput.value.trim();
     if(!code){ markInvalid('field-code'); return; }
     clearFieldError('field-code');
@@ -2471,6 +2490,7 @@
 
   lookupForm.addEventListener('submit', function(e){
     e.preventDefault();
+    if(!requireCurrentActivity()) return;
     const phoneDigits = phoneInput.value.replace(/[^0-9+]/g, '');
     if(!phoneDigits || phoneDigits.replace(/\D/g,'').length < 9){ markInvalid('field-phone-lookup'); return; }
     clearFieldError('field-phone-lookup');
@@ -2618,6 +2638,7 @@
 
   codeOutForm.addEventListener('submit', function(e){
     e.preventDefault();
+    if(!requireCurrentActivity()) return;
     const code = codeOutInput.value.trim();
     if(!code){ markInvalid('field-code-out'); return; }
     clearFieldError('field-code-out');
@@ -2652,6 +2673,7 @@
 
   phoneOutForm.addEventListener('submit', function(e){
     e.preventDefault();
+    if(!requireCurrentActivity()) return;
     if(!phoneOutInput.value.trim()){ markInvalid('field-phone-out'); return; }
     clearFieldError('field-phone-out');
 
