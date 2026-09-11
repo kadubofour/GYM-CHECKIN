@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rates & Schedule Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#E8E3D5; --paper:#FFFFFF; --bg:#FFFFFF; --bg-alt:#F7F4EC; --surface:#FFFFFF;
+    --line:#E2DED0; --line-strong:#B9C7DE;
+    --text:#0F1D3B; --text-dim:#5B6B85; --text-faint:#8B98AC;
+    --navy:#232559; --navy-dark:#14152F; --navy-dim:rgba(35,37,89,0.07);
+    --gold:#BA8F4A; --gold-dark:#8F6B32; --gold-dim:rgba(186,143,74,0.14);
+    --on-navy:#F4F1E6; --on-navy-dim:rgba(244,241,230,0.66);
+    --row-alt:#F7F4EC;
+    --paper-shadow:0 2px 6px rgba(35,25,10,0.06), 0 40px 70px -30px rgba(35,25,10,0.28);
+    --shadow:0 1px 3px rgba(15,29,59,0.05), 0 14px 34px rgba(15,29,59,0.07);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --canvas:#07081A; --paper:#181B3E; --bg:#0E1028; --bg-alt:#1F2246; --surface:#181B3E;
+      --line:rgba(244,241,230,0.14); --line-strong:rgba(244,241,230,0.24);
+      --text:#F1EFE8; --text-dim:#B7BCDD; --text-faint:#7E85AE;
+      --navy:#2A2D63; --navy-dark:#14152F; --navy-dim:rgba(210,172,107,0.10);
+      --gold:#D2AC6B; --gold-dark:#BA8F4A; --gold-dim:rgba(210,172,107,0.16);
+      --on-navy:#F4F1E6; --on-navy-dim:rgba(244,241,230,0.66);
+      --row-alt:#1F2246;
+      --paper-shadow:0 2px 6px rgba(0,0,0,0.4), 0 40px 70px -30px rgba(0,0,0,0.65);
+      --shadow:0 1px 3px rgba(0,0,0,0.3), 0 14px 34px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --canvas:#07081A; --paper:#181B3E; --bg:#0E1028; --bg-alt:#1F2246; --surface:#181B3E;
+    --line:rgba(244,241,230,0.14); --line-strong:rgba(244,241,230,0.24);
+    --text:#F1EFE8; --text-dim:#B7BCDD; --text-faint:#7E85AE;
+    --navy:#2A2D63; --navy-dark:#14152F; --navy-dim:rgba(210,172,107,0.10);
+    --gold:#D2AC6B; --gold-dark:#BA8F4A; --gold-dim:rgba(210,172,107,0.16);
+    --on-navy:#F4F1E6; --on-navy-dim:rgba(244,241,230,0.66);
+    --row-alt:#1F2246;
+    --paper-shadow:0 2px 6px rgba(0,0,0,0.4), 0 40px 70px -30px rgba(0,0,0,0.65);
+    --shadow:0 1px 3px rgba(0,0,0,0.3), 0 14px 34px rgba(0,0,0,0.4);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--canvas); color:var(--text); font-family:'Inter',sans-serif;
+    padding:clamp(28px,7vw,56px) 16px clamp(48px,10vw,90px);
+  }
+  .paper{
+    max-width:840px; margin:0 auto; background:var(--paper); border:1px solid var(--line);
+    border-radius:20px; overflow:hidden; box-shadow:var(--paper-shadow);
+    display:flex; flex-direction:column;
+  }
+  h1,h2,h3{ font-family:'Bebas Neue',sans-serif; letter-spacing:0.02em; margin:0; text-wrap:balance; }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:0.16em;
+    text-transform:uppercase; margin:0 0 8px; display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{ content:""; width:14px; height:1.5px; background:var(--gold); flex-shrink:0; }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    background:var(--navy); color:var(--on-navy); padding:46px 40px 40px;
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(560px 320px at 106% -12%, rgba(186,143,74,0.22), transparent 60%),
+      radial-gradient(420px 280px at -8% 118%, rgba(186,143,74,0.14), transparent 60%);
+  }
+  .hero-top{ display:flex; align-items:center; gap:12px; position:relative; margin-bottom:22px; }
+  .crest{ width:34px; height:41px; flex-shrink:0; background-image:url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKICAgeG1sbnM6ZGM9Imh0dHA6Ly9wdXJsLm9yZy9kYy9lbGVtZW50cy8xLjEvIgogICB4bWxuczpjYz0iaHR0cDovL2NyZWF0aXZlY29tbW9ucy5vcmcvbnMjIgogICB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgaWQ9InN2ZzExMjYiCiAgIHZlcnNpb249IjEuMSIKICAgdmlld0JveD0iMCAwIDc5LjM3NSA5NS4xNTI1MzQiCiAgIGhlaWdodD0iOTUuMTUyNTM0bW0iCiAgIHdpZHRoPSI3OS4zNzVtbSI+CiAgPGRlZnMKICAgICBpZD0iZGVmczExMjAiPgogICAgPGNsaXBQYXRoCiAgICAgICBjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKICAgICAgIGlkPSJjbGlwUGF0aDg4MSI+CiAgICAgIDxwYXRoCiAgICAgICAgIGQ9Im0gMTIwLjIyNCwzMTEuNjg2IGggNTcuMTkgdiA2My4wNjggaCAtNTcuMTkgeiIKICAgICAgICAgaWQ9InBhdGg4NzkiIC8+CiAgICA8L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8bWV0YWRhdGEKICAgICBpZD0ibWV0YWRhdGExMTIzIj4KICAgIDxyZGY6UkRGPgogICAgICA8Y2M6V29yawogICAgICAgICByZGY6YWJvdXQ9IiI+CiAgICAgICAgPGRjOmZvcm1hdD5pbWFnZS9zdmcreG1sPC9kYzpmb3JtYXQ+CiAgICAgICAgPGRjOnR5cGUKICAgICAgICAgICByZGY6cmVzb3VyY2U9Imh0dHA6Ly9wdXJsLm9yZy9kYy9kY21pdHlwZS9TdGlsbEltYWdlIiAvPgogICAgICAgIDxkYzp0aXRsZT48L2RjOnRpdGxlPgogICAgICA8L2NjOldvcms+CiAgICA8L3JkZjpSREY+CiAgPC9tZXRhZGF0YT4KICA8ZwogICAgIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNzcuMzM5MDMsLTc5LjM3NDk5MikiCiAgICAgaWQ9ImxheWVyMSI+CiAgICA8ZwogICAgICAgdHJhbnNmb3JtPSJtYXRyaXgoMS41MjczMjMyLDAsMCwtMS41MjczMjMyLDg5LjgxMzExNyw2NTEuNzQ1NDcpIgogICAgICAgY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoODgxKSIKICAgICAgIGlkPSJnODc3Ij4KICAgICAgPGcKICAgICAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYyLjI0NjksMzE4LjkzMjkpIgogICAgICAgICBpZD0iZzg4MyI+CiAgICAgICAgPHBhdGgKICAgICAgICAgICBpZD0icGF0aDg4NSIKICAgICAgICAgICBzdHlsZT0iZmlsbDojYmE4ZjRhO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICAgIGQ9Ik0gMCwwIEMgMC4wNjYsMC40MTUgMC4wNzcsMC41NjkgMC4xNDQsMC45ODQgMS4yMjgsMS4wNDggMi4yNTgsMC44NTIgMy4yODcsMC42NTYgMi41ODQsMC4xMjEgMS4xNjgsLTAuMDU4IDAsMCBtIC0yNi44NzcsLTAuMjc3IGMgLTEuMTc3LDAuMDg3IC0yLjU0OSwwLjQzNSAtMy4xMzcsMS4wNDQgMS4wNjcsMC4wNjUgMi4xMzUsMC4xMyAzLjIwMiwtMC4wNjUgLTAuMDIyLC0wLjQxNCAtMC4wNDMsLTAuNTY2IC0wLjA2NSwtMC45NzkgTSA0LjExMywxLjEwMiBDIDIuMDg1LDEuNzMxIDEuMDIyLDEuNTU5IC0wLjM5NiwxLjU3OSBMIC0wLjU5LC0wLjQyOSBjIC04LjI2LC0xLjQ2NyAtMTYuOTI2LC0xLjM0NyAtMjUuNTMsMC4wNCAtMC4xMzQsMC44NTIgLTAuMDExLDEuMjIzIC0wLjE1MSwxLjc2OSAtMi42NCwwLjE2NyAtNC43MjQsMC4wNzMgLTQuNzQ4LC0wLjgwNSAwLC0xLjMxNiAwLC0zLjQ4NSAwLC00LjggMTEuNTA3LC0zLjAwNSAyMy42MjUsLTMuMDQ2IDM1LjEzMiwwLjEyMSAwLDEuMDk3IDAsNC4xMSAwLDUuMjA2IiAvPgogICAgICA8L2c+CiAgICAgIDxnCiAgICAgICAgIHRyYW5zZm9ybT0idHJhbnNsYXRlKDE3NC43MjEzLDMyMy4yOTM4KSIKICAgICAgICAgaWQ9Imc4ODciPgogICAgICAgIDxwYXRoCiAgICAgICAgICAgaWQ9InBhdGg4ODkiCiAgICAgICAgICAgc3R5bGU9ImZpbGw6I2JhOGY0YTtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZSIKICAgICAgICAgICBkPSJtIDAsMCBjIDAuMTEsMS41NTYgLTMuMjY4LDIuNDU4IC02LjA0MywwLjg0NCAtMy4yNDUsLTIuNzEzIDMuMjExLC0zLjQxMyA0LjQyOSwtMS40MzMgMC4zNSwwLjcxMiAtMC4yNTYsMC44NjcgLTAuNzk4LDAuNTExIC0xLjAwOCwtMC42NjMgLTMuMzY5LC0wLjg4OSAtMy4xMzcsMC4xMjMgMC42ODMsMC44NyAzLjM1MiwwLjg1IDMuODE0LDAuNTg1IDMuNDEyLC0xLjY5MSAtMy40MzgsLTMuODcyIC01LjA5NiwtMi44MjMgLTQuMTkzLDEuNDQzIC01Ljg5NCwwLjU3NiAtNS44NTYsMC40NCAtMC4wNDgsLTAuNjQ2IDAuNDc1LC0wLjYwMiAxLjY1NSwtMC41NTMgMS4wNDEsMC4wNDIgMi4yMiwtMC4wNjggMy4xMjIsLTAuNTc5IDAsLTEuMzAyIDAuMTEzLC0yLjg4NiAwLjExMywtNC4xODcgMi43NjUsLTAuMTQgNS4xOTUsMC4yMjggNy4zMDksMS43MTIgQyAtMC40OTQsLTMuNzQyIDAuMTc2LC0wLjQzNCAwLDAiIC8+CiAgICAgIDwvZz4KICAgICAgPGcKICAgICAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYzLjMyNjQsMzE1Ljg0ODMpIgogICAgICAgICBpZD0iZzg5MSI+CiAgICAgICAgPHBhdGgKICAgICAgICAgICBpZD0icGF0aDg5MyIKICAgICAgICAgICBzdHlsZT0iZmlsbDojMjMyNTU5O2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICAgIGQ9Im0gMCwwIDAuMzc5LDAuMTE3IGMgMC4xMDMsLTAuMjg3IDAuMjc2LC0wLjQwOSAwLjUxOSwtMC4zNjMgMC4xMTksMC4wMjIgMC4yMDgsMC4wNyAwLjI2NCwwLjE0NCBDIDEuMjE5LC0wLjAyOSAxLjIzOCwwLjA1MyAxLjIyLDAuMTQyIDEuMjEsMC4xOTUgMS4xODksMC4yMzcgMS4xNTgsMC4yNyAxLjEyNiwwLjMwMiAxLjA4MywwLjMyNSAxLjAyOSwwLjM0IDAuOTc1LDAuMzU0IDAuODQ5LDAuMzcyIDAuNjQ4LDAuMzkyIDAuNDY5LDAuNDEgMC4zMzQsMC40NCAwLjI0NCwwLjQ4NCAwLjE1NCwwLjUyNyAwLjA3NiwwLjU5MSAwLjAxLDAuNjc2IC0wLjA1NSwwLjc2MiAtMC4wOTgsMC44NTkgLTAuMTIsMC45NjcgLTAuMTQ2LDEuMDk0IC0wLjEzOSwxLjIxMyAtMC4xLDEuMzI1IC0wLjA2MSwxLjQzNyAwLjAwNiwxLjUyOSAwLjEsMS42IDAuMTk1LDEuNjcxIDAuMzE5LDEuNzIxIDAuNDczLDEuNzUgMC43MDUsMS43OTQgMC44OTcsMS43NjcgMS4wNTEsMS42NyAxLjIwNiwxLjU3NCAxLjMxLDEuNDEzIDEuMzYyLDEuMTg5IEwgMC45NjksMS4wOTQgQyAwLjkyNiwxLjIxNiAwLjg3MSwxLjI5NSAwLjgwMywxLjMzNCAwLjczNiwxLjM3MiAwLjY0OCwxLjM4MSAwLjU0MSwxLjM2MSAwLjQzNCwxLjM0MSAwLjM1NiwxLjMwNCAwLjMwNywxLjI1MSAwLjI1OCwxLjE5NiAwLjIzOSwxLjEzOCAwLjI1MiwxLjA3MyAwLjI2NSwxLjAxIDAuMzAyLDAuOTYyIDAuMzYzLDAuOTI5IDAuNDI1LDAuODk1IDAuNTU1LDAuODcxIDAuNzU0LDAuODU0IDAuOTY1LDAuODM2IDEuMTIxLDAuODA0IDEuMjIyLDAuNzU5IDEuMzI0LDAuNzE0IDEuNDA4LDAuNjQ3IDEuNDc0LDAuNTU5IDEuNTQxLDAuNDcgMS41ODgsMC4zNTcgMS42MTYsMC4yMTggMS42NTcsMC4wMTcgMS42MjYsLTAuMTY0IDEuNTI2LC0wLjMyNSAxLjQyNSwtMC40ODYgMS4yMzgsLTAuNTkyIDAuOTY2LC0wLjY0MyAwLjQ4MywtMC43MzMgMC4xNjEsLTAuNTE5IDAsMCBtIC0yLjE2MywxLjI1NSAwLjM5NywwLjA2NyAwLjIzLC0xLjI1NyBjIDAuMDM2LC0wLjE5NiAwLjA2NCwtMC4zMjIgMC4wODUsLTAuMzggMC4wMzYsLTAuMDk5IDAuMDkyLC0wLjE3MSAwLjE2OSwtMC4yMTYgMC4wNzYsLTAuMDQ1IDAuMTY5LC0wLjA1OCAwLjI3NywtMC4wMzkgMC4wOTIsMC4wMTUgMC4xNjMsMC4wNDggMC4yMTUsMC4wOTcgMC4wNSwwLjA1IDAuMDgsMC4xMTIgMC4wODgsMC4xODYgMC4wMDksMC4wNzMgLTAuMDA4LDAuMjI2IC0wLjA1LDAuNDU3IGwgLTAuMjM1LDEuMjg1IDAuMzk5LDAuMDY4IDAuMjIzLC0xLjIyIGMgMC4wNTcsLTAuMzEyIDAuMDgxLC0wLjU0IDAuMDcyLC0wLjY4NCAtMC4wMSwtMC4xNDUgLTAuMDY2LC0wLjI3MSAtMC4xNzIsLTAuMzc3IC0wLjEwNSwtMC4xMDggLTAuMjU3LC0wLjE3NyAtMC40NTUsLTAuMjExIC0wLjIwNiwtMC4wMzUgLTAuMzczLC0wLjAyNyAtMC41MDIsMC4wMjUgLTAuMTI4LDAuMDUxIC0wLjIzLDAuMTM4IC0wLjMwNiwwLjI1OCAtMC4wNzYsMC4xMiAtMC4xNDUsMC4zNTQgLTAuMjA5LDAuNzAyIHogbSAtMS44NzYsLTIuNjI5IC0wLjI5OCwyLjM0IDAuNjAxLDAuMDcxIDAuNTY1LC0xLjU1NCAwLjE1NCwxLjYzOSAwLjYwMiwwLjA3MiAwLjI5OCwtMi4zNDEgLTAuMzcyLC0wLjA0NCAtMC4yMzUsMS44NDMgLTAuMTYxLC0xLjg5IC0wLjM4NywtMC4wNDUgLTAuNjI3LDEuNzk1IDAuMjM0LC0xLjg0MiB6IE0gLTUuMSwtMC42MDYgLTUuNDY5LDAuMjM3IC01LjY0NCwtMC42NjEgWiBtIDAuODQzLC0wLjg1MiAtMC40MzgsLTAuMDQ1IC0wLjIzMiwwLjUxNiAtMC43OTcsLTAuMDgxIC0wLjEwNiwtMC41NSAtMC40MjgsLTAuMDQzIDAuNTIxLDIuNDI0IDAuNDI2LDAuMDQzIHogbSAtMy41NjMsMS42MzUgMC4xNDEsLTEuNTU2IDAuMzAzLDAuMDI2IGMgMC4xMjksMC4wMSAwLjIyMywwLjAzIDAuMjc4LDAuMDU4IDAuMDU3LDAuMDI5IDAuMTAxLDAuMDY4IDAuMTM0LDAuMTE5IDAuMDMzLDAuMDUxIDAuMDU3LDAuMTI4IDAuMDcyLDAuMjMzIDAuMDE1LDAuMTA1IDAuMDE0LDAuMjQxIC0xMGUtNCwwLjQwOSAtMC4wMTYsMC4xNzMgLTAuMDQxLDAuMzEgLTAuMDc0LDAuNDA4IC0wLjAzNSwwLjA5OCAtMC4wOCwwLjE3NCAtMC4xMzgsMC4yMjcgLTAuMDU4LDAuMDU0IC0wLjEyNSwwLjA4NiAtMC4yMDIsMC4wOTggLTAuMDU5LDAuMDA5IC0wLjE2OCwwLjAwNyAtMC4zMywtMC4wMDcgeiBtIC0wLjQzNywwLjM2MyAwLjczNSwwLjA2MiBjIDAuMTg2LDAuMDE2IDAuMzI5LDAuMDA4IDAuNDI3LC0wLjAyNCAwLjA5OCwtMC4wMzIgMC4xOTIsLTAuMDkzIDAuMjgsLTAuMTgxIDAuMDg5LC0wLjA4OCAwLjE2MiwtMC4yMDYgMC4yMjIsLTAuMzU0IDAuMDU5LC0wLjE0OCAwLjA5OSwtMC4zMzQgMC4xMTksLTAuNTYgMC4wMTksLTAuMjAzIDAuMDExLC0wLjM4MSAtMC4wMjMsLTAuNTM2IC0wLjAzNCwtMC4xNTQgLTAuMDg0LC0wLjI3NyAtMC4xNDksLTAuMzcyIC0wLjA2NiwtMC4wOTMgLTAuMTQ4LC0wLjE2NiAtMC4yNDcsLTAuMjE5IC0wLjEsLTAuMDUzIC0wLjIzMSwtMC4wODcgLTAuMzk0LC0wLjEwMSBsIC0wLjc1NywtMC4wNjQgeiBtIC0xLjY1MiwtMi40NTQgLTAuMTI4LDIuMzU0IDEuNDg2LDAuMDc2IDAuMDIyLC0wLjM5OSAtMS4wODQsLTAuMDU1IDAuMDI5LC0wLjUyMiAxLjAwNiwwLjA1MSAwLjAyMiwtMC4zOTYgLTEuMDA3LC0wLjA1MSAwLjAzNSwtMC42NDEgMS4xMiwwLjA1NyAwLjAyMSwtMC4zOTcgeiBtIC0wLjc3MSwwLjg0IDAuMzk3LC0wLjEzMyBjIC0wLjA1MiwtMC4yNjYgLTAuMTQ2LC0wLjQ2MiAtMC4yODQsLTAuNTg4IC0wLjEzOCwtMC4xMjcgLTAuMzExLC0wLjE5MyAtMC41MTksLTAuMiAtMC4yNjEsLTAuMDA5IC0wLjQ3NiwwLjA4MSAtMC42NDUsMC4yNjkgLTAuMTk2LDAuMjE4IC0wLjMsMC41MTcgLTAuMzE0LDAuODk3IC0wLjAxNCwwLjQwMiAwLjA2OCwwLjcyIDAuMjQ4LDAuOTUzIDAuMTU2LDAuMjAzIDAuMzcyLDAuMzA5IDAuNjQ4LDAuMzE4IDAuMjI0LDAuMDA4IDAuNDE1LC0wLjA2IDAuNTcxLC0wLjIwMiAwLjExMiwtMC4xMDIgMC4xOTYsLTAuMjU1IDAuMjU0LC0wLjQ2IGwgLTAuMzk2LC0wLjEyNiBjIC0wLjAzLDAuMTI3IC0wLjA4NCwwLjIyMiAtMC4xNjMsMC4yODggLTAuMDc5LDAuMDY1IC0wLjE3LDAuMDk2IC0wLjI3MywwLjA5MyAtMC4xNDgsLTAuMDA1IC0wLjI2NiwtMC4wNzEgLTAuMzU1LC0wLjE5OSAtMC4wODksLTAuMTI3IC0wLjEyOCwtMC4zMzQgLTAuMTE4LC0wLjYyIDAuMDExLC0wLjI5NyAwLjA2NCwtMC41MDcgMC4xNiwtMC42MjkgMC4wOTUsLTAuMTIyIDAuMjE2LC0wLjE4MSAwLjM2MiwtMC4xNzYgMC4xMDcsMC4wMDQgMC4xOTcsMC4wNDcgMC4yNzIsMC4xMjkgMC4wNzUsMC4wODMgMC4xMjcsMC4yMTEgMC4xNTUsMC4zODYgbSAtMy4wOTYsMC4yNjQgYyAwLC0wLjI3MSAwLjA1NCwtMC40NzQgMC4xNiwtMC42MSAwLjEwNywtMC4xMzYgMC4yMzksLTAuMjA0IDAuMzk4LC0wLjIwNCAwLjE1OCwwIDAuMjksMC4wNjggMC4zOTUsMC4yMDIgMC4xMDUsMC4xMzUgMC4xNTYsMC4zNDEgMC4xNTYsMC42MiAwLDAuMjc0IC0wLjA1LDAuNDc2IC0wLjE1MiwwLjYwNyAtMC4xMDIsMC4xMyAtMC4yMzUsMC4xOTYgLTAuMzk5LDAuMTk2IC0wLjE2NSwwIC0wLjI5OSwtMC4wNjYgLTAuNDAzLC0wLjE5OCAtMC4xMDMsLTAuMTMyIC0wLjE1NSwtMC4zMzYgLTAuMTU1LC0wLjYxMyBtIC0wLjQxNywtMC4wMTYgYyAwLDAuMjgxIDAuMDQzLDAuNTEyIDAuMTMsMC42OTQgMC4wODYsMC4xODIgMC4xOTgsMC4zMTcgMC4zMzcsMC40MDYgMC4xMzksMC4wODkgMC4zMDgsMC4xMzQgMC41MDYsMC4xMzQgMC4yODcsMCAwLjUyLC0wLjEwNiAwLjcwMSwtMC4zMTcgMC4xODEsLTAuMjExIDAuMjcxLC0wLjUxMiAwLjI3MSwtMC45MDMgMCwtMC4zOTQgLTAuMDk1LC0wLjcwMiAtMC4yODcsLTAuOTI0IC0wLjE2OCwtMC4xOTcgLTAuMzk1LC0wLjI5NSAtMC42ODMsLTAuMjk1IC0wLjI5MSwwIC0wLjUyLDAuMDk4IC0wLjY4OCwwLjI5MSAtMC4xOTEsMC4yMjIgLTAuMjg3LDAuNTI3IC0wLjI4NywwLjkxNCBtIC0xLjUxMiwwLjIxOSAwLjMwMSwtMC4wMDUgYyAwLjE4MywtMC4wMDMgMC4zLDAuMDAzIDAuMzUsMC4wMTcgMC4wNTEsMC4wMTUgMC4wOTIsMC4wNDUgMC4xMjQsMC4wOTIgMC4wMzEsMC4wNDcgMC4wNDgsMC4xMDkgMC4wNSwwLjE4NyAwLjAwMSwwLjA3NiAtMC4wMTQsMC4xMzYgLTAuMDQ0LDAuMTgyIC0wLjAzLDAuMDQ3IC0wLjA3MiwwLjA3OSAtMC4xMjUsMC4wOTYgLTAuMDM3LDAuMDEzIC0wLjE0NywwLjAyIC0wLjMyOCwwLjAyMyBsIC0wLjMxNywwLjAwNiB6IG0gLTAuNDI4LC0xLjM1NCAwLjA0MiwyLjM1OCAwLjg1MywtMC4wMTUgYyAwLjIxOCwtMC4wMDMgMC4zNzMsLTAuMDI3IDAuNDY2LC0wLjA3MSAwLjA5MywtMC4wNDQgMC4xNjgsLTAuMTE5IDAuMjI2LC0wLjIyNCAwLjA1OCwtMC4xMDYgMC4wODYsLTAuMjMyIDAuMDgzLC0wLjM3NyAtMC4wMDMsLTAuMTg1IC0wLjA1MiwtMC4zMzMgLTAuMTQ1LC0wLjQ0NCAtMC4wOTQsLTAuMTExIC0wLjIyNiwtMC4xNzkgLTAuMzk1LC0wLjIwNSAwLjA4NSwtMC4wNjIgMC4xNTYsLTAuMTI4IDAuMjExLC0wLjIwMSAwLjA1NSwtMC4wNzIgMC4xMzEsLTAuMjAxIDAuMjI1LC0wLjM4NyBsIDAuMjM1LC0wLjQ2NCAtMC40ODIsMC4wMDggLTAuMjg0LDAuNTE4IGMgLTAuMTAyLDAuMTg3IC0wLjE3MiwwLjMwNCAtMC4yMDksMC4zNTIgLTAuMDM3LDAuMDQ3IC0wLjA3NywwLjA3OSAtMC4xMTgsMC4wOTggLTAuMDQyLDAuMDE5IC0wLjExLDAuMDI4IC0wLjIwMywwLjAzIGwgLTAuMDg0LDAuMDAxIC0wLjAxOCwtMC45ODQgeiBtIC0xLjM5NiwyLjAwNyAtMC4wMjQsLTAuNjY5IDAuMjIzLC0wLjAwNyBjIDAuMTUxLC0wLjAwNSAwLjI1MywwLjAwMSAwLjMwOCwwLjAyIDAuMDU0LDAuMDE4IDAuMSwwLjA1MyAwLjEzNiwwLjEwNiAwLjAzNiwwLjA1MiAwLjA1NiwwLjExNiAwLjA1OSwwLjE5MyAwLjAwMiwwLjA3OCAtMC4wMTMsMC4xNDUgLTAuMDQ2LDAuMTk5IC0wLjAzNCwwLjA1NSAtMC4wNzcsMC4wOTMgLTAuMTI4LDAuMTEzIC0wLjA1MiwwLjAyIC0wLjE2MiwwLjAzMiAtMC4zMzEsMC4wMzggeiBtIC0wLjQ3NCwtMS45NDQgMC4wODUsMi4zNTYgMC42NSwtMC4wMjIgYyAwLjI0MywtMC4wMDggMC40MDEsLTAuMDI1IDAuNDc0LC0wLjA1IDAuMTE4LC0wLjA0IDAuMjEzLC0wLjEyMSAwLjI4NiwtMC4yNDIgMC4wNzMsLTAuMTIyIDAuMTA2LC0wLjI3NiAwLjEsLTAuNDY0IC0wLjAwNywtMC4xNzEgLTAuMDQ1LC0wLjMxMiAtMC4xMTYsLTAuNDI1IC0wLjA3MSwtMC4xMTMgLTAuMTU3LC0wLjE5MSAtMC4yNTksLTAuMjM0IC0wLjEwMiwtMC4wNDQgLTAuMjc1LC0wLjA2MSAtMC41MTksLTAuMDUzIGwgLTAuMjY2LDAuMDA5IC0wLjAzMiwtMC44ODkgeiBtIC0xLjU3LDAuMDkyIDAuMTcxLDIuMzUzIDAuNDAyLC0wLjAyOCAtMC4xNywtMi4zNTIgeiBtIC0xLjQ4NCwxLjQ4MyAwLjMsLTAuMDI2IGMgMC4xODIsLTAuMDE1IDAuMjk5LC0wLjAxNyAwLjM1LC0wLjAwNiAwLjA1MiwwLjAxMSAwLjA5NSwwLjAzOSAwLjEzLDAuMDgzIDAuMDM1LDAuMDQ1IDAuMDU3LDAuMTA2IDAuMDY0LDAuMTg0IDAuMDA3LDAuMDc1IC0wLjAwNCwwLjEzNiAtMC4wMywwLjE4NCAtMC4wMjcsMC4wNDggLTAuMDY2LDAuMDgzIC0wLjExOCwwLjEwNCAtMC4wMzcsMC4wMTYgLTAuMTQ2LDAuMDMgLTAuMzI2LDAuMDQ2IGwgLTAuMzE2LDAuMDI2IHogbSAtMC41MjUsLTEuMzIyIDAuMjEzLDIuMzQ5IDAuODQ5LC0wLjA3MiBjIDAuMjE3LC0wLjAxOCAwLjM3MSwtMC4wNTMgMC40NiwtMC4xMDMgMC4wODksLTAuMDUgMC4xNTksLTAuMTI5IDAuMjA5LC0wLjIzOCAwLjA1MSwtMC4xMSAwLjA2OSwtMC4yMzcgMC4wNTYsLTAuMzgyIC0wLjAxNywtMC4xODQgLTAuMDc1LC0wLjMyOCAtMC4xNzcsLTAuNDMzIC0wLjEwMiwtMC4xMDQgLTAuMjM4LC0wLjE2MyAtMC40MDksLTAuMTc4IDAuMDgxLC0wLjA2NyAwLjE0NywtMC4xMzggMC4xOTYsLTAuMjE0IDAuMDUsLTAuMDc2IDAuMTE2LC0wLjIxIDAuMTk3LC0wLjQwMiBsIDAuMjAxLC0wLjQ3OSAtMC40OCwwLjA0MSAtMC4yNDcsMC41MzYgYyAtMC4wODgsMC4xOTMgLTAuMTQ5LDAuMzE1IC0wLjE4MywwLjM2NSAtMC4wMzMsMC4wNDkgLTAuMDcsMC4wODQgLTAuMTExLDAuMTA2IC0wLjA0LDAuMDIxIC0wLjEwNywwLjAzNSAtMC4yLDAuMDQzIGwgLTAuMDgzLDAuMDA3IC0wLjA4OSwtMC45OCB6IG0gLTEuMTU5LDAuOTk1IDAuMDQzLDAuMzk1IDAuODY3LC0wLjA4OCAtMC4xMDEsLTAuOTM0IGMgLTAuMDk5LC0wLjA5IC0wLjIzMiwtMC4xNjMgLTAuNCwtMC4yMTggLTAuMTY4LC0wLjA1NiAtMC4zMzMsLTAuMDc1IC0wLjQ5NSwtMC4wNTggLTAuMTk2LDAuMDIgLTAuMzY1LDAuMDgzIC0wLjUwNSwwLjE5MiAtMC4xNCwwLjEwOSAtMC4yNDUsMC4yNjEgLTAuMzEyLDAuNDU2IC0wLjA2NywwLjE5NSAtMC4wODgsMC40MTggLTAuMDYsMC42NjkgMC4wMjgsMC4yNTkgMC4wOTcsMC40NzUgMC4yMDUsMC42NDkgMC4xMDksMC4xNzUgMC4yNCwwLjMgMC4zOTIsMC4zNzYgMC4xNTIsMC4wNzYgMC4zMjcsMC4xMDQgMC41MjUsMC4wODQgMC4yMzgsLTAuMDI0IDAuNDIyLC0wLjEwMSAwLjU1MywtMC4yMzMgMC4xMywtMC4xMzEgMC4yMDMsLTAuMzExIDAuMjIsLTAuNTQyIEwgLTIyLjIxNywwLjA1IGMgLTAuMDE2LDAuMTI0IC0wLjA2MSwwLjIyMiAtMC4xMzQsMC4yOTQgLTAuMDczLDAuMDcyIC0wLjE2NCwwLjExNCAtMC4yNzUsMC4xMjUgLTAuMTcxLDAuMDE3IC0wLjMxOCwtMC4wMzMgLTAuNDM3LC0wLjE1MSAtMC4xMjEsLTAuMTE3IC0wLjE5NSwtMC4zMDggLTAuMjI0LC0wLjU3MiAtMC4wMywtMC4yODIgMC4wMDMsLTAuNTAzIDAuMTAyLC0wLjY2MSAwLjA4NSwtMC4xMzggMC4yMTIsLTAuMjE0IDAuMzc5LC0wLjIzMSAwLjA3OSwtMC4wMDggMC4xNjMsMTBlLTQgMC4yNTEsMC4wMjggMC4wODksMC4wMjggMC4xNjksMC4wNjkgMC4yNDMsMC4xMjQgbCAwLjAzMiwwLjI5NyB6IG0gLTIuODU2LC0wLjUwOCAwLjI5OCwyLjM0IDEuNDc3LC0wLjE3NSAtMC4wNSwtMC4zOTYgLTEuMDc3LDAuMTI4IC0wLjA2NiwtMC41MTkgMSwtMC4xMTggLTAuMDUsLTAuMzk0IC0xLDAuMTE4IC0wLjA4MSwtMC42MzcgMS4xMTIsLTAuMTMyIC0wLjA1LC0wLjM5NCB6IG0gLTEuMjY2LDAuMiAwLjI4MiwxLjkzOSAtMC41OSwwLjA4IDAuMDU4LDAuMzk2IDEuNTc4LC0wLjIxNCAtMC4wNTgsLTAuMzk1IC0wLjU4OCwwLjA3OSAtMC4yODMsLTEuOTQgeiBtIC0yLjQzMiwwLjQxNSAwLjQyNSwyLjMyMiAwLjM4OCwtMC4wNjYgMC41MjQsLTEuNjg4IDAuMjg0LDEuNTUxIDAuMzcxLC0wLjA2MyAtMC40MjUsLTIuMzIyIC0wLjQwMSwwLjA2OCAtMC41MTgsMS42NDkgLTAuMjc3LC0xLjUxNCB6IG0gLTAuNzYyLDAuMTMxIDAuNDY3LDIuMzE1IDAuMzk2LC0wLjA3NCAtMC40NjYsLTIuMzE1IHoiIC8+CiAgICAgIDwvZz4KICAgICAgPGcKICAgICAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTIyLjgxMDIsMzIzLjE2MikiCiAgICAgICAgIGlkPSJnODk1Ij4KICAgICAgICA8cGF0aAogICAgICAgICAgIGlkPSJwYXRoODk3IgogICAgICAgICAgIHN0eWxlPSJmaWxsOiNiYThmNGE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgICAgZD0iTSAwLDAgQyAtMC4xMSwxLjU1NiAzLjI2OCwyLjQ1OCA2LjA0MywwLjg0NCA5LjI4OCwtMS44NjkgMi44MzIsLTIuNTY5IDEuNjE0LC0wLjU4OSAxLjI2NCwwLjEyMyAxLjg3LDAuMjc4IDIuNDEyLC0wLjA3OCAzLjQyLC0wLjc0MSA1Ljc4MSwtMC45NjcgNS41NDksMC4wNDUgNC44NjYsMC45MTUgMi4xOTcsMC44OTUgMS43MzUsMC42MyBjIC0zLjQxMiwtMS42OTEgMy40MzgsLTMuODcyIDUuMDk2LC0yLjgyMyA0LjE5MywxLjQ0MyA1Ljg5NCwwLjU3NiA1Ljg1NiwwLjQ0IDAuMDQ4LC0wLjY0NiAtMC40NzUsLTAuNjAyIC0xLjY1NSwtMC41NTMgQyA5Ljk5MSwtMi4yNjQgOC44MTIsLTIuMzc0IDcuOTEsLTIuODg1IDcuOTEsLTQuMTg3IDcuNzk3LC01Ljc3MSA3Ljc5NywtNy4wNzIgNS4wMzIsLTcuMjEyIDIuNjAyLC02Ljg0NCAwLjQ4OCwtNS4zNiAwLjQ5NSwtMy43NDIgLTAuMTc2LC0wLjQzNCAwLDAiIC8+CiAgICAgIDwvZz4KICAgICAgPGcKICAgICAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTcwLjEyMSwzNzQuNzU0OCkiCiAgICAgICAgIGlkPSJnODk5Ij4KICAgICAgICA8cGF0aAogICAgICAgICAgIGlkPSJwYXRoOTAxIgogICAgICAgICAgIHN0eWxlPSJmaWxsOiMyMzI1NTk7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgICAgZD0ibSAwLDAgaCAtNDIuNjggdiAtNDAuMDA3IGMgMCwtMTMuMzMzIDExLjk0MywtOC40NDUgMjEuMzM3LC0xMy44NzUgQyAtMTAuNDYsLTQ3LjIyNCAwLC01NC4zMjQgMCwtNDAuMDA3IFoiIC8+CiAgICAgIDwvZz4KICAgICAgPHBhdGgKICAgICAgICAgaWQ9InBhdGg5MDMiCiAgICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgIGQ9Im0gMTI3LjQxMSwzNTQuNjY0IGggNDIuNjk4IHYgLTAuNzMyIGggLTQyLjY5OCB6IiAvPgogICAgICA8ZwogICAgICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxNjIuMzY5LDM3My42NDM5KSIKICAgICAgICAgaWQ9Imc5MDUiPgogICAgICAgIDxwYXRoCiAgICAgICAgICAgaWQ9InBhdGg5MDciCiAgICAgICAgICAgc3R5bGU9ImZpbGw6I2JhOGY0YTtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZSIKICAgICAgICAgICBkPSJNIDAsMCAtMC4xODYsLTAuMzczIC0wLjMsLTAuNjAxIC0wLjQ0MiwtMC44ODQgLTAuMjc2LC0xLjE2MSAtMC41ODcsLTEuNDE1IGMgLTAuMDY0LC0wLjA1MiAwLjE0LC0wLjE2OSAwLjA5LC0wLjIzNSBsIC0wLjE2NiwtMC4yMTkgYyAtMC43MDMsLTAuOTI3IC0wLjI0NSwtMi4zODcgMC4yNDksLTQuMzYxIC0wLjMwOSwtMC41MzMgLTIuMDI0LDAuMTg5IC0yLjc1MSwxLjAyIC0wLjE4OCwtMC44NDIgMC44NjYsLTMuMjQ4IDIuMDc0LC0zLjU4NSBsIDAuMjA3LC0wLjU5NCBjIC0xLjI4MywtMC4zMjIgLTMuNDMzLDEuMzIgLTMuNTkzLDEuNDU2IC0wLjEyNCwtMi4xNjUgMS41LC0zLjY5NSAzLjA0NiwtNC40MDcgMC4xNTMsLTAuMDcxIDAuMDkzLC0wLjY1MiAwLjIxMiwtMC43ODMgLTEuNDg5LC0wLjM2MyAtMi44NzUsMS4wMjIgLTQuMTExLDEuNzY3IDAuMTE1LC0xLjczMiAwLjk1MiwtMy4wNzEgMi4xNjUsLTMuODE3IGwgMC43NDMsLTAuMDIyIC0wLjE0MSwtMC4zNjYgMC41MDksMC4xIDAuMDY4LC0wLjU1NSAwLjQzMiwwLjI5MyAwLjIyNywtMC40MSAwLjE5MSwtMC4zNjMgYyAwLjI4OCwtMC42OTEgMC4xODIsLTEuNzMyIDAuMjk0LC0yLjY4NiAxLjAxMSwwIDEuNTgyLDAgMi41OTQsMCAtMC4xNjksMS41MTUgLTAuMTc5LDEuNTE1IDAuMjUzLDMuNzAzIDEuNjI5LDAuNjczIDMuMTk1LDIuMTI5IDMuMTM5LDQuMDY0IC0wLjkyNywtMC43MjkgLTIuNjE0LC0xLjU3OCAtMy44MjQsLTEuNDU2IGwgMC4xOTIsMC42NDcgYyAwLjIxOSwwLjMyMSAyLjY2NSwwLjA0OCAzLjQ1Myw0LjQyNyAtMS4xNTUsLTEuMjA5IC0yLjUwMiwtMS40MDggLTMuNTM3LC0xLjQ2MSAtMC4wNjEsMC4wOTggMC4wMzcsMC4xOTUgMC4wMzQsMC4zODIgMC43ODYsMC44OTggMS43MDUsMC45OTggMS44MTgsMy42NjIgLTAuODQzLC0wLjY2NyAtMi4xMDIsLTEuMzI1IC0yLjc5MiwtMS4wODMgMS4wOSwyLjUwMyAwLjkzLDMuMzQxIDAuMzU1LDQuNDEzIEMgMC44MDUsLTEuODEzIDAuNTM0LC0xLjc1IDAuNTUxLC0xLjY3IEwgMC42LC0xLjQ0IDAuMzA3LC0xLjA0NiAwLjM0NSwtMC43NTEgQyAwLjM3OCwtMC41MDEgMC4wNjgsLTAuMjczIDAsMCIgLz4KICAgICAgPC9nPgogICAgICA8ZwogICAgICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMzMuMzgxMywzNDAuMzIxOSkiCiAgICAgICAgIGlkPSJnOTA5Ij4KICAgICAgICA8cGF0aAogICAgICAgICAgIGlkPSJwYXRoOTExIgogICAgICAgICAgIHN0eWxlPSJmaWxsOiNiYThmNGE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgICAgZD0ibSAwLDAgYyAwLjY0OCwtMC40OTYgMS40OTEsLTAuOTkzIDIuMTQsLTEuNDg5IDIuMzEyLDAuNDc1IDEwLjc4NCwyLjYzMyAxMS45OTUsLTIuNjU1IC0wLjM2MSwtNC45OTkgLTQuMTg5LC01LjI5NSAtNi4wOTUsLTQuMjA4IC0xLjQ4LDEuNDIgLTIuMDc0LDMuOTcyIDAuNDg5LDUuMDAzIDIuMjE5LDAuNTM1IDIuNzUzLC0xLjUwMyAxLjgyNiwtMS44NzIgLTIuMTcsLTAuODYzIDAuNTU2LC0yLjU4IDEuNjE3LC0wLjAzNCAwLjY4OCw0LjIzMyAtNy4wMzIsNC40NzMgLTYuNTIxLC0wLjk1NiAwLjM1NSwtMy43ODcgNC43MjcsLTQuODAyIDcuMjU3LC0zLjE3NyA0LjM2NiwyLjkxNCAyLjcwMiw3LjY0MiAwLjA2NSw5LjQ1NSBDIDcuNTQzLDAuMDg5IDUuMjMsLTAuMDIxIDAsMCBNIDAsMCBDIDAuNjQ4LDAuNDk2IDEuNDkxLDAuOTkzIDIuMTQsMS40ODkgNC40NTIsMS4wMTQgMTIuOTI0LC0xLjE0NCAxNC4xMzUsNC4xNDMgMTMuNzc0LDkuMTQzIDkuOTQ2LDkuNDM5IDguMDQsOC4zNTIgNi41Niw2LjkzMiA1Ljk2Niw0LjM4IDguNTI5LDMuMzQ5IGMgMi4yMTksLTAuNTM1IDIuNzUzLDEuNTAzIDEuODI2LDEuODcyIC0yLjE3LDAuODYzIDAuNTU2LDIuNTggMS42MTcsMC4wMzQgQyAxMi42NiwxLjAyMiA0Ljk0LDAuNzgyIDUuNDUxLDYuMjExIDUuODA2LDkuOTk4IDEwLjE3OCwxMS4wMTMgMTIuNzA4LDkuMzg4IDE3LjA3NCw2LjQ3NCAxNS40MSwxLjg3NyAxMi43NzMsMC4wNjUgNy41NDMsMC4wNDMgNS4yMywwLjAyMSAwLDAgbSAxNS4zOTksMC44MDkgYyAwLjQ0NywwIDAuODExLC0wLjM2MyAwLjgxMSwtMC44MDkgMCwtMC40NDYgLTAuMzY0LC0wLjgwOSAtMC44MTEsLTAuODA5IC0wLjQ0NiwwIC0wLjgxLDAuMzYzIC0wLjgxLDAuODA5IDAsMC40NDYgMC4zNjQsMC44MDkgMC44MSwwLjgwOSBNIDMwLjc5OSwwIGMgLTAuNjQ4LDAuNDk2IC0xLjQ5MSwwLjk5MyAtMi4xNCwxLjQ4OSAtMi4zMTIsLTAuNDc1IC0xMC43ODQsLTIuNjMzIC0xMS45OTUsMi42NTQgMC4zNjEsNSA0LjE4OSw1LjI5NiA2LjA5NSw0LjIwOSAxLjQ4LC0xLjQyIDIuMDc0LC0zLjk3MiAtMC40ODksLTUuMDAzIC0yLjIxOSwtMC41MzUgLTIuNzUzLDEuNTAzIC0xLjgyNiwxLjg3MiAyLjE2OSwwLjg2MyAtMC41NTYsMi41OCAtMS42MTcsMC4wMzQgLTAuNjg4LC00LjIzMyA3LjAzMiwtNC40NzMgNi41MjEsMC45NTYgLTAuMzU1LDMuNzg3IC00LjcyNyw0LjgwMiAtNy4yNTcsMy4xNzcgQyAxMy43MjUsNi40NzQgMTUuMzg5LDEuNzQ2IDE4LjAyNiwtMC4wNjcgMjMuMjU2LC0wLjA4OSAyNS41NjksMC4wMjEgMzAuNzk5LDAgbSAwLDAgYyAtMC42NDgsLTAuNDk2IC0xLjQ5MSwtMC45OTMgLTIuMTQsLTEuNDg5IC0yLjMxMiwwLjQ3NSAtMTAuNzg0LDIuNjMzIC0xMS45OTUsLTIuNjU1IDAuMzYxLC00Ljk5OSA0LjE4OSwtNS4yOTUgNi4wOTUsLTQuMjA4IDEuNDgsMS40MiAyLjA3NCwzLjk3MiAtMC40ODksNS4wMDMgLTIuMjE5LDAuNTM1IC0yLjc1MywtMS41MDMgLTEuODI2LC0xLjg3MiAyLjE2OSwtMC44NjMgLTAuNTU2LC0yLjU4IC0xLjYxNywtMC4wMzQgLTAuNjg4LDQuMjMzIDcuMDMyLDQuNDczIDYuNTIxLC0wLjk1NiAtMC4zNTUsLTMuNzg3IC00LjcyNywtNC44MDIgLTcuMjU3LC0zLjE3NyAtNC4zNjYsMi45MTQgLTIuNzAyLDcuNTEgLTAuMDY1LDkuMzIzIDUuMjMsMC4wMjIgNy41NDMsMC4wNDQgMTIuNzczLDAuMDY1IiAvPgogICAgICA8L2c+CiAgICAgIDxnCiAgICAgICAgIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEzMy4zODEzLDM0MC4zMjE5KSIKICAgICAgICAgaWQ9Imc5MTMiPgogICAgICAgIDxwYXRoCiAgICAgICAgICAgaWQ9InBhdGg5MTUiCiAgICAgICAgICAgc3R5bGU9ImZpbGw6bm9uZTtzdHJva2U6I2JhOGY0YTtzdHJva2Utd2lkdGg6MC4wMjU7c3Ryb2tlLWxpbmVjYXA6YnV0dDtzdHJva2UtbGluZWpvaW46bWl0ZXI7c3Ryb2tlLW1pdGVybGltaXQ6Mi42MTM7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjEiCiAgICAgICAgICAgZD0ibSAwLDAgYyAwLjY0OCwtMC40OTYgMS40OTEsLTAuOTkzIDIuMTQsLTEuNDg5IDIuMzEyLDAuNDc1IDEwLjc4NCwyLjYzMyAxMS45OTUsLTIuNjU1IC0wLjM2MSwtNC45OTkgLTQuMTg5LC01LjI5NSAtNi4wOTUsLTQuMjA4IC0xLjQ4LDEuNDIgLTIuMDc0LDMuOTcyIDAuNDg5LDUuMDAzIDIuMjE5LDAuNTM1IDIuNzUzLC0xLjUwMyAxLjgyNiwtMS44NzIgLTIuMTcsLTAuODYzIDAuNTU2LC0yLjU4IDEuNjE3LC0wLjAzNCAwLjY4OCw0LjIzMyAtNy4wMzIsNC40NzMgLTYuNTIxLC0wLjk1NiAwLjM1NSwtMy43ODcgNC43MjcsLTQuODAyIDcuMjU3LC0zLjE3NyA0LjM2NiwyLjkxNCAyLjcwMiw3LjY0MiAwLjA2NSw5LjQ1NSBDIDcuNTQzLDAuMDg5IDUuMjMsLTAuMDIxIDAsMCBaIE0gMCwwIEMgMC42NDgsMC40OTYgMS40OTEsMC45OTMgMi4xNCwxLjQ4OSA0LjQ1MiwxLjAxNCAxMi45MjQsLTEuMTQ0IDE0LjEzNSw0LjE0MyAxMy43NzQsOS4xNDMgOS45NDYsOS40MzkgOC4wNCw4LjM1MiA2LjU2LDYuOTMyIDUuOTY2LDQuMzggOC41MjksMy4zNDkgYyAyLjIxOSwtMC41MzUgMi43NTMsMS41MDMgMS44MjYsMS44NzIgLTIuMTcsMC44NjMgMC41NTYsMi41OCAxLjYxNywwLjAzNCBDIDEyLjY2LDEuMDIyIDQuOTQsMC43ODIgNS40NTEsNi4yMTEgNS44MDYsOS45OTggMTAuMTc4LDExLjAxMyAxMi43MDgsOS4zODggMTcuMDc0LDYuNDc0IDE1LjQxLDEuODc3IDEyLjc3MywwLjA2NSA3LjU0MywwLjA0MyA1LjIzLDAuMDIxIDAsMCBaIG0gMTUuMzk5LDAuODA5IGMgMC40NDcsMCAwLjgxMSwtMC4zNjMgMC44MTEsLTAuODA5IDAsLTAuNDQ2IC0wLjM2NCwtMC44MDkgLTAuODExLC0wLjgwOSAtMC40NDYsMCAtMC44MSwwLjM2MyAtMC44MSwwLjgwOSAwLDAuNDQ2IDAuMzY0LDAuODA5IDAuODEsMC44MDkgeiBNIDMwLjc5OSwwIGMgLTAuNjQ4LDAuNDk2IC0xLjQ5MSwwLjk5MyAtMi4xNCwxLjQ4OSAtMi4zMTIsLTAuNDc1IC0xMC43ODQsLTIuNjMzIC0xMS45OTUsMi42NTQgMC4zNjEsNSA0LjE4OSw1LjI5NiA2LjA5NSw0LjIwOSAxLjQ4LC0xLjQyIDIuMDc0LC0zLjk3MiAtMC40ODksLTUuMDAzIC0yLjIxOSwtMC41MzUgLTIuNzUzLDEuNTAzIC0xLjgyNiwxLjg3MiAyLjE2OSwwLjg2MyAtMC41NTYsMi41OCAtMS42MTcsMC4wMzQgLTAuNjg4LC00LjIzMyA3LjAzMiwtNC40NzMgNi41MjEsMC45NTYgLTAuMzU1LDMuNzg3IC00LjcyNyw0LjgwMiAtNy4yNTcsMy4xNzcgQyAxMy43MjUsNi40NzQgMTUuMzg5LDEuNzQ2IDE4LjAyNiwtMC4wNjcgMjMuMjU2LC0wLjA4OSAyNS41NjksMC4wMjEgMzAuNzk5LDAgWiBtIDAsMCBjIC0wLjY0OCwtMC40OTYgLTEuNDkxLC0wLjk5MyAtMi4xNCwtMS40ODkgLTIuMzEyLDAuNDc1IC0xMC43ODQsMi42MzMgLTExLjk5NSwtMi42NTUgMC4zNjEsLTQuOTk5IDQuMTg5LC01LjI5NSA2LjA5NSwtNC4yMDggMS40OCwxLjQyIDIuMDc0LDMuOTcyIC0wLjQ4OSw1LjAwMyAtMi4yMTksMC41MzUgLTIuNzUzLC0xLjUwMyAtMS44MjYsLTEuODcyIDIuMTY5LC0wLjg2MyAtMC41NTYsLTIuNTggLTEuNjE3LC0wLjAzNCAtMC42ODgsNC4yMzMgNy4wMzIsNC40NzMgNi41MjEsLTAuOTU2IC0wLjM1NSwtMy43ODcgLTQuNzI3LC00LjgwMiAtNy4yNTcsLTMuMTc3IC00LjM2NiwyLjkxNCAtMi43MDIsNy41MSAtMC4wNjUsOS4zMjMgNS4yMywwLjAyMiA3LjU0MywwLjA0NCAxMi43NzMsMC4wNjUgeiIgLz4KICAgICAgPC9nPgogICAgICA8ZwogICAgICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxNDguOTkzMiwzNzMuNjQzOSkiCiAgICAgICAgIGlkPSJnOTE3Ij4KICAgICAgICA8cGF0aAogICAgICAgICAgIGlkPSJwYXRoOTE5IgogICAgICAgICAgIHN0eWxlPSJmaWxsOiNiYThmNGE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgICAgZD0iTSAwLDAgLTAuMTg2LC0wLjM3MyAtMC4zLC0wLjYwMSAtMC40NDIsLTAuODg0IC0wLjI3NiwtMS4xNjEgLTAuNTg3LC0xLjQxNSBjIC0wLjA2NCwtMC4wNTIgMC4xNCwtMC4xNjkgMC4wOSwtMC4yMzUgbCAtMC4xNjYsLTAuMjE5IGMgLTAuNzAzLC0wLjkyNyAtMC4yNDUsLTIuMzg3IDAuMjQ5LC00LjM2MSAtMC4zMDksLTAuNTMzIC0yLjAyNCwwLjE4OSAtMi43NTEsMS4wMiAtMC4xODgsLTAuODQyIDAuODY2LC0zLjI0OCAyLjA3NCwtMy41ODUgbCAwLjIwNywtMC41OTQgYyAtMS4yODMsLTAuMzIyIC0zLjQzMywxLjMyIC0zLjU5MywxLjQ1NiAtMC4xMjQsLTIuMTY1IDEuNSwtMy42OTUgMy4wNDYsLTQuNDA3IDAuMTU0LC0wLjA3MSAwLjA5MywtMC42NTIgMC4yMTIsLTAuNzgzIC0xLjQ4OSwtMC4zNjMgLTIuODc1LDEuMDIyIC00LjExMSwxLjc2NyAwLjExNSwtMS43MzIgMC45NTIsLTMuMDcxIDIuMTY2LC0zLjgxNyBsIDAuNzQyLC0wLjAyMiAtMC4xNDEsLTAuMzY2IDAuNTA5LDAuMSAwLjA2OCwtMC41NTUgMC40MzIsMC4yOTMgMC4yMjcsLTAuNDEgMC4xOTIsLTAuMzYzIGMgMC4yODcsLTAuNjkxIDAuMTgxLC0xLjczMiAwLjI5MywtMi42ODYgMS4wMTEsMCAxLjU4MiwwIDIuNTk0LDAgLTAuMTY5LDEuNTE1IC0wLjE3OSwxLjUxNSAwLjI1MywzLjcwMyAxLjYyOSwwLjY3MyAzLjE5NSwyLjEyOSAzLjEzOSw0LjA2NCAtMC45MjcsLTAuNzI5IC0yLjYxNCwtMS41NzggLTMuODI0LC0xLjQ1NiBsIDAuMTkyLDAuNjQ3IGMgMC4yMTksMC4zMjEgMi42NjUsMC4wNDggMy40NTMsNC40MjcgLTEuMTU1LC0xLjIwOSAtMi41MDIsLTEuNDA4IC0zLjUzNywtMS40NjEgLTAuMDYxLDAuMDk4IDAuMDM3LDAuMTk1IDAuMDM0LDAuMzgyIDAuNzg2LDAuODk4IDEuNzA1LDAuOTk4IDEuODE4LDMuNjYyIC0wLjg0MywtMC42NjcgLTIuMTAyLC0xLjMyNSAtMi43OTIsLTEuMDgzIDEuMDksMi41MDMgMC45MywzLjM0MSAwLjM1NSw0LjQxMyBDIDAuODA1LC0xLjgxMyAwLjUzNCwtMS43NSAwLjU1MSwtMS42NyBMIDAuNiwtMS40NCAwLjMwNywtMS4wNDYgMC4zNDUsLTAuNzUxIEMgMC4zNzgsLTAuNTAxIDAuMDY4LC0wLjI3MyAwLDAiIC8+CiAgICAgIDwvZz4KICAgICAgPGcKICAgICAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTM1LjE4NDUsMzczLjY0MzkpIgogICAgICAgICBpZD0iZzkyMSI+CiAgICAgICAgPHBhdGgKICAgICAgICAgICBpZD0icGF0aDkyMyIKICAgICAgICAgICBzdHlsZT0iZmlsbDojYmE4ZjRhO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICAgIGQ9Ik0gMCwwIC0wLjE4NiwtMC4zNzMgLTAuMywtMC42MDEgLTAuNDQxLC0wLjg4NCAtMC4yNzYsLTEuMTYxIC0wLjU4NywtMS40MTUgYyAtMC4wNjQsLTAuMDUyIDAuMTQsLTAuMTY5IDAuMDksLTAuMjM1IGwgLTAuMTY2LC0wLjIxOSBjIC0wLjcwMywtMC45MjcgLTAuMjQ1LC0yLjM4NyAwLjI0OSwtNC4zNjEgLTAuMzA5LC0wLjUzMyAtMi4wMjQsMC4xODkgLTIuNzUxLDEuMDIgLTAuMTg4LC0wLjg0MiAwLjg2NiwtMy4yNDggMi4wNzQsLTMuNTg1IGwgMC4yMDcsLTAuNTk0IGMgLTEuMjgzLC0wLjMyMiAtMy40MzMsMS4zMiAtMy41OTMsMS40NTYgLTAuMTI0LC0yLjE2NSAxLjUsLTMuNjk1IDMuMDQ2LC00LjQwNyAwLjE1NCwtMC4wNzEgMC4wOTMsLTAuNjUyIDAuMjEyLC0wLjc4MyAtMS40ODksLTAuMzYzIC0yLjg3NSwxLjAyMiAtNC4xMTEsMS43NjcgMC4xMTUsLTEuNzMyIDAuOTUyLC0zLjA3MSAyLjE2NiwtMy44MTcgbCAwLjc0MiwtMC4wMjIgLTAuMTQxLC0wLjM2NiAwLjUwOSwwLjEgMC4wNjgsLTAuNTU1IDAuNDMyLDAuMjkzIDAuMjI3LC0wLjQxIDAuMTkxLC0wLjM2MyBjIDAuMjg4LC0wLjY5MSAwLjE4MiwtMS43MzIgMC4yOTQsLTIuNjg2IDEuMDExLDAgMS41ODIsMCAyLjU5NCwwIC0wLjE2OSwxLjUxNSAtMC4xNzksMS41MTUgMC4yNTMsMy43MDMgMS42MjksMC42NzMgMy4xOTUsMi4xMjkgMy4xMzksNC4wNjQgLTAuOTI3LC0wLjcyOSAtMi42MTQsLTEuNTc4IC0zLjgyNCwtMS40NTYgbCAwLjE5MiwwLjY0NyBjIDAuMjE5LDAuMzIxIDIuNjY1LDAuMDQ4IDMuNDUzLDQuNDI3IC0xLjE1NSwtMS4yMDkgLTIuNTAyLC0xLjQwOCAtMy41MzcsLTEuNDYxIC0wLjA2MSwwLjA5OCAwLjAzNywwLjE5NSAwLjAzNCwwLjM4MiAwLjc4NiwwLjg5OCAxLjcwNSwwLjk5OCAxLjgxOCwzLjY2MiAtMC44NDMsLTAuNjY3IC0yLjEwMiwtMS4zMjUgLTIuNzkyLC0xLjA4MyAxLjA5LDIuNTAzIDAuOTMsMy4zNDEgMC4zNTUsNC40MTMgQyAwLjgwNSwtMS44MTMgMC41MzQsLTEuNzUgMC41NTEsLTEuNjcgTCAwLjYsLTEuNDQgMC4zMDcsLTEuMDQ2IDAuMzQ1LC0wLjc1MSBDIDAuMzc4LC0wLjUwMSAwLjA2OCwtMC4yNzMgMCwwIiAvPgogICAgICA8L2c+CiAgICAgIDxwYXRoCiAgICAgICAgIGlkPSJwYXRoOTI1IgogICAgICAgICBzdHlsZT0iZmlsbDojYmE4ZjRhO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICBkPSJtIDEyNy40NDEsMzU0Ljc1MSBoIDQyLjY2NyB2IC0wLjgyIGggLTQyLjY2NyB6IiAvPgogICAgPC9nPgogIDwvZz4KPC9zdmc+Cg=="); background-size:contain; background-repeat:no-repeat; background-position:center; }
+  .hero .eyebrow{ color:var(--gold); margin:0; }
+  .hero h1{ font-size:clamp(40px,7vw,58px); line-height:0.94; position:relative; margin-bottom:16px; }
+  .hero h1 em{ font-style:normal; color:var(--gold); }
+  .hero p{ font-size:15px; line-height:1.65; color:var(--on-navy-dim); max-width:52ch; position:relative; margin:0 0 22px; }
+  .hero-tag{
+    display:inline-block; background:var(--gold); color:var(--navy-dark); font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
+    padding:9px 16px; border-radius:7px; position:relative;
+  }
+  .hero-contact{
+    position:relative; margin-top:32px; padding-top:24px; border-top:1px solid rgba(244,241,230,0.16);
+    display:grid; grid-template-columns:repeat(4,1fr); gap:20px;
+  }
+  .hero-contact div .k{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--on-navy-dim); margin:0 0 5px; }
+  .hero-contact div .v{ font-size:14px; font-weight:600; color:var(--on-navy); }
+
+  /* ---------- Quick nav ---------- */
+  .quicknav{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:26px 40px; background:var(--paper); }
+  .quicknav a{
+    text-decoration:none; color:var(--text); background:var(--paper); border:1px solid var(--line);
+    border-top:3px solid var(--gold); border-radius:12px; padding:18px 16px; display:flex; flex-direction:column; gap:10px;
+    transition:transform .14s ease, border-color .14s ease;
+  }
+  .quicknav a:hover{ transform:translateY(-2px); border-color:var(--line-strong); }
+  .quicknav .num{ font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--gold-dark); }
+  .quicknav .label{ font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:0.01em; line-height:1.1; }
+  .quicknav .sub{ font-size:11.5px; color:var(--text-faint); line-height:1.45; }
+
+  /* ---------- Chapter ---------- */
+  .chapter{ border-top:1px solid var(--line); scroll-margin-top:20px; }
+  .chapter-head{ background:var(--navy); color:var(--on-navy); padding:32px 40px 28px; display:flex; align-items:flex-start; gap:20px; }
+  .chapter-icon{
+    width:52px; height:52px; border-radius:50%; border:1.5px solid var(--gold); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:var(--gold);
+  }
+  .chapter-icon svg{ width:24px; height:24px; }
+  .chapter-head .eyebrow{ color:var(--gold); }
+  .chapter-head h2{ font-size:30px; color:var(--on-navy); margin-bottom:6px; }
+  .chapter-head .dek{ font-size:14px; color:var(--on-navy-dim); line-height:1.55; max-width:46ch; }
+  .chapter-body{ padding:32px 40px 38px; display:flex; flex-direction:column; gap:30px; background:var(--paper); }
+
+  .tag-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .tag{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; background:var(--navy); color:var(--on-navy); padding:5px 10px; border-radius:6px; flex-shrink:0;
+  }
+  .tag-row h3{ font-size:19px; color:var(--text); letter-spacing:0.01em; }
+  .block-note{ font-size:13.5px; color:var(--text-dim); line-height:1.65; margin:6px 0 0; }
+
+  .table-scroll{ overflow-x:auto; border:1px solid var(--line); border-radius:11px; -webkit-overflow-scrolling:touch; }
+  table{ width:100%; border-collapse:collapse; min-width:460px; background:var(--paper); }
+  thead th{
+    background:var(--navy); color:var(--on-navy); font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    letter-spacing:0.06em; text-transform:uppercase; text-align:center; padding:13px 14px; font-weight:700; white-space:nowrap;
+  }
+  thead th:first-child{ text-align:left; }
+  tbody td{ padding:13px 14px; font-size:14px; text-align:center; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tbody td:first-child{ text-align:left; font-weight:700; color:var(--text); white-space:normal; }
+  tbody tr:nth-child(even){ background:var(--row-alt); }
+  /* First column (the row label — "Duration", "Day", "Session"…) stays put
+     while the rate/time columns scroll underneath it, so you always know
+     which row you're looking at. Needs its own opaque background per row
+     (sticky cells sit above the scrolling content, not blended with it)
+     and a hairline shadow to read as "floating" above what passes beneath. */
+  thead th:first-child, tbody td:first-child{
+    position:sticky; left:0; z-index:1;
+    box-shadow:3px 0 6px -3px rgba(15,29,59,0.12);
+  }
+  thead th:first-child{ z-index:2; background:var(--navy); }
+  tbody td:first-child{ background:var(--paper); }
+  tbody tr:nth-child(even) td:first-child{ background:var(--row-alt); }
+  .rate{ color:var(--text-dim); }
+  .rate.dash{ color:var(--text-faint); }
+
+  .list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+  .list li{ position:relative; padding-left:18px; font-size:14px; line-height:1.6; color:var(--text-dim); }
+  .list li::before{ content:""; position:absolute; left:0; top:0.62em; width:6px; height:6px; background:var(--gold); border-radius:1.5px; }
+  .list li strong{ color:var(--text); }
+
+  .hours-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+  .hours-card{ border:1px solid var(--line-strong); border-radius:10px; padding:15px 16px; background:var(--paper); }
+  .hours-card .k{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint); margin:0 0 6px; }
+  .hours-card .v{ font-size:15px; font-weight:700; color:var(--text); }
+
+  .callout{
+    display:flex; gap:14px; align-items:flex-start; background:var(--navy-dim); border-left:3px solid var(--gold);
+    border-radius:0 11px 11px 0; padding:17px 20px;
+  }
+  .callout .dot{ width:30px; height:30px; border-radius:50%; background:var(--navy); color:var(--gold); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .callout .dot svg{ width:15px; height:15px; }
+  .callout p{ margin:0; font-size:14px; line-height:1.6; color:var(--text); }
+  .callout strong{ color:var(--text); }
+
+  /* ---------- Footer / contact ---------- */
+  .contact-card{ background:var(--navy); color:var(--on-navy); padding:38px 40px 36px; border-top:1px solid var(--line); }
+  .contact-card .eyebrow{ color:var(--gold); }
+  .contact-card h2{ color:var(--on-navy); font-size:27px; margin-bottom:14px; }
+  .contact-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin:20px 0 22px; }
+  .contact-grid .k{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--on-navy-dim); margin:0 0 5px; }
+  .contact-grid .v{ font-size:15px; font-weight:700; color:var(--gold); }
+  .contact-note{ font-size:12.5px; color:var(--on-navy-dim); line-height:1.65; border-top:1px solid rgba(244,241,230,0.16); padding-top:16px; margin:0; }
+
+  .page-foot{ text-align:center; font-size:11.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace; letter-spacing:0.04em; padding-top:22px; }
+
+  @media (max-width:640px){
+    .hero{ padding:36px 24px 32px; }
+    .hero h1{ margin-bottom:18px; }
+    .hero p{ margin-bottom:26px; }
+    .hero-contact{ grid-template-columns:repeat(2,1fr); gap:22px 16px; }
+    .quicknav{ grid-template-columns:repeat(2,1fr); padding:22px 22px; gap:14px; }
+    .chapter-head{ padding:28px 24px 26px; flex-direction:column; gap:16px; }
+    .chapter-body{ padding:26px 24px 32px; gap:28px; }
+    .contact-card{ padding:32px 24px 30px; }
+    .contact-grid{ grid-template-columns:1fr; gap:18px; }
+  }
+</style>
+</head>
+<body>
+<div class="paper">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="hero-top">
+      <div class="crest"></div>
+      <p class="eyebrow">University of Ghana &middot; Legon</p>
+    </div>
+    <h1>SPORTS &amp;<br>WELLNESS<br><em>DIRECTORATE</em></h1>
+    <p>Your complete guide to membership rates, opening hours and the weekly activity timetable for the Gymnasium, Swimming Pool, Tennis Courts and LED screen advertising &mdash; everything you need to get moving at UG.</p>
+    <span class="hero-tag">Rates &amp; Schedule Guide &middot; 2026</span>
+    <div class="hero-contact">
+      <div><p class="k">Enquiries</p><p class="v">0303 961 033</p></div>
+      <div><p class="k">Email</p><p class="v">sports@ug.edu.gh</p></div>
+      <div><p class="k">Web</p><p class="v">sports.ug.edu.gh</p></div>
+      <div><p class="k">Location</p><p class="v">UG, Legon</p></div>
+    </div>
+  </header>
+
+  <!-- ================= QUICK NAV ================= -->
+  <nav class="quicknav">
+    <a href="#gym"><span class="num">01</span><span class="label">Gymnasium</span><span class="sub">Membership rates, opening hours &amp; essentials</span></a>
+    <a href="#pool"><span class="num">02</span><span class="label">Swimming Pool</span><span class="sub">Leisure swimming, lessons &amp; membership</span></a>
+    <a href="#tennis"><span class="num">03</span><span class="label">Tennis Courts</span><span class="sub">Individual play &amp; coached lessons</span></a>
+    <a href="#timetable"><span class="num">04</span><span class="label">Timetable</span><span class="sub">Weekly class schedule, Mon&ndash;Sat</span></a>
+  </nav>
+
+  <!-- ================= GYMNASIUM ================= -->
+  <section class="chapter" id="gym">
+    <div class="chapter-head">
+      <div class="chapter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h16"/><path d="M2 9v6M6 7v10M18 7v10M22 9v6"/></svg></div>
+      <div>
+        <p class="eyebrow">Facility Guide &middot; Section One</p>
+        <h2>Gymnasium</h2>
+        <p class="dek">Strength &amp; conditioning floor, studio classes and personal training</p>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="block-note">Whichever floor you train on, membership unlocks the full studio programme &mdash; from sunrise circuits to evening Salsa. Pick the plan that matches how often you show up.</p>
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Gymnasium Membership</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>UG Students</th><th>UG Staff</th><th>Non-UG Students</th><th>Public</th></tr></thead>
+            <tbody>
+              <tr><td>Walk-in</td><td class="rate">GH₵ 10.00</td><td class="rate">GH₵ 15.00</td><td class="rate">GH₵ 20.00</td><td class="rate">GH₵ 25.00</td></tr>
+              <tr><td>Monthly</td><td class="rate">GH₵ 100.00</td><td class="rate">GH₵ 160.00</td><td class="rate">GH₵ 200.00</td><td class="rate">GH₵ 300.00</td></tr>
+              <tr><td>Semesterly / Quarterly</td><td class="rate">GH₵ 250.00</td><td class="rate">GH₵ 400.00</td><td class="rate">GH₵ 500.00</td><td class="rate">GH₵ 750.00</td></tr>
+              <tr><td>Half yearly</td><td class="rate">GH₵ 400.00</td><td class="rate">GH₵ 700.00</td><td class="rate">GH₵ 800.00</td><td class="rate">GH₵ 1,300.00</td></tr>
+              <tr><td>Yearly</td><td class="rate">GH₵ 700.00</td><td class="rate">GH₵ 1,200.00</td><td class="rate">GH₵ 1,400.00</td><td class="rate">GH₵ 2,200.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Package</span><h3>What&rsquo;s Included</h3></div>
+        <ul class="list">
+          <li>Full access to the Gymnasium floor, Salsa and all Aerobic classes.</li>
+          <li>The studio is available for personal training whenever a special class is not in session.</li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Hours</span><h3>Opening &amp; Closing</h3></div>
+        <div class="hours-grid">
+          <div class="hours-card"><p class="k">Student &amp; Non-UG Student</p><p class="v">6:00 AM &ndash; 6:00 PM</p></div>
+          <div class="hours-card"><p class="k">Staff &amp; Public</p><p class="v">6:00 AM &ndash; 9:00 PM</p></div>
+          <div class="hours-card"><p class="k">Saturdays &amp; Public Holidays</p><p class="v">6:00 AM &ndash; 12:00 Noon</p></div>
+          <div class="hours-card"><p class="k">Breaktime</p><p class="v">11:30 AM &ndash; 12:30 PM</p></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Essentials</span><h3>Before You Train</h3></div>
+        <ul class="list">
+          <li>Maximum training time: <strong>75 minutes</strong> per visit.</li>
+          <li>Bring two towels.</li>
+          <li>A valid, appropriate photo ID card is required.</li>
+          <li>Appropriate athletic attire must be worn on the training floor.</li>
+        </ul>
+      </div>
+
+      <div class="callout">
+        <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4"/><path d="M12 17h.01"/></svg></div>
+        <p><strong>Need help choosing a plan?</strong> Stop by the front desk &mdash; the team can walk you through membership options and get you started the same day.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SWIMMING POOL ================= -->
+  <section class="chapter" id="pool">
+    <div class="chapter-head">
+      <div class="chapter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0"/><path d="M2 12c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0"/></svg></div>
+      <div>
+        <p class="eyebrow">Facility Guide &middot; Section Two</p>
+        <h2>Swimming Pool</h2>
+        <p class="dek">Leisure swimming, structured lessons and advanced membership</p>
+      </div>
+    </div>
+    <div class="chapter-body">
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Leisure Swimming &mdash; UG Community</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>UG Student</th><th>UG Staff</th><th>Staff Child (U17)</th><th>Staff Child (17+)</th><th>Family (Max. 5)</th></tr></thead>
+            <tbody>
+              <tr><td>Walk-in</td><td class="rate">20.00</td><td class="rate">30.00</td><td class="rate">20.00</td><td class="rate">30.00</td><td class="rate dash">&mdash;</td></tr>
+              <tr><td>Monthly</td><td class="rate">200.00</td><td class="rate">350.00</td><td class="rate">200.00</td><td class="rate">350.00</td><td class="rate">1,500.00</td></tr>
+              <tr><td>Semesterly / Quarterly</td><td class="rate">500.00</td><td class="rate">900.00</td><td class="rate">500.00</td><td class="rate">900.00</td><td class="rate">3,500.00</td></tr>
+              <tr><td>Half yearly</td><td class="rate">900.00</td><td class="rate">1,500.00</td><td class="rate">900.00</td><td class="rate">1,500.00</td><td class="rate">6,000.00</td></tr>
+              <tr><td>Yearly</td><td class="rate">1,500.00</td><td class="rate">2,600.00</td><td class="rate">1,500.00</td><td class="rate">2,600.00</td><td class="rate">10,000.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Leisure Swimming &mdash; Public</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>Children (Under 17)</th><th>Adults (17+)</th><th>Family Package (Max. 5)</th></tr></thead>
+            <tbody>
+              <tr><td>Walk-in</td><td class="rate">GH₵ 30.00</td><td class="rate">GH₵ 50.00</td><td class="rate dash">&mdash;</td></tr>
+              <tr><td>Monthly</td><td class="rate">GH₵ 350.00</td><td class="rate">GH₵ 600.00</td><td class="rate">GH₵ 2,000.00</td></tr>
+              <tr><td>Semesterly / Quarterly</td><td class="rate">GH₵ 900.00</td><td class="rate">GH₵ 1,500.00</td><td class="rate">GH₵ 5,000.00</td></tr>
+              <tr><td>Half yearly</td><td class="rate">GH₵ 1,500.00</td><td class="rate">GH₵ 2,800.00</td><td class="rate">GH₵ 9,000.00</td></tr>
+              <tr><td>Yearly</td><td class="rate">GH₵ 2,800.00</td><td class="rate">GH₵ 3,800.00</td><td class="rate">GH₵ 15,000.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Swimming Lessons</h3></div>
+        <p class="block-note">12 sessions over 6 weeks, 1 hour per session. Children&rsquo;s lessons run Saturdays only, 9:00 AM &ndash; 12:00 Noon.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>UG Student</th><th>UG Staff</th><th>Staff Child (U17)</th><th>Staff Child (17+)</th><th>Family (Max. 5)</th><th>Adult (Public)</th><th>Child (Public)</th><th>Family (Public, Max. 5)</th></tr></thead>
+            <tbody>
+              <tr><td class="rate">400.00</td><td class="rate">500.00</td><td class="rate">450.00</td><td class="rate">500.00</td><td class="rate">2,500.00</td><td class="rate">500.00</td><td class="rate">800.00</td><td class="rate">3,000.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Swimming Lessons &mdash; Pool Hours</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Day</th><th style="text-align:left;">Hours</th></tr></thead>
+            <tbody>
+              <tr><td>Tuesday</td><td style="text-align:left;" class="rate">8:00 AM &ndash; 12:00 Noon &amp; 5:00 &ndash; 7:00 PM</td></tr>
+              <tr><td>Wednesday &ndash; Friday</td><td style="text-align:left;" class="rate">6:00 AM &ndash; 12:00 Noon &amp; 5:00 &ndash; 7:00 PM</td></tr>
+              <tr><td>Saturday</td><td style="text-align:left;" class="rate">6:00 &ndash; 9:00 AM (Adult) &middot; 9:00 AM &ndash; 12:00 Noon (Children)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Leisure Swimming</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Day</th><th style="text-align:left;">Hours</th></tr></thead>
+            <tbody>
+              <tr><td>Tuesday &ndash; Friday</td><td style="text-align:left;" class="rate">1:00 &ndash; 4:00 PM</td></tr>
+              <tr><td>Saturday</td><td style="text-align:left;" class="rate">1:00 &ndash; 6:00 PM</td></tr>
+              <tr><td>Sunday</td><td style="text-align:left;" class="rate">12:00 Noon &ndash; 6:00 PM</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Advanced Membership</h3></div>
+        <p class="block-note">For leisure swimming subscribers.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Day</th><th style="text-align:left;">Hours</th></tr></thead>
+            <tbody>
+              <tr><td>Tuesday</td><td style="text-align:left;" class="rate">8:00 AM &ndash; 12:00 Noon &amp; 5:00 &ndash; 7:00 PM</td></tr>
+              <tr><td>Wednesday &ndash; Friday</td><td style="text-align:left;" class="rate">6:00 AM &ndash; 12:00 Noon &amp; 1:00 &ndash; 4:00 PM &amp; 5:00 &ndash; 7:00 PM</td></tr>
+              <tr><td>Saturday</td><td style="text-align:left;" class="rate">6:00 AM &ndash; 12:00 Noon &amp; 1:00 &ndash; 6:00 PM</td></tr>
+              <tr><td>Sunday</td><td style="text-align:left;" class="rate">12:00 Noon &ndash; 6:00 PM</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <p><strong>Holidays:</strong> the pool operates 12:00 Noon &ndash; 6:00 PM. There are no lessons on public holidays.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TENNIS COURTS ================= -->
+  <section class="chapter" id="tennis">
+    <div class="chapter-head">
+      <div class="chapter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M4.5 6c3 2 3 10 0 12M19.5 6c-3 2-3 10 0 12"/></svg></div>
+      <div>
+        <p class="eyebrow">Facility Guide &middot; Section Three</p>
+        <h2>Tennis Courts</h2>
+        <p class="dek">Individual play and coached lessons</p>
+      </div>
+    </div>
+    <div class="chapter-body">
+
+      <div class="callout">
+        <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg></div>
+        <p><strong>Court use is free of charge for UG students.</strong> A valid student ID card will be inspected and verified before access is granted.</p>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Individual Play</h3></div>
+        <p class="block-note">Recreational play for individuals who do not require coaching or supervision.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>UG Staff</th><th>Relations (U17)</th><th>Relations (17+)</th><th>Public Child (U17)</th><th>Public Adult (17+)</th><th>Family (Max. 4)</th></tr></thead>
+            <tbody>
+              <tr><td>Walk-in</td><td class="rate">GH₵ 10.00</td><td class="rate">GH₵ 7.00</td><td class="rate">GH₵ 10.00</td><td class="rate">GH₵ 25.00</td><td class="rate">GH₵ 30.00</td><td class="rate">GH₵ 80.00</td></tr>
+              <tr><td>Monthly</td><td class="rate">GH₵ 120.00</td><td class="rate">GH₵ 100.00</td><td class="rate">GH₵ 120.00</td><td class="rate">GH₵ 300.00</td><td class="rate">GH₵ 350.00</td><td class="rate">GH₵ 800.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>Coached Lessons</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>UG Student</th><th>UG Staff</th><th>Relations (U17)</th><th>Relations (17+)</th><th>Public Child (U17)</th><th>Public Adult (17+)</th><th>Family (Max. 4)</th></tr></thead>
+            <tbody>
+              <tr><td>Walk-in</td><td class="rate dash">&mdash;</td><td class="rate">20.00</td><td class="rate">15.00</td><td class="rate">20.00</td><td class="rate">30.00</td><td class="rate">35.00</td><td class="rate">100.00</td></tr>
+              <tr><td>Monthly</td><td class="rate">200.00</td><td class="rate">200.00</td><td class="rate">140.00</td><td class="rate">200.00</td><td class="rate">350.00</td><td class="rate">400.00</td><td class="rate">1,000.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="block-note">The monthly lesson comprises 12 sessions taken within 4 weeks &mdash; one hour per session.</p>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Adult Lessons (Monthly)</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Session</th><th style="text-align:left;">Days</th><th style="text-align:left;">Time</th></tr></thead>
+            <tbody>
+              <tr><td>Morning</td><td style="text-align:left;">Monday &ndash; Saturday</td><td style="text-align:left;" class="rate">6:30 &ndash; 9:00 AM</td></tr>
+              <tr><td>Afternoon</td><td style="text-align:left;">Tuesday</td><td style="text-align:left;" class="rate">5:00 &ndash; 7:00 PM</td></tr>
+              <tr><td>Afternoon</td><td style="text-align:left;">Thursday</td><td style="text-align:left;" class="rate">5:00 &ndash; 7:00 PM</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Kids Lessons</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Session</th><th style="text-align:left;">Days</th><th style="text-align:left;">Time</th></tr></thead>
+            <tbody>
+              <tr><td>Morning</td><td style="text-align:left;">Saturday</td><td style="text-align:left;" class="rate">6:30 &ndash; 9:00 AM</td></tr>
+              <tr><td>Afternoon</td><td style="text-align:left;">Monday</td><td style="text-align:left;" class="rate">3:30 &ndash; 5:00 PM</td></tr>
+              <tr><td>Afternoon</td><td style="text-align:left;">Wednesday</td><td style="text-align:left;" class="rate">3:30 &ndash; 5:00 PM</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Schedule</span><h3>Walk-in (Leisure)</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Session</th><th style="text-align:left;">Days</th><th style="text-align:left;">Time</th></tr></thead>
+            <tbody>
+              <tr><td>All day</td><td style="text-align:left;">Monday &ndash; Friday</td><td style="text-align:left;" class="rate">6:30 AM &ndash; 9:00 PM</td></tr>
+              <tr><td>All day</td><td style="text-align:left;">Saturday</td><td style="text-align:left;" class="rate">6:30 AM &ndash; 12:00 Noon</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TIMETABLE ================= -->
+  <section class="chapter" id="timetable">
+    <div class="chapter-head">
+      <div class="chapter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+      <div>
+        <p class="eyebrow">Facility Guide &middot; Section Four</p>
+        <h2>Activity Timetable</h2>
+        <p class="dek">Weekly class schedule &mdash; Gymnasium studio</p>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <div>
+        <div class="tag-row"><span class="tag">Weekly</span><h3>Monday &ndash; Saturday</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="text-align:left;">Day</th><th>6:30 &ndash; 8:00 AM</th><th>5:00 &ndash; 6:00 PM</th><th>6:00 &ndash; 7:30 PM</th></tr></thead>
+            <tbody>
+              <tr><td>Mon</td><td>High Power Aerobics</td><td>Upper Body Workout</td><td>High Power Aerobics</td></tr>
+              <tr><td>Tue</td><td>Arms / Butts / Abs Attack</td><td>Full Body Workout</td><td>Yoga</td></tr>
+              <tr><td>Wed</td><td>Circuit Workout</td><td colspan="2">Lower Body Workout / High Power Aerobics</td></tr>
+              <tr><td>Thu</td><td>Yoga</td><td>Abs Attack</td><td>Salsa</td></tr>
+              <tr><td>Fri</td><td>Step / Pump Aerobics</td><td>Circuit / Boot Camp</td><td>HIIT Class</td></tr>
+              <tr><td>Sat</td><td>Boot Camp / Aerobics</td><td colspan="2" class="rate">Facility open 6:00 AM &ndash; 12:00 Noon</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="tag-row"><span class="tag">Hours</span><h3>Facility Access for Classes</h3></div>
+        <div class="hours-grid">
+          <div class="hours-card"><p class="k">Student &amp; Non-UG, Mon&ndash;Fri</p><p class="v">6:00 AM &ndash; 6:00 PM</p></div>
+          <div class="hours-card"><p class="k">Staff &amp; Public, Mon&ndash;Fri</p><p class="v">6:00 AM &ndash; 9:00 PM</p></div>
+          <div class="hours-card"><p class="k">Saturday</p><p class="v">6:00 AM &ndash; 12:00 Noon</p></div>
+        </div>
+      </div>
+
+      <p class="block-note">All class times are subject to instructor availability. Please confirm the day&rsquo;s schedule at the front desk before travelling to a session.</p>
+    </div>
+  </section>
+
+  <!-- ================= LED SCREEN ================= -->
+  <section class="chapter" id="led">
+    <div class="chapter-head">
+      <div class="chapter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M9 21h6M12 17v4"/><path d="M10.5 8.5l3 2-3 2z"/></svg></div>
+      <div>
+        <p class="eyebrow">Facility Guide &middot; Section Five</p>
+        <h2>LED Screen Advertising</h2>
+        <p class="dek">Reach the university community on our on-site LED display</p>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <div>
+        <div class="tag-row"><span class="tag">Rates</span><h3>LED Screen Advertisement</h3></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Duration</th><th>UG Student Organisations</th><th>Units Within UG</th><th>External Organisations</th></tr></thead>
+            <tbody>
+              <tr><td>Two weeks</td><td class="rate">GH₵ 180.00</td><td class="rate">GH₵ 240.00</td><td class="rate">GH₵ 900.00</td></tr>
+              <tr><td>Monthly</td><td class="rate">GH₵ 300.00</td><td class="rate">GH₵ 360.00</td><td class="rate">GH₵ 1,680.00</td></tr>
+              <tr><td>Quarterly</td><td class="rate">GH₵ 850.00</td><td class="rate">GH₵ 1,000.00</td><td class="rate">GH₵ 4,200.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="tag-row"><span class="tag">Payment</span><h3>How to Pay</h3></div>
+        <ul class="list">
+          <li>Payments are made at the Sports Directorate, in cash or by cheque issued in the name of the University of Ghana.</li>
+          <li>Email <strong>sports@ug.edu.gh</strong> to book advertisement space or ask about availability.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONTACT ================= -->
+  <section class="contact-card">
+    <p class="eyebrow">Get in Touch</p>
+    <h2>Sports &amp; Wellness Directorate</h2>
+    <p style="margin:0; font-size:14px; color:var(--on-navy-dim);">University of Ghana, Legon</p>
+    <div class="contact-grid">
+      <div><p class="k">Phone</p><p class="v">0303 961 033</p></div>
+      <div><p class="k">Email</p><p class="v">sports@ug.edu.gh</p></div>
+      <div><p class="k">Website</p><p class="v">sports.ug.edu.gh</p></div>
+    </div>
+    <p class="contact-note">Or ask any question in person &mdash; the front desk team is on hand throughout opening hours to help with memberships, bookings and general enquiries.</p>
+  </section>
+
+</div>
+
+<p class="page-foot">Sports &amp; Wellness Directorate &mdash; University of Ghana &middot; sports.ug.edu.gh &middot; 0303 961 033</p>
+
+</body>
+</html>

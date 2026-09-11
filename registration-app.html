@@ -342,6 +342,7 @@
   .btn-gold:hover:not([disabled]){background:var(--gold-dark);}
   .btn-secondary{ background:transparent; border:1px solid var(--line-strong); color:var(--text); }
   .btn-secondary:hover{ border-color:var(--blue); color:var(--blue); }
+  a.btn{ display:block; text-align:center; text-decoration:none; box-sizing:border-box; }
 
   .switch-link{
     display:block; text-align:center; margin-top:16px; font-family:'JetBrains Mono',monospace;
@@ -473,6 +474,7 @@
       ⚠ SCRIPT_URL isn't set yet. Open this file's code and paste in your Apps Script /exec URL.
     </div>
     <div class="activity-grid" id="activityGrid"></div>
+    <a href="brochure.html" target="_blank" rel="noopener" class="btn btn-secondary" id="brochureLinkBtn">Rates &amp; Schedule Guide</a>
   </div>
 </div>
 
@@ -1253,6 +1255,7 @@
     document.getElementById('activityPickerSub').textContent = pickerSection ? 'Leisure play, or structured lessons?' : '';
     document.getElementById('activityPickerSub').style.display = pickerSection ? 'block' : 'none';
     document.getElementById('activityPickerBack').style.display = pickerSection ? 'block' : 'none';
+    document.getElementById('brochureLinkBtn').style.display = pickerSection ? 'none' : 'block';
 
     if(pickerSection){
       grid.innerHTML = pickerSection.options.map(key => `
