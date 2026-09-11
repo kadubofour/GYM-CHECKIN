@@ -2543,46 +2543,6 @@ function addDurationColumnToVisitSheets() {
   Logger.log("Visit Log sheets now have the duration column in the right place.");
 }
 
-// Edit ACTIVITY_KEY below and run this from the function dropdown (Run
-// > diagnoseVisitsSheet) to see EXACTLY what's stored in that
-// activity's Visits sheet — its real dimensions, the literal header
-// row, and the last few data rows exactly as they're stored. Reported
-// symptoms like "a time value shows up where the plan should be" or
-// "the front desk isn't reading some rows" are guesswork to fix blind
-// after already going through two rounds of it on this same sheet —
-// this prints the actual raw data instead, so the next fix (if one's
-// even still needed) can target the real problem instead of another
-// theory.
-function diagnoseVisitsSheet() {
-  const ACTIVITY_KEY = "gym"; // change to the activity to inspect
-
-  const activity = getActivity(ACTIVITY_KEY);
-  if (!activity) { Logger.log(`Unknown activity key: "${ACTIVITY_KEY}"`); return; }
-
-  const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-  const lastRow = sheet.getLastRow();
-  const lastCol = sheet.getLastColumn();
-  const headerRow = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
-
-  Logger.log(
-    `Sheet: "${activity.visitsSheet}"\n` +
-    `Dimensions: ${lastRow} row(s) x ${lastCol} column(s)\n` +
-    `Expected headers (VISIT_HEADERS): ${JSON.stringify(VISIT_HEADERS)}\n` +
-    `Actual header row: ${JSON.stringify(headerRow)}`
-  );
-
-  const sampleCount = Math.min(5, Math.max(lastRow - 1, 0));
-  if (sampleCount > 0) {
-    const startRow = lastRow - sampleCount + 1;
-    const sample = sheet.getRange(startRow, 1, sampleCount, lastCol).getValues();
-    sample.forEach((row, i) => {
-      Logger.log(`Row ${startRow + i} (raw): ${JSON.stringify(row)}`);
-    });
-  } else {
-    Logger.log("No data rows yet.");
-  }
-}
-
 
 // ------------------------------------------------------------------
 // Automatic 10pm sign-out
