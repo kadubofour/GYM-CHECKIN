@@ -599,8 +599,12 @@
   // below is self-rescheduling, not a plain setInterval — the next
   // cycle is only queued once the current one fully settles, so a slow
   // patch can never pile up overlapping requests the way a fixed
-  // interval would.
-  const AUTO_REFRESH_MS = 3000;
+  // interval would. Bumped from 3000 to 5000 — now that the dashboard
+  // view only brings back today's visits (see getRecentVisits in
+  // Code.gs) instead of the whole ever-growing history, each cycle
+  // is far cheaper than it used to be, so this is just a bit more
+  // headroom, not a reaction to that fix specifically.
+  const AUTO_REFRESH_MS = 5000;
 
   if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
     document.getElementById('setupWarning').style.display = 'block';
@@ -761,6 +765,7 @@
       showScreen('desk');
       renderActivitySwitcher();
       loadAll();
+      loadFullVisitHistory();
       refreshAllPendingCounts();
       scheduleAutoRefresh();
     } else {
@@ -866,8 +871,14 @@
     // the old one's (e.g. both empty) — see the snapshot vars' comment.
     lastPendingJSON = lastApprovedJSON = lastVisitsJSON = lastAlertsJSON = null;
     lastClearedAtSeen = undefined;
+    // The full Visits history loaded so far belongs to the activity
+    // just switched away from — clear it so nothing stale shows while
+    // the new activity's history loads (loadAll()'s next cycle would
+    // otherwise merge today's rows into the OLD activity's history).
+    visitEntries = [];
     renderActivitySwitcher();
     loadAll();
+    loadFullVisitHistory();
   }
 
   // ---- Dashboard tabs ----
@@ -926,6 +937,17 @@
   // run of consecutive failures has lasted long enough to actually
   // matter, and only once (not every cycle after that).
   let consecutiveLoadFailures = 0;
+  // "visits" in the dashboard response is only TODAY's rows (see
+  // Code.gs's getRecentVisits) — Visits only ever grows, and re-fetching
+  // its whole history every AUTO_REFRESH_MS was getting slower every
+  // day. loadFullVisitHistory() below loads everything once; every fast
+  // cycle after that only needs to replace today's slice in place,
+  // leaving yesterday-and-older rows (and the Visit Log's search over
+  // them) exactly as already loaded.
+  function mergeTodayVisits(todayRows){
+    const todayLabel = formatDateDMY(new Date());
+    visitEntries = visitEntries.filter(v => v.date !== todayLabel).concat(todayRows);
+  }
   function loadAll(){
     const activity = currentActivity;
     return fetchJSON(SCRIPT_URL + "?activity=" + activity.key + "&view=dashboard&t=" + Date.now())
@@ -948,7 +970,7 @@
         pendingEntries = res.pending || [];
         approvedEntries = res.registrations || [];
         registrationsClearedAt = newClearedAt;
-        visitEntries = res.visits || [];
+        if(visitsChanged) mergeTodayVisits(res.visits || []);
         alertEntries = res.alerts || [];
 
         // Every render() below rebuilds its panel's full innerHTML from
@@ -977,6 +999,24 @@
   }
   document.getElementById('refreshBtn').addEventListener('click', loadAll);
   document.getElementById('approvalsRefreshBtn').addEventListener('click', loadAll);
+
+  // Full Visits history for the current activity, fetched once (see the
+  // callers below) instead of on every AUTO_REFRESH_MS cycle — loadAll()
+  // only brings in today's rows after this. Resets lastVisitsJSON so the
+  // very next dashboard cycle's change-check can't skip a real update by
+  // comparing against a now-stale value.
+  function loadFullVisitHistory(){
+    const activity = currentActivity;
+    return fetchJSON(SCRIPT_URL + "?activity=" + activity.key + "&view=visits&t=" + Date.now())
+      .then(res => {
+        if(activity.key !== currentActivity.key) return; // switched while in flight
+        if(res.status !== "ok") return;
+        visitEntries = res.rows || [];
+        lastVisitsJSON = null;
+        renderVisitsTable();
+      })
+      .catch(() => {});
+  }
 
   // One request covering every activity's pending count, instead of
   // one fetch per activity.
@@ -1178,7 +1218,7 @@
 
   // Visits are now part of the combined loadAll() dashboard fetch, so
   // the Visit Log tab's refresh button just re-runs that.
-  document.getElementById('visitsRefreshBtn').addEventListener('click', loadAll);
+  document.getElementById('visitsRefreshBtn').addEventListener('click', loadFullVisitHistory);
   document.getElementById('visitSearchBox').addEventListener('input', function(){
     visitSearchTerm = this.value.trim().toLowerCase();
     renderVisitsTable();

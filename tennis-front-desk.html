@@ -379,8 +379,10 @@
   // below is self-rescheduling, not a plain setInterval — the next
   // cycle is only queued once the current one fully settles, so a slow
   // patch can never pile up overlapping requests the way a fixed
-  // interval would.
-  const AUTO_REFRESH_MS = 3000;
+  // interval would. Bumped from 3000 to 5000 for a bit more headroom
+  // against the shared backend, alongside the main front desk's own
+  // refresh-cost fix.
+  const AUTO_REFRESH_MS = 5000;
 
   if(!SCRIPT_URL || SCRIPT_URL.indexOf("PASTE_") === 0){
     document.getElementById('setupWarning').style.display = 'block';

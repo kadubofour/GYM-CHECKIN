@@ -1257,6 +1257,42 @@ function getVisibleRegistrations(activity) {
   return { rows: rows, clearedAt: clearedAt || null };
 }
 
+// Visits is append-only — every check-in, walk-in, and approved
+// walk-in appends a row (see checkin/addWalkinVisit/approvePendingRow),
+// nothing is ever inserted anywhere else — so it's always in
+// chronological order, which means today's rows are always exactly the
+// LAST however-many rows in the sheet, never scattered through it.
+// This reads just the date column (one narrow single-column read) and
+// walks backward from the bottom until it hits a row that isn't today,
+// then reads only that trailing slice at full width — instead of the
+// sheet's entire history, which only ever grows and was being re-read
+// and re-sent in full on every 3-second front-desk dashboard refresh.
+// Used by the "dashboard" view; the full history is still available in
+// full via the standalone "visits" view below, which the front desk
+// now fetches once (and merges the live trailing slice into) instead
+// of on every cycle — see front-desk-dashboard.html's loadAll() and
+// loadFullVisitHistory().
+function getRecentVisits(activity) {
+  const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const dateColIndex = VISIT_HEADERS.indexOf("date") + 1;
+  const dates = sheet.getRange(2, dateColIndex, lastRow - 1, 1).getValues();
+  const todayLabel = formatDateDMY(new Date());
+  let start = dates.length; // 0-based index into `dates` where today's trailing run begins
+  while (start > 0 && String(dates[start - 1][0]).trim() === todayLabel) start--;
+  const count = dates.length - start;
+  if (count === 0) return [];
+  const values = sheet.getRange(2 + start, 1, count, VISIT_HEADERS.length).getValues();
+  return values
+    .filter(row => row.join("") !== "")
+    .map(row => {
+      const obj = {};
+      VISIT_HEADERS.forEach((h, i) => obj[h] = cellToDisplayValue(row[i], h));
+      return obj;
+    });
+}
+
 function doGet(e) {
   try {
     // No specific activity needed — one sheet read total, instead of
@@ -1291,15 +1327,21 @@ function doGet(e) {
       // one activity, in a single execution instead of 3-4 separate
       // ones (pending/registrations/visits/alerts each cost their own
       // request overhead — spreadsheet open, auth — on top of the
-      // actual read).
+      // actual read). "visits" here is TODAY's rows only (see
+      // getRecentVisits) — Visits only ever grows, so re-fetching its
+      // entire history on every 3-second cycle got slower every day.
+      // The front end merges this trailing slice into the full history
+      // it already loaded once (see front-desk-dashboard.html's
+      // loadFullVisitHistory()) instead of replacing it wholesale, so
+      // yesterday-and-older visits and the Visit Log's search still
+      // cover everything — they just aren't re-fetched every cycle.
       const pendingSheet = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
-      const visitsSheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
       const registrations = getVisibleRegistrations(activity);
       return ok({
         pending: sheetToObjects(pendingSheet).filter(r => r.activity === activity.key),
         registrations: registrations.rows,
         clearedAt: registrations.clearedAt,
-        visits: sheetToObjects(visitsSheet),
+        visits: getRecentVisits(activity),
         alerts: getAlerts(activity)
       });
     }
