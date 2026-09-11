@@ -1184,6 +1184,24 @@
     renderVisitsTable();
   });
 
+  // "h:mm a" (e.g. "9:05 AM") to minutes-since-midnight, so visits sort
+  // by actual time of day instead of comparing the strings character by
+  // character — a plain string compare puts "9:05 AM" ahead of
+  // "10:15 AM" because "9" > "1".
+  function parseTimeToMinutes(timeStr){
+    if(!timeStr) return -1;
+    const s = String(timeStr).trim();
+    let m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if(m){
+      let hour = Number(m[1]) % 12;
+      if(m[3].toUpperCase() === 'PM') hour += 12;
+      return hour * 60 + Number(m[2]);
+    }
+    m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if(m) return Number(m[1]) * 60 + Number(m[2]);
+    return -1;
+  }
+
   function sortedFilteredVisits(){
     let list = visitEntries.filter(v => {
       if(!visitSearchTerm) return true;
@@ -1191,7 +1209,7 @@
         || (v.idNo||'').toLowerCase().includes(visitSearchTerm)
         || (v.class||'').toLowerCase().includes(visitSearchTerm);
     });
-    list.sort((a,b) => (b.timeIn||'').localeCompare(a.timeIn||''));
+    list.sort((a,b) => parseTimeToMinutes(b.timeIn) - parseTimeToMinutes(a.timeIn));
     return list;
   }
 
