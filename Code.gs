@@ -2514,33 +2514,21 @@ function repairDateTimeColumns() {
 // desk's Visit Log can show a member's plan — but getOrCreateSheet()
 // only ever writes headers once, when a sheet is brand new, so a
 // Visits sheet created before this change still has its original
-// header row.
-//
-// Rewrites row 1 to exactly VISIT_HEADERS, in that exact order — safe
-// to run any number of times regardless of whatever's currently in the
-// header row, including a previous run of an earlier, buggier version
-// of this function that positioned "duration" using getLastColumn()+1:
-// on a sheet where getLastColumn() picked up stray content/formatting
-// past the real last header (blank cells still count if anything in
-// that column was ever touched), that put "duration" several columns
-// to the right of where appendRow() — which always writes exactly
-// VISIT_HEADERS.length values starting at column 1 — actually puts it,
-// misaligning every column from "duration" onward and making the
-// Visit Log's data look wrong or missing entirely. Only row 1 is ever
-// touched here; every data row below it is left completely alone, and
-// any stray header cells to the right of the real 9 columns (left over
-// from that misplacement) are cleared.
+// header row. This appends the missing "duration" header by hand,
+// without touching any existing data — older rows simply have no plan
+// recorded in that column (blank), same as any other older column that
+// gained a new field later; every new visit from here on gets one.
 function addDurationColumnToVisitSheets() {
   Object.keys(ACTIVITIES).forEach(key => {
     const activity = ACTIVITIES[key];
     const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
-    sheet.getRange(1, 1, 1, VISIT_HEADERS.length).setValues([VISIT_HEADERS]);
     const lastCol = sheet.getLastColumn();
-    if (lastCol > VISIT_HEADERS.length) {
-      sheet.getRange(1, VISIT_HEADERS.length + 1, 1, lastCol - VISIT_HEADERS.length).clearContent();
+    const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (headerRow.indexOf("duration") === -1) {
+      sheet.getRange(1, lastCol + 1).setValue("duration");
     }
   });
-  Logger.log("Visit Log sheets now have the duration column in the right place.");
+  Logger.log("Visit Log sheets now have a duration column.");
 }
 
 
