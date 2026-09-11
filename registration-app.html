@@ -65,7 +65,7 @@
     display:inline-flex; align-items:center; gap:6px; background:var(--blue-dim); color:var(--blue);
     font-weight:700; font-size:12px; padding:6px 12px; border-radius:20px;
   }
-  #changeActivityBtn{ display:block; text-align:right; margin:0; width:auto; font-size:10.5px; }
+  #changeActivityBtn{ margin:0; padding:6px 12px; font-size:10.5px; }
 
   /* Tabs — back to the original plain white/gray treatment: a light
      gray-blue "arranger" bar groups all four tabs into one control, and
@@ -312,7 +312,22 @@
   .renew-option-sub.expired{ color:var(--danger); font-weight:700; }
   .renew-option-arrow{ font-size:18px; color:var(--text-faint); flex-shrink:0; transition:color .12s ease; }
   .renew-option:hover .renew-option-arrow, .renew-option:focus-visible .renew-option-arrow{ color:var(--blue); }
-  .back-link{ display:block; text-align:left; margin:0 0 16px; }
+  /* Every "go back to the previous screen" control uses this one style —
+     a real bordered pill, not a bare faint text link, so it reads as a
+     pressable button worth noticing rather than something easy to miss.
+     Always paired with "← Back" so the wording is consistent everywhere
+     too (the wizard's own Back/Continue pair below is the one exception —
+     see .wizard-nav .btn-secondary — since it needs to match Continue's
+     full button styling, not this compact pill). */
+  .back-btn{
+    display:inline-flex; align-items:center; gap:6px; width:auto;
+    background:var(--panel-alt); border:1px solid var(--line-strong); color:var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700;
+    letter-spacing:0.04em; text-transform:uppercase;
+    padding:8px 14px; border-radius:20px; cursor:pointer; margin:0 0 16px;
+    transition:border-color .12s ease, color .12s ease, background .12s ease;
+  }
+  .back-btn:hover{ border-color:var(--blue); color:var(--blue); background:var(--blue-dim); }
 
   .btn{
     width:100%; padding:14px 16px; border-radius:8px; border:none; font-family:'Inter',sans-serif;
@@ -451,7 +466,7 @@
       <span class="brand-logo" role="img" aria-label="University of Ghana coat of arms"></span>
       <p class="brand-eyebrow">University of Ghana Sports and Wellness Directorate</p>
     </div>
-    <button type="button" class="switch-link back-link" id="activityPickerBack" style="display:none;margin:0 0 8px;">← Back</button>
+    <button type="button" class="back-btn" id="activityPickerBack" style="display:none;">← Back</button>
     <h1 id="activityPickerTitle">CHOOSE YOUR ACTIVITY</h1>
     <p class="subhead" id="activityPickerSub" style="display:none;"></p>
     <div class="setup-warning" id="setupWarningPicker" style="display:none;">
@@ -465,7 +480,7 @@
   <div class="card">
   <div class="activity-chip-row">
     <span class="activity-chip" id="activeActivityChip"></span>
-    <button type="button" class="switch-link" id="changeActivityBtn">Change ✕</button>
+    <button type="button" class="back-btn" id="changeActivityBtn">← Back</button>
   </div>
   <h1 id="mainTitle">GYM MEMBERSHIP</h1>
 
@@ -729,7 +744,7 @@
       </div>
 
       <div class="wizard-nav">
-        <button type="button" class="btn btn-secondary" id="wizBackBtn" style="display:none;">Back</button>
+        <button type="button" class="btn btn-secondary" id="wizBackBtn" style="display:none;">← Back</button>
         <button type="button" class="btn btn-primary" id="wizNextBtn">Continue</button>
         <button type="submit" class="btn btn-primary" id="submitBtn" style="display:none;" disabled>Submit for Approval</button>
       </div>
@@ -804,7 +819,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="lookupBtn">Find My Status</button>
       </form>
-      <button class="switch-link" id="toCodeBtn">← Back to sign in</button>
+      <button type="button" class="back-btn" id="toCodeBtn">← Back</button>
     </div>
 
     <div class="view" id="view-walkin">
@@ -842,7 +857,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="walkinSubmitBtn">Submit Walk-in</button>
       </form>
-      <button class="switch-link" id="toCodeFromWalkinBtn">← Back to sign in</button>
+      <button type="button" class="back-btn" id="toCodeFromWalkinBtn">← Back</button>
     </div>
 
     <div class="view" id="view-result">
@@ -868,7 +883,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="checkoutBtn">Sign Out</button>
       </form>
-      <button class="switch-link" id="toOutStartBtn">← Back</button>
+      <button type="button" class="back-btn" id="toOutStartBtn">← Back</button>
     </div>
 
     <div class="view" id="view-out-phone">
@@ -884,7 +899,7 @@
         </div>
         <button type="submit" class="btn btn-primary" id="checkoutPhoneBtn">Sign Out</button>
       </form>
-      <button class="switch-link" id="toOutCodeBtn">← Back</button>
+      <button type="button" class="back-btn" id="toOutCodeBtn">← Back</button>
     </div>
 
     <div class="view" id="view-out-result">
@@ -933,7 +948,7 @@
     </div>
 
     <div class="view" id="view-renew-duration">
-      <button type="button" class="switch-link back-link" id="toRenewMenuFromDurationBtn">← Back</button>
+      <button type="button" class="back-btn" id="toRenewMenuFromDurationBtn">← Back</button>
       <p class="section-label">Choose a new plan</p>
       <div class="field" id="field-renew-duration">
         <div class="duration-grid" id="renewDurationGrid"></div>
@@ -944,7 +959,7 @@
     </div>
 
     <div class="view" id="view-renew-details">
-      <button type="button" class="switch-link back-link" id="toRenewMenuFromDetailsBtn">← Back</button>
+      <button type="button" class="back-btn" id="toRenewMenuFromDetailsBtn">← Back</button>
       <p class="section-label">Update your details</p>
       <form id="renewDetailsForm" novalidate>
         <div class="field" id="field-ren-phone">
