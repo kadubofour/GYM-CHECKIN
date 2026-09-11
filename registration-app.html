@@ -2449,6 +2449,11 @@
       checkinBtn.textContent = "Sign In";
       if(data.status === "ok"){
         renderMemberResult(data.member, { subtitle: "Signed in" });
+      } else if(data.status === "expired" && data.member){
+        // Not signed in (no visit logged, see Code.gs), but still show
+        // the member's own status — name, plan, how long ago it expired
+        // — instead of a dead-end error that tells them nothing.
+        renderMemberResult(data.member, { subtitle: "Not signed in — see front desk to renew" });
       } else {
         renderMessage(true, "Couldn't sign in", data.message || "Double check the code, or ask the front desk for help.");
       }

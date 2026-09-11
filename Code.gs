@@ -1596,7 +1596,10 @@ function doPost(e) {
       // Expired/used-up membership: don't log a visit — alert the
       // front desk instead so a staff member can sort it out with the
       // member in person, rather than letting an expired code silently
-      // work.
+      // work. Still hands the member's own record back (status: "expired",
+      // not an error) so the app can show them their actual status —
+      // name, plan, how long ago it expired — instead of a dead-end
+      // "couldn't sign in" message that tells them nothing.
       if (isExpired(activity, match.date, match.duration, match.sessionsUsed)) {
         const expiry = getExpiryDate(activity, match.date, match.duration);
         const expiredOnLabel = expiry ? Utilities.formatDate(expiry, TIMEZONE, DATE_FORMAT) : "";
@@ -1612,9 +1615,13 @@ function doPost(e) {
         });
         const cfg = getDurationConfig(activity, match.duration);
         const usedUp = cfg && cfg.sessionCap && (Number(match.sessionsUsed) || 0) >= cfg.sessionCap;
-        return errorMsg(usedUp
-          ? `You've used all ${cfg.sessionCap} sessions on this package. Please see the front desk to renew.`
-          : ("Your membership expired" + (expiredOnLabel ? ` on ${expiredOnLabel}` : "") + ". Please see the front desk to renew."));
+        return ok({
+          status: "expired",
+          member: match,
+          message: usedUp
+            ? `You've used all ${cfg.sessionCap} sessions on this package. Please see the front desk to renew.`
+            : ("Your membership expired" + (expiredOnLabel ? ` on ${expiredOnLabel}` : "") + ". Please see the front desk to renew.")
+        });
       }
 
       const visits = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
