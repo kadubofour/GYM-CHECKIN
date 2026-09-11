@@ -2596,14 +2596,53 @@ function autoSignOutAt10pm() {
   }
 }
 
+// Every run — whether triggered automatically at 10pm or kicked off by
+// hand — records what happened here, so "did the auto sign-out even
+// run last night" has a real answer instead of needing to dig through
+// the Apps Script editor's Executions log. See checkLastNightlyRun()
+// below to read it back in one glance.
+const LAST_NIGHTLY_RUN_PROPERTY = "LAST_NIGHTLY_RUN";
+
 // Each job gets its own try/catch for the same reason as the one
 // inside autoSignOutAt10pm() above: without it, an error in the sign-
 // out job would propagate up and stop regroupAllRegistrations() from
 // ever running at all that night, and vice versa. One job's failure
 // is logged and the other still gets its chance to run.
 function runNightlyMaintenance() {
-  try { autoSignOutAt10pm(); } catch (err) { Logger.log(`autoSignOutAt10pm failed: ${err}`); }
-  try { regroupAllRegistrations(); } catch (err) { Logger.log(`regroupAllRegistrations failed: ${err}`); }
+  const ranAt = new Date();
+  let signOutResult = "ok";
+  let regroupResult = "ok";
+  try { autoSignOutAt10pm(); } catch (err) { signOutResult = `failed: ${err}`; Logger.log(`autoSignOutAt10pm failed: ${err}`); }
+  try { regroupAllRegistrations(); } catch (err) { regroupResult = `failed: ${err}`; Logger.log(`regroupAllRegistrations failed: ${err}`); }
+  PropertiesService.getScriptProperties().setProperty(LAST_NIGHTLY_RUN_PROPERTY, JSON.stringify({
+    ranAtIso: ranAt.toISOString(),
+    ranAtLocal: Utilities.formatDate(ranAt, TIMEZONE, "EEEE, MMM d, yyyy 'at' h:mm:ss a") + " (" + TIMEZONE + ")",
+    signOutResult: signOutResult,
+    regroupResult: regroupResult
+  }));
+}
+
+// Run any time from the function dropdown (Run > checkLastNightlyRun)
+// to see, in the Execution log, exactly when runNightlyMaintenance()
+// last ran and whether each job succeeded — this is the fastest way to
+// tell "is the trigger even firing" apart from "it fired but something
+// inside it failed" apart from "it fired at the wrong real-world time"
+// (compare ranAtLocal, which is always Ghana time, against when you
+// actually expected it to run). If this has never been set at all, the
+// trigger has never fired even once — see installNightlyMaintenanceTrigger()
+// below, and double check Project Settings (gear icon) -> Time zone is
+// actually set to Ghana's zone, since ScriptApp's atHour(22) schedules
+// against THAT setting, not the TIMEZONE constant used for formatting
+// dates/times elsewhere in this file.
+function checkLastNightlyRun() {
+  const raw = PropertiesService.getScriptProperties().getProperty(LAST_NIGHTLY_RUN_PROPERTY);
+  if (!raw) {
+    Logger.log("No record of runNightlyMaintenance() ever running — the nightly trigger has never fired. " +
+      "Run installNightlyMaintenanceTrigger() and check Project Settings -> Time zone is set to Ghana's zone.");
+    return;
+  }
+  const info = JSON.parse(raw);
+  Logger.log(`Last ran: ${info.ranAtLocal}\nAuto sign-out: ${info.signOutResult}\nDate regrouping: ${info.regroupResult}`);
 }
 
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
