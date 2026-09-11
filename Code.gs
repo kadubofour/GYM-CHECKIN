@@ -989,19 +989,36 @@ function parseDriveFileId(input) {
 // Date helpers
 // ------------------------------------------------------------------
 
-// Every "date" column is written as DATE_FORMAT ("dd/MM/yyyy") — never
-// hand that to the bare Date constructor, which treats an ambiguous
-// slash-separated string as M/D/Y and silently mangles (or outright
-// fails to parse) any date whose day-of-month is above 12. Matches the
-// dd/MM/yyyy shape explicitly first; only for something that isn't in
-// that shape (an ISO timestamp, say) does it fall back to native
-// parsing.
+// Every "date" column is written as DATE_FORMAT ("dd/MM/yyyy") today —
+// never hand that to the bare Date constructor, which treats an
+// ambiguous slash-separated string as M/D/Y and silently mangles (or
+// outright fails to parse) any date whose day-of-month is above 12.
+// DATE_FORMAT used to be "M/d/yyyy" (month-first) before it switched to
+// day-first — any row written before that switch is still stored in
+// that old shape, and reading it as dd/MM/yyyy would silently swap its
+// day and month (e.g. an old "8/3/2026", meant as August 3rd, misread
+// as day=8/month=3 = March 8th) — exactly the kind of thing that throws
+// off an expiry check without ever throwing an error. So: try
+// dd/MM/yyyy first, but only accept it if the second number is
+// actually a valid month (1-12); when it isn't, that's a strong signal
+// this is an old month-first row, so re-read it the old way instead.
+// Only genuinely ambiguous rows (both numbers 1-12, so either reading
+// is "valid") can still come out wrong — there's no way to tell those
+// apart from the stored string alone.
 function parseDateSafe(v) {
   if (!v) return null;
   const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) {
-    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-    return isNaN(d.getTime()) ? null : d;
+    const a = Number(m[1]), b = Number(m[2]), year = Number(m[3]);
+    if (b >= 1 && b <= 12) {
+      const d = new Date(year, b - 1, a);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (a >= 1 && a <= 12) {
+      const d = new Date(year, a - 1, b);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
   }
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d;
