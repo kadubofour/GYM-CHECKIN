@@ -1159,6 +1159,7 @@ function approvePendingRow(activity, pending, registrations, idx) {
   // regroupAllRegistrations() backstop. Cheap: touches only the one block.
   insertRegistrationIntoDateGroup(registrations, REGISTRATIONS_HEADERS, regRowValues, formatDateDMY(approvedNow));
   pending.deleteRow(idx);
+  invalidateVisibleRegistrationsCache(activity.key);
   return idNo;
 }
 
@@ -1271,12 +1272,42 @@ function dedupeRegistrationsByIdNo(rows) {
   });
 }
 
+// Registrations only ever grows (every new registration AND every
+// renewal appends its own row — see insertRegistrationIntoDateGroup),
+// so re-reading and re-deduping the whole sheet on every single
+// "dashboard"/"registrantsDashboard" poll (every AUTO_REFRESH_MS, from
+// as many as 3 front desks — main plus the two satellites — all
+// independently polling) gets slower every month, and multiple front
+// desks that happen to be looking at the same activity at once each
+// pay for their own separate read of the same data within the same
+// few seconds. Unlike Visits (see getRecentVisits), there's no "just
+// today" to narrow this down to — every currently-valid member has to
+// stay visible here, not just recent ones — so the fix is a short
+// cache instead: this result is reused for a few seconds instead of
+// re-read from scratch by every near-simultaneous request, and
+// explicitly invalidated (see invalidateVisibleRegistrationsCache)
+// wherever a Registrations row actually changes, so an action never
+// shows stale results to the person who just performed it — the short
+// TTL is only a safety net for anything that might invalidate and
+// miss, not the primary way this stays correct.
+const VISIBLE_REGISTRATIONS_CACHE_TTL_SECONDS = 20;
+
+function invalidateVisibleRegistrationsCache(activityKey) {
+  try { CacheService.getScriptCache().remove("visibleRegs_" + activityKey); } catch (err) { /* cache unavailable — nothing to invalidate */ }
+}
+
 // One activity's Registrations rows, deduplicated to one (current) row
 // per person and with the Clear List cutoff (if any) already applied.
 // Shared by the plain "registrations" view, the main "dashboard" view,
 // and the satellite "registrantsDashboard" view so the filtering logic
 // lives in one place.
 function getVisibleRegistrations(activity) {
+  const cacheKey = "visibleRegs_" + activity.key;
+  try {
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch (err) { /* cache unavailable or corrupt — fall through to a real read */ }
+
   const sheet = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
   let rows = dedupeRegistrationsByIdNo(sheetToObjects(sheet));
   const clearedAt = PropertiesService.getScriptProperties().getProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
@@ -1284,7 +1315,11 @@ function getVisibleRegistrations(activity) {
     const cutoffMs = new Date(clearedAt).getTime();
     rows = rows.filter(r => registrationTimestampMs(r) > cutoffMs);
   }
-  return { rows: rows, clearedAt: clearedAt || null };
+  const result = { rows: rows, clearedAt: clearedAt || null };
+  try {
+    CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), VISIBLE_REGISTRATIONS_CACHE_TTL_SECONDS);
+  } catch (err) { /* result too large for the cache (100KB cap), or cache unavailable — fine, this call just reads fresh every time */ }
+  return result;
 }
 
 // Visits is append-only — every check-in, walk-in, and approved
@@ -2130,6 +2165,7 @@ function doPost(e) {
         registrations.getRange(idx, REGISTRATIONS_HEADERS.indexOf(h) + 1).setValue(val);
       });
 
+      invalidateVisibleRegistrationsCache(activity.key);
       const rowValues = registrations.getRange(idx, 1, 1, REGISTRATIONS_HEADERS.length).getValues()[0];
       const member = {};
       REGISTRATIONS_HEADERS.forEach((h, i) => member[h] = rowValues[i]);
@@ -2154,11 +2190,13 @@ function doPost(e) {
     if (action === "clearRegistrationsView") {
       const clearedAt = new Date().toISOString();
       PropertiesService.getScriptProperties().setProperty(VIEW_CLEARED_AT_PREFIX + activity.key, clearedAt);
+      invalidateVisibleRegistrationsCache(activity.key);
       return ok({ clearedAt: clearedAt });
     }
 
     if (action === "restoreRegistrationsView") {
       PropertiesService.getScriptProperties().deleteProperty(VIEW_CLEARED_AT_PREFIX + activity.key);
+      invalidateVisibleRegistrationsCache(activity.key);
       return ok({});
     }
 
@@ -2512,7 +2550,10 @@ function regroupRegistrationsByDate(activity) {
 // approval. You can also run it by hand (Apps Script editor's function
 // dropdown -> Run) any time you don't want to wait for the nightly run.
 function regroupAllRegistrations() {
-  Object.keys(ACTIVITIES).forEach(key => regroupRegistrationsByDate(ACTIVITIES[key]));
+  Object.keys(ACTIVITIES).forEach(key => {
+    regroupRegistrationsByDate(ACTIVITIES[key]);
+    invalidateVisibleRegistrationsCache(key);
+  });
 }
 
 // Drops a freshly-approved row straight into its Registrations sheet's
