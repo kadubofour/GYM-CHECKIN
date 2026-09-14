@@ -960,9 +960,20 @@
   // cycle after that only needs to replace today's slice in place,
   // leaving yesterday-and-older rows (and the Visit Log's search over
   // them) exactly as already loaded.
-  function mergeTodayVisits(todayRows){
-    const todayLabel = formatDateDMY(new Date());
-    visitEntries = visitEntries.filter(v => v.date !== todayLabel).concat(todayRows);
+  // todayLabel MUST be the server's own date label (Code.gs's
+  // "dashboard" view sends it as visitsDateLabel, in Ghana time via
+  // TIMEZONE), never computed from this device's own clock — a
+  // front-desk device isn't guaranteed to be set to Ghana time (the
+  // same reason TIMEZONE exists server-side at all), and if this
+  // guessed wrong, the filter below would never match any of these
+  // rows again, so every cycle would append the same "today" batch on
+  // top of what's already there instead of replacing it — visible as
+  // the same check-ins duplicating in the Visit Log forever. Falls
+  // back to a local guess only if talking to an older deployment that
+  // doesn't send visitsDateLabel yet.
+  function mergeTodayVisits(todayRows, todayLabel){
+    const label = todayLabel || formatDateDMY(new Date());
+    visitEntries = visitEntries.filter(v => v.date !== label).concat(todayRows);
   }
   function loadAll(){
     const activity = currentActivity;
@@ -986,7 +997,7 @@
         pendingEntries = res.pending || [];
         approvedEntries = res.registrations || [];
         registrationsClearedAt = newClearedAt;
-        if(visitsChanged) mergeTodayVisits(res.visits || []);
+        if(visitsChanged) mergeTodayVisits(res.visits || [], res.visitsDateLabel);
         alertEntries = res.alerts || [];
 
         // Every render() below rebuilds its panel's full innerHTML from

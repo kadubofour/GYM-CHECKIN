@@ -1372,6 +1372,17 @@ function doGet(e) {
         registrations: registrations.rows,
         clearedAt: registrations.clearedAt,
         visits: getRecentVisits(activity),
+        // The date label "visits" rows were just filtered by — the
+        // front end merges them in by matching this exact string (see
+        // mergeTodayVisits()), and a device's own clock/timezone isn't
+        // reliable for that (the whole reason TIMEZONE exists — see its
+        // own comment). Handing this over explicitly means the merge
+        // always agrees with what these rows are actually dated,
+        // instead of a front-desk device silently guessing wrong and
+        // never being able to tell "today" apart from these rows again
+        // — which would leave stale duplicates piling up in the Visit
+        // Log every single refresh cycle instead of being replaced.
+        visitsDateLabel: formatDateDMY(new Date()),
         alerts: getAlerts(activity)
       });
     }
@@ -1920,7 +1931,16 @@ function doPost(e) {
       let match = idNo ? getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, idNo) : null;
       if (!match && phone) {
         const matches = dedupeRegistrationsByIdNo(getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone));
-        if (matches.length) match = matches[0];
+        // A shared phone (a family's landline, a parent registering a
+        // child under their own number) can belong to more than one
+        // DIFFERENT person — dedupeRegistrationsByIdNo only collapses
+        // repeat rows of the SAME idNo (renewals), not different
+        // people. Auto-submitting as whichever one happened to come
+        // back first would risk checking someone in under a stranger's
+        // identity, so a phone match only counts here when it's
+        // unambiguous — genuinely one person.
+        const distinctIdNos = new Set(matches.map(m => m.idNo));
+        if (matches.length && distinctIdNos.size === 1) match = matches[0];
       }
       if (!match) match = findRecentVisitMatch(activity, idNo, phone);
 
@@ -1929,11 +1949,17 @@ function doPost(e) {
       // own name/ID) that Visits/Registrations don't carry — never
       // usable for a one-tap submission, always falls back to the full
       // form for those, same as a match this activity doesn't even
-      // recognize as one of its own categories.
+      // recognize as one of its own categories. durCfg mirrors the
+      // "submit" action's own duration/category check — without it, a
+      // match found for an activity that has no Walk-in plan at all
+      // (Swimming Lessons) would write an invalid Pending row instead
+      // of being rejected the same way "submit" already rejects it.
+      const durCfg = getDurationConfig(activity, "Walk-in");
       const usable = !!(match && match.name && match.class &&
         activity.categories.indexOf(match.class) !== -1 &&
         match.class !== FAMILY_CATEGORY &&
-        UG_STAFF_RELATION_CATEGORIES.indexOf(match.class) === -1);
+        UG_STAFF_RELATION_CATEGORIES.indexOf(match.class) === -1 &&
+        durCfg && durationAllowedForCategory(durCfg, match.class));
 
       if (!usable) {
         return ok({
