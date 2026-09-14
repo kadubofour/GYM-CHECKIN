@@ -2850,6 +2850,60 @@ function diagnoseExpiry() {
   );
 }
 
+// Edit ACTIVITY_KEY/ID_NO/PHONE below and run this from the function
+// dropdown (Run > diagnoseWalkinLookup) to see exactly what the
+// self-service Walk-in form's autofill ("walkinLookup" action) would
+// find for a given ID number and/or phone number — same lookup order
+// it actually uses (this activity's Registrations first, then its
+// Visits history), printed step by step instead of silently coming
+// back found:false. Leave either ID_NO or PHONE blank if you only
+// want to test one of them, same as the real form does when someone
+// fills in just one field.
+function diagnoseWalkinLookup() {
+  const ACTIVITY_KEY = "gym"; // change to the activity to check
+  const ID_NO = "";           // change to the ID number to test
+  const PHONE = "";           // exactly as it would be stored, e.g. "+233 24 123 4567"
+
+  const activity = getActivity(ACTIVITY_KEY);
+  if (!activity) { Logger.log(`Unknown activity key: "${ACTIVITY_KEY}"`); return; }
+
+  const idNo = String(ID_NO).trim();
+  const phone = String(PHONE).trim();
+  if (!idNo && !phone) { Logger.log("Set ID_NO and/or PHONE near the top of diagnoseWalkinLookup() first."); return; }
+  Logger.log(`Looking up idNo="${idNo}" phone="${phone}" in "${activity.label}"...`);
+
+  const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+  let match = idNo ? getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, idNo) : null;
+  Logger.log(`Step 1 — Registrations by idNo: ${match ? JSON.stringify(match) : "no match"}`);
+
+  if (!match && phone) {
+    const matches = dedupeRegistrationsByIdNo(getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone));
+    Logger.log(`Step 2 — Registrations by phone: ${matches.length} match(es) — ${JSON.stringify(matches)}`);
+    if (matches.length) match = matches[0];
+  } else {
+    Logger.log("Step 2 — Registrations by phone: skipped (already matched by idNo, or no phone given)");
+  }
+
+  if (!match) {
+    match = findRecentVisitMatch(activity, idNo, phone);
+    Logger.log(`Step 3 — Visits history (most recent match): ${match ? JSON.stringify(match) : "no match"}`);
+  } else {
+    Logger.log("Step 3 — Visits history: skipped (already matched in Registrations)");
+  }
+
+  if (!match) {
+    Logger.log(
+      "RESULT: found:false — nothing in Registrations or Visits matches this idNo/phone for " +
+      `"${activity.label}". If this person has definitely visited before, double-check: (1) the phone number ` +
+      "above is typed EXACTLY as it's stored — same country code, same spacing (paste it from the sheet rather " +
+      "than retyping), (2) this is the right activity — a match in a different activity's Visits sheet won't " +
+      "show here, (3) their idNo/phone actually made it into the Visits sheet in the first place."
+    );
+    return;
+  }
+  Logger.log(`RESULT: found:true — name="${match.name}" phone="${match.phone}" idNo="${match.idNo}" class="${match.class}"`);
+}
+
 // Run this ONCE from the function dropdown (Run > installNightlyMaintenanceTrigger),
 // then approve the permissions prompt. Schedules runNightlyMaintenance()
 // (the 10pm auto sign-out, then the date-grouped Registrations
