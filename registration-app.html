@@ -118,6 +118,9 @@
   .field-error{ font-size:11.5px; color:var(--danger); margin-top:5px; display:none; }
   .field.invalid input, .field.invalid select{border-color:var(--danger);}
   .field.invalid .field-error{display:block;}
+  .autofill-hint{ font-size:11.5px; color:var(--blue); margin:-8px 0 16px; display:none; }
+  .autofill-hint.show{ display:block; }
+  .autofill-hint.miss{ color:var(--text-faint); }
 
   /* Phone: country code + number */
   .phone-group{ display:flex; gap:8px; }
@@ -826,13 +829,22 @@
 
     <div class="view" id="view-walkin">
       <button type="button" class="back-btn" id="toCodeFromWalkinBtn">← Back</button>
-      <p class="subhead">Quick walk-in entry — just a few details. Front desk still needs to approve it before you're checked in.</p>
+      <p class="subhead">Quick walk-in entry — enter your phone or ID first and we'll fill in the rest if you've visited before.</p>
       <form id="walkinSigninForm" novalidate>
-        <div class="field" id="field-walkin-class">
-          <label for="walkinClass">Category</label>
-          <select id="walkinClass"></select>
-          <p class="field-error">Please select a category.</p>
+        <div class="field" id="field-walkin-phone">
+          <label for="walkinPhone">Phone Number</label>
+          <div class="phone-group">
+            <select id="walkinPhoneCode" class="country-code-select"></select>
+            <input type="text" id="walkinPhone" placeholder="24 123 4567" inputmode="tel">
+          </div>
+          <p class="field-error">Please enter a valid phone number.</p>
         </div>
+        <div class="field" id="field-walkin-id">
+          <label for="walkinId">ID Number <span style="font-weight:400; color:var(--text-faint);">(if you have one)</span></label>
+          <input type="text" id="walkinId" placeholder="Your student/staff ID">
+          <p class="field-error">Required for this category.</p>
+        </div>
+        <p class="autofill-hint" id="walkinAutofillHint"></p>
         <div class="field-row">
           <div class="field" id="field-walkin-surname">
             <label for="walkinSurname">Surname</label>
@@ -845,18 +857,10 @@
             <p class="field-error">Required.</p>
           </div>
         </div>
-        <div class="field" id="field-walkin-id" style="display:none;">
-          <label for="walkinId">ID Number</label>
-          <input type="text" id="walkinId" placeholder="Your student/staff ID">
-          <p class="field-error">Required for this category.</p>
-        </div>
-        <div class="field" id="field-walkin-phone">
-          <label for="walkinPhone">Phone Number</label>
-          <div class="phone-group">
-            <select id="walkinPhoneCode" class="country-code-select"></select>
-            <input type="text" id="walkinPhone" placeholder="24 123 4567" inputmode="tel">
-          </div>
-          <p class="field-error">Please enter a valid phone number.</p>
+        <div class="field" id="field-walkin-class">
+          <label for="walkinClass">Category</label>
+          <select id="walkinClass"></select>
+          <p class="field-error">Please select a category.</p>
         </div>
         <button type="submit" class="btn btn-primary" id="walkinSubmitBtn">Submit Walk-in</button>
       </form>
@@ -2235,22 +2239,83 @@
     stopWalkinPoll();
     document.getElementById('walkinSigninForm').reset();
     if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
-    document.getElementById('field-walkin-id').style.display = 'none';
+    hideWalkinAutofillHint();
     ['field-walkin-class','field-walkin-surname','field-walkin-otherNames','field-walkin-id','field-walkin-phone'].forEach(clearFieldError);
   }
 
   const walkinClass = document.getElementById('walkinClass');
-  const walkinIdField = document.getElementById('field-walkin-id');
   const walkinId = document.getElementById('walkinId');
+  const walkinPhone = document.getElementById('walkinPhone');
   const walkinPhoneCode = document.getElementById('walkinPhoneCode');
+  const walkinSurname = document.getElementById('walkinSurname');
+  const walkinOtherNames = document.getElementById('walkinOtherNames');
   const walkinSigninForm = document.getElementById('walkinSigninForm');
   const walkinSubmitBtn = document.getElementById('walkinSubmitBtn');
+  const walkinAutofillHint = document.getElementById('walkinAutofillHint');
 
-  walkinClass.addEventListener('change', () => {
-    const needsId = currentActivity && currentActivity.idRequiredCategories.indexOf(walkinClass.value) !== -1;
-    walkinIdField.style.display = needsId ? 'block' : 'none';
-    if(!needsId) clearFieldError('field-walkin-id');
-  });
+  function hideWalkinAutofillHint(){
+    walkinAutofillHint.className = 'autofill-hint';
+    walkinAutofillHint.textContent = '';
+  }
+
+  // Someone who's walked in before (or who's an actual member choosing
+  // to walk in) already has their name/phone/category on file — no
+  // reason to make them retype it. Looks up whatever was just entered
+  // (ID number or phone, whichever the person filled in first) against
+  // this activity's approved members, then its Visits history (a
+  // walk-in never becomes a Registrations row, so a returning walk-in
+  // visitor is usually only found there) — see the "walkinLookup"
+  // action in Code.gs. Silent on no match: an actual first-time walk-in
+  // is the common case, not an error.
+  let walkinAutofillInFlight = false;
+  function tryWalkinAutofill(){
+    if(!currentActivity || walkinAutofillInFlight) return;
+    const idNo = walkinId.value.trim();
+    const phoneDigits = walkinPhone.value.replace(/[^0-9+]/g, '');
+    const phone = phoneDigits ? `${walkinPhoneCode.value} ${walkinPhone.value.trim()}` : '';
+    if(!idNo && phoneDigits.replace(/\D/g,'').length < 6) return;
+
+    walkinAutofillInFlight = true;
+    fetchJSON(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "walkinLookup", activity: currentActivity.key, idNo: idNo, phone: phone })
+    })
+    .then(data => {
+      walkinAutofillInFlight = false;
+      if(!data || data.status !== "ok" || !data.found) return;
+
+      if(data.name){
+        const parts = data.name.trim().split(/\s+/);
+        walkinSurname.value = parts[0] || '';
+        walkinOtherNames.value = parts.slice(1).join(' ');
+      }
+      if(data.idNo && !idNo) walkinId.value = data.idNo;
+      if(data.phone && !phoneDigits){
+        const spaceIdx = data.phone.indexOf(' ');
+        if(spaceIdx !== -1){
+          const code = data.phone.slice(0, spaceIdx);
+          if([...walkinPhoneCode.options].some(o => o.value === code)) walkinPhoneCode.value = code;
+          walkinPhone.value = data.phone.slice(spaceIdx + 1);
+        }
+      }
+      if(data.class){
+        walkinClass.value = data.class;
+        if(walkinClass.value !== data.class){
+          // Not one of this activity's categories (e.g. matched from a
+          // different activity's Visits) — leave category for them to
+          // pick rather than silently selecting nothing useful.
+          walkinClass.value = '';
+        }
+      }
+      walkinAutofillHint.textContent = "Welcome back — we've filled in what we have on file. Please check it's correct.";
+      walkinAutofillHint.className = 'autofill-hint show';
+      ['field-walkin-surname','field-walkin-otherNames','field-walkin-id','field-walkin-phone','field-walkin-class'].forEach(clearFieldError);
+    })
+    .catch(() => { walkinAutofillInFlight = false; });
+  }
+  walkinId.addEventListener('blur', tryWalkinAutofill);
+  walkinPhone.addEventListener('blur', tryWalkinAutofill);
 
   walkinSigninForm.addEventListener('submit', function(e){
     e.preventDefault();

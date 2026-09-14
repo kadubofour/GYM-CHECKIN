@@ -781,6 +781,36 @@ function getRegistrationRowsByPhone(sheet, headers, phone) {
   });
 }
 
+// Used by "walkinLookup" to autofill a returning walk-in visitor's
+// name/phone/category from their most recent visit — a walk-in never
+// becomes a Registrations row, so this is usually the only place their
+// details are on file at all. Visits is append-only (see the comment on
+// getRecentVisits), so newest-first here just means scanning from the
+// bottom up and stopping at the first match, instead of reading the
+// whole sheet and picking the last match out of it. Narrow two-column
+// read (idNo + phone) to find the row, then only that one row is read
+// in full.
+function findRecentVisitMatch(activity, idNo, phone) {
+  const sheet = getOrCreateSheet(activity.visitsSheet, VISIT_HEADERS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const idColIndex = VISIT_HEADERS.indexOf("idNo") + 1;
+  const phoneColIndex = VISIT_HEADERS.indexOf("phone") + 1;
+  const ids = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
+  const phones = sheet.getRange(2, phoneColIndex, lastRow - 1, 1).getValues();
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const rowIdNo = String(ids[i][0]).trim();
+    const rowPhone = String(phones[i][0]).trim();
+    if ((idNo && rowIdNo === idNo) || (phone && rowPhone === phone)) {
+      const row = sheet.getRange(i + 2, 1, 1, VISIT_HEADERS.length).getValues()[0];
+      const obj = {};
+      VISIT_HEADERS.forEach((h, j) => obj[h] = cellToDisplayValue(row[j], h));
+      return obj;
+    }
+  }
+  return null;
+}
+
 // Counts Pending rows (any activity) with a given phone number — used
 // by "lookup" to report how many of a phone number's submissions are
 // still awaiting approval. A single phone-column read instead of
@@ -1865,6 +1895,38 @@ function doPost(e) {
 
       if (approvedMembers.length === 0 && pendingCount === 0) return ok({ found: false });
       return ok({ found: true, approvedMembers: approvedMembers, pendingCount: pendingCount });
+    }
+
+
+    if (action === "walkinLookup") {
+      // The self-service Walk-in Sign In form asks for phone/ID first,
+      // specifically so this can autofill the rest for someone who's
+      // been here before — most often found in THIS activity's Visits
+      // history (a walk-in never becomes a Registrations row — see
+      // approvePendingRow's Walk-in branch — so a returning walk-in
+      // visitor's name/phone/category live there, not in
+      // Registrations), but an actual member choosing to walk in
+      // instead of using their code is checked for first.
+      const idNo = String(data.idNo || "").trim();
+      const phone = String(data.phone || "").trim();
+      if (!idNo && !phone) return ok({ found: false });
+
+      const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
+      let match = idNo ? getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, idNo) : null;
+      if (!match && phone) {
+        const matches = dedupeRegistrationsByIdNo(getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone));
+        if (matches.length) match = matches[0];
+      }
+      if (!match) match = findRecentVisitMatch(activity, idNo, phone);
+
+      if (!match) return ok({ found: false });
+      return ok({
+        found: true,
+        name: match.name || "",
+        phone: match.phone || "",
+        idNo: match.idNo || "",
+        class: match.class || ""
+      });
     }
 
 
