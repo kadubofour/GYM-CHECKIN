@@ -2237,6 +2237,7 @@
 
   function resetWalkinForm(){
     stopWalkinPoll();
+    if(walkinAutofillTimer){ clearTimeout(walkinAutofillTimer); walkinAutofillTimer = null; }
     document.getElementById('walkinSigninForm').reset();
     if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
     hideWalkinAutofillHint();
@@ -2267,7 +2268,21 @@
   // visitor is usually only found there) — see the "walkinLookup"
   // action in Code.gs. Silent on no match: an actual first-time walk-in
   // is the common case, not an error.
+  //
+  // Tabbing straight through Phone then ID (the normal path) used to
+  // fire this on EACH field's blur — two full Apps Script round trips
+  // back to back, each paying that platform's real per-request latency,
+  // which is what actually made this "take too long", not the lookup
+  // itself. scheduleWalkinAutofill() debounces both fields' blur into
+  // one call ~350ms after the last one, so tabbing through both fields
+  // quickly costs one request, not two — it only fires twice if there's
+  // a real pause (e.g. someone reading the screen) between them.
   let walkinAutofillInFlight = false;
+  let walkinAutofillTimer = null;
+  function scheduleWalkinAutofill(){
+    if(walkinAutofillTimer) clearTimeout(walkinAutofillTimer);
+    walkinAutofillTimer = setTimeout(tryWalkinAutofill, 350);
+  }
   function tryWalkinAutofill(){
     if(!currentActivity || walkinAutofillInFlight) return;
     const idNo = walkinId.value.trim();
@@ -2276,6 +2291,12 @@
     if(!idNo && phoneDigits.replace(/\D/g,'').length < 6) return;
 
     walkinAutofillInFlight = true;
+    // Immediate feedback that something's happening — the request
+    // itself still takes a real second or two (Apps Script's own
+    // per-request overhead, not something a debounce fixes), so a
+    // silent wait reads as "did that even work?".
+    walkinAutofillHint.textContent = "Checking…";
+    walkinAutofillHint.className = 'autofill-hint show miss';
     fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -2283,7 +2304,7 @@
     })
     .then(data => {
       walkinAutofillInFlight = false;
-      if(!data || data.status !== "ok" || !data.found) return;
+      if(!data || data.status !== "ok" || !data.found){ hideWalkinAutofillHint(); return; }
 
       if(data.name){
         const parts = data.name.trim().split(/\s+/);
@@ -2312,10 +2333,10 @@
       walkinAutofillHint.className = 'autofill-hint show';
       ['field-walkin-surname','field-walkin-otherNames','field-walkin-id','field-walkin-phone','field-walkin-class'].forEach(clearFieldError);
     })
-    .catch(() => { walkinAutofillInFlight = false; });
+    .catch(() => { walkinAutofillInFlight = false; hideWalkinAutofillHint(); });
   }
-  walkinId.addEventListener('blur', tryWalkinAutofill);
-  walkinPhone.addEventListener('blur', tryWalkinAutofill);
+  walkinId.addEventListener('blur', scheduleWalkinAutofill);
+  walkinPhone.addEventListener('blur', scheduleWalkinAutofill);
 
   walkinSigninForm.addEventListener('submit', function(e){
     e.preventDefault();
