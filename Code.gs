@@ -781,7 +781,7 @@ function getRegistrationRowsByPhone(sheet, headers, phone) {
   });
 }
 
-// Used by "walkinLookup" to autofill a returning walk-in visitor's
+// Used by "walkinQuickSubmit" to autofill a returning walk-in visitor's
 // name/phone/category from their most recent visit — a walk-in never
 // becomes a Registrations row, so this is usually the only place their
 // details are on file at all. Visits is append-only (see the comment on
@@ -2923,11 +2923,11 @@ function diagnoseExpiry() {
 
 // Edit ACTIVITY_KEY/ID_NO/PHONE below and run this from the function
 // dropdown (Run > diagnoseWalkinLookup) to see exactly what the
-// self-service Walk-in form's autofill ("walkinLookup" action) would
-// find for a given ID number and/or phone number — same lookup order
-// it actually uses (this activity's Registrations first, then its
-// Visits history), printed step by step instead of silently coming
-// back found:false. Leave either ID_NO or PHONE blank if you only
+// self-service Walk-in form's one-tap shortcut ("walkinQuickSubmit"
+// action) would find for a given ID number and/or phone number — same
+// lookup order it actually uses (this activity's Registrations first,
+// then its Visits history), printed step by step instead of silently
+// coming back found:false. Leave either ID_NO or PHONE blank if you only
 // want to test one of them, same as the real form does when someone
 // fills in just one field.
 function diagnoseWalkinLookup() {
