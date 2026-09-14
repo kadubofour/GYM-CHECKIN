@@ -1808,6 +1808,7 @@ function doPost(e) {
           const newUsed = (Number(match.sessionsUsed) || 0) + 1;
           registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
           match.sessionsUsed = String(newUsed);
+          invalidateVisibleRegistrationsCache(activity.key);
         }
       }
       return ok({ member: match });
@@ -2339,6 +2340,7 @@ function splitSharedRegistrationsAndVisits() {
         }));
         movedRegistrations++;
       });
+      if (byActivity[key].length) invalidateVisibleRegistrationsCache(key);
     });
   }
 
@@ -2815,6 +2817,7 @@ function autoSignOutAt10pm() {
           if (regIdx !== -1) {
             const newUsed = (Number(match.sessionsUsed) || 0) + 1;
             registrations.getRange(regIdx, REGISTRATIONS_HEADERS.indexOf("sessionsUsed") + 1).setValue(newUsed);
+            invalidateVisibleRegistrationsCache(activity.key);
           }
         }
       }
