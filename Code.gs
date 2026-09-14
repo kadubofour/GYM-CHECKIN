@@ -1898,18 +1898,23 @@ function doPost(e) {
     }
 
 
-    if (action === "walkinLookup") {
-      // The self-service Walk-in Sign In form asks for phone/ID first,
-      // specifically so this can autofill the rest for someone who's
-      // been here before — most often found in THIS activity's Visits
-      // history (a walk-in never becomes a Registrations row — see
-      // approvePendingRow's Walk-in branch — so a returning walk-in
-      // visitor's name/phone/category live there, not in
-      // Registrations), but an actual member choosing to walk in
-      // instead of using their code is checked for first.
+    if (action === "walkinQuickSubmit") {
+      // The self-service Walk-in Sign In form's one-tap shortcut: enter
+      // phone or ID, hit submit. This used to be two separate requests
+      // from the client — a "walkinLookup" to find the person, then a
+      // "submit" once it had their details — and each one pays Apps
+      // Script's own per-request overhead, so doing them back to back
+      // made the "quick" path slower than just filling in the form
+      // once. This does both in the same execution: the same lookup
+      // (this activity's Registrations first — an actual member
+      // choosing to walk in instead of using their code — then its
+      // Visits history, since a walk-in never becomes a Registrations
+      // row), and if that resolves to a full, usable match, writes the
+      // Pending row immediately instead of handing it back to the
+      // client to ask for in a second request.
       const idNo = String(data.idNo || "").trim();
       const phone = String(data.phone || "").trim();
-      if (!idNo && !phone) return ok({ found: false });
+      if (!idNo && !phone) return ok({ submitted: false, found: false });
 
       const registrations = getOrCreateSheet(activity.registrationsSheet, REGISTRATIONS_HEADERS);
       let match = idNo ? getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, idNo) : null;
@@ -1919,14 +1924,63 @@ function doPost(e) {
       }
       if (!match) match = findRecentVisitMatch(activity, idNo, phone);
 
-      if (!match) return ok({ found: false });
-      return ok({
-        found: true,
-        name: match.name || "",
-        phone: match.phone || "",
-        idNo: match.idNo || "",
-        class: match.class || ""
-      });
+      // A Family Package or UG Staff Relation category needs
+      // information (other family members; the related staff member's
+      // own name/ID) that Visits/Registrations don't carry — never
+      // usable for a one-tap submission, always falls back to the full
+      // form for those, same as a match this activity doesn't even
+      // recognize as one of its own categories.
+      const usable = !!(match && match.name && match.class &&
+        activity.categories.indexOf(match.class) !== -1 &&
+        match.class !== FAMILY_CATEGORY &&
+        UG_STAFF_RELATION_CATEGORIES.indexOf(match.class) === -1);
+
+      if (!usable) {
+        return ok({
+          submitted: false,
+          found: !!match,
+          name: match ? (match.name || "") : "",
+          phone: match ? (match.phone || "") : "",
+          idNo: match ? (match.idNo || "") : "",
+          class: (match && activity.categories.indexOf(match.class) !== -1) ? match.class : ""
+        });
+      }
+
+      // From here down mirrors the "submit" action's own Walk-in
+      // branch above — keep the two in sync if that logic ever
+      // changes. (Family Package and UG Staff Relation categories are
+      // excluded above precisely so this narrow slice of "submit"'s
+      // logic — plain idNo handling only, no family members, no staff-
+      // relation fields — is always enough here.)
+      const idRequired = activity.idRequiredCategories.indexOf(match.class) !== -1;
+      let finalIdNo;
+      if (!idRequired) {
+        finalIdNo = Utilities.getUuid();
+      } else {
+        finalIdNo = idNo || match.idNo;
+        if (!finalIdNo) {
+          return ok({ submitted: false, found: true, name: match.name, phone: match.phone, idNo: "", class: match.class });
+        }
+        if (loadUsedIdNoSet(activity).has(finalIdNo)) {
+          return errorMsg("This ID number is already registered or pending approval.");
+        }
+      }
+
+      const finalPhone = phone || match.phone || "";
+      const now = new Date();
+      const pending = getOrCreateSheet(PENDING_SHEET_NAME, PENDING_HEADERS);
+      pending.appendRow(PENDING_HEADERS.map(h => {
+        if (h === "activity") return activity.key;
+        if (h === "idNo") return sheetSafeText(finalIdNo);
+        if (h === "name") return match.name;
+        if (h === "class") return match.class;
+        if (h === "duration") return "Walk-in";
+        if (h === "phone") return sheetSafeText(finalPhone);
+        if (h === "date") return forceLiteralText(formatDateDMY(now));
+        if (h === "time") return forceLiteralText(formatTime(now));
+        return "";
+      }));
+      return ok({ submitted: true, idNo: finalIdNo });
     }
 
 

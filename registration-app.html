@@ -2325,9 +2325,18 @@
   // immediately — one tap, nothing else to fill in or review. Only
   // falls back to asking for name/category by hand when there's
   // genuinely nothing (or an incomplete record) on file.
+  // One request instead of two — this used to look the person up
+  // ("walkinLookup"), then, on a match, make a SEPARATE "submit"
+  // request with what it found. Each one pays Apps Script's own
+  // per-request overhead, so back to back that made the "just enter
+  // phone or ID" shortcut slower than filling in the form once
+  // yourself. "walkinQuickSubmit" does the lookup AND the write in one
+  // execution — this either lands straight on the pending-approval
+  // screen, or (no match, or an incomplete one) falls back to filling
+  // in whatever was found and asking for the rest, same as before.
   function quickWalkinLookupThenSubmit(){
     walkinSubmitBtn.disabled = true;
-    walkinSubmitBtn.textContent = "Looking you up…";
+    walkinSubmitBtn.textContent = "Submitting…";
     walkinAutofillHint.textContent = "Checking…";
     walkinAutofillHint.className = 'autofill-hint show miss';
 
@@ -2337,11 +2346,27 @@
     fetchJSON(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "walkinLookup", activity: currentActivity.key, idNo: idNo, phone: phone })
+      body: JSON.stringify({ action: "walkinQuickSubmit", activity: currentActivity.key, idNo: idNo, phone: phone })
     })
     .then(data => {
-      const found = !!(data && data.status === "ok" && data.found);
+      if(!data || data.status !== "ok"){
+        walkinSubmitBtn.disabled = false;
+        walkinSubmitBtn.textContent = "Submit Walk-in";
+        renderSigninMessage(true, "Couldn't submit", (data && data.message) || "Please try again or tell the front desk.");
+        return;
+      }
 
+      if(data.submitted){
+        hideWalkinAutofillHint();
+        walkinSubmitBtn.disabled = false;
+        walkinSubmitBtn.textContent = "Submit Walk-in";
+        startWalkinStatusWait(data.idNo, currentActivity);
+        return;
+      }
+
+      // Not enough on file for a one-tap submission — fill in whatever
+      // WAS found, then hand back to them for the rest.
+      const found = !!data.found;
       if(found && data.name){
         const parts = data.name.trim().split(/\s+/);
         walkinSurname.value = parts[0] || '';
@@ -2358,11 +2383,6 @@
         }
       }
 
-      if(found && walkinClass.value && walkinSurname.value.trim() && walkinOtherNames.value.trim()){
-        submitWalkinNow(); // everything we needed came back — go straight through
-        return;
-      }
-
       walkinSubmitBtn.disabled = false;
       walkinSubmitBtn.textContent = "Submit Walk-in";
       walkinAutofillHint.textContent = found
@@ -2376,8 +2396,7 @@
     .catch(() => {
       walkinSubmitBtn.disabled = false;
       walkinSubmitBtn.textContent = "Submit Walk-in";
-      walkinAutofillHint.textContent = "Couldn't look you up — please fill in your name and category below, or try again.";
-      walkinAutofillHint.className = 'autofill-hint show miss';
+      renderSigninMessage(true, "No connection", "Check the network and try again.");
     });
   }
 
