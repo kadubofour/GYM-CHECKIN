@@ -829,7 +829,7 @@
 
     <div class="view" id="view-walkin">
       <button type="button" class="back-btn" id="toCodeFromWalkinBtn">← Back</button>
-      <p class="subhead">Quick walk-in entry — enter your phone or ID first and we'll fill in the rest if you've visited before.</p>
+      <p class="subhead">Quick walk-in entry — enter your phone or ID number and hit submit. If you've visited before, that's all you need.</p>
       <form id="walkinSigninForm" novalidate>
         <div class="field" id="field-walkin-class">
           <label for="walkinClass">Category</label>
@@ -2237,7 +2237,6 @@
 
   function resetWalkinForm(){
     stopWalkinPoll();
-    if(walkinAutofillTimer){ clearTimeout(walkinAutofillTimer); walkinAutofillTimer = null; }
     document.getElementById('walkinSigninForm').reset();
     if(currentActivity) populateCategorySelect(walkinClass, currentActivity);
     hideWalkinAutofillHint();
@@ -2259,100 +2258,26 @@
     walkinAutofillHint.textContent = '';
   }
 
-  // Someone who's walked in before (or who's an actual member choosing
-  // to walk in) already has their name/phone/category on file — no
-  // reason to make them retype it. Looks up whatever was just entered
-  // (ID number or phone, whichever the person filled in first) against
-  // this activity's approved members, then its Visits history (a
-  // walk-in never becomes a Registrations row, so a returning walk-in
-  // visitor is usually only found there) — see the "walkinLookup"
-  // action in Code.gs. Silent on no match: an actual first-time walk-in
-  // is the common case, not an error.
-  //
-  // Tabbing straight through Phone then ID (the normal path) used to
-  // fire this on EACH field's blur — two full Apps Script round trips
-  // back to back, each paying that platform's real per-request latency,
-  // which is what actually made this "take too long", not the lookup
-  // itself. scheduleWalkinAutofill() debounces both fields' blur into
-  // one call ~350ms after the last one, so tabbing through both fields
-  // quickly costs one request, not two — it only fires twice if there's
-  // a real pause (e.g. someone reading the screen) between them.
-  let walkinAutofillInFlight = false;
-  let walkinAutofillTimer = null;
-  function scheduleWalkinAutofill(){
-    if(walkinAutofillTimer) clearTimeout(walkinAutofillTimer);
-    walkinAutofillTimer = setTimeout(tryWalkinAutofill, 350);
-  }
-  function tryWalkinAutofill(){
-    if(!currentActivity || walkinAutofillInFlight) return;
-    const idNo = walkinId.value.trim();
-    const phoneDigits = walkinPhone.value.replace(/[^0-9+]/g, '');
-    const phone = phoneDigits ? `${walkinPhoneCode.value} ${walkinPhone.value.trim()}` : '';
-    if(!idNo && phoneDigits.replace(/\D/g,'').length < 6) return;
-
-    walkinAutofillInFlight = true;
-    // Immediate feedback that something's happening — the request
-    // itself still takes a real second or two (Apps Script's own
-    // per-request overhead, not something a debounce fixes), so a
-    // silent wait reads as "did that even work?".
-    walkinAutofillHint.textContent = "Checking…";
-    walkinAutofillHint.className = 'autofill-hint show miss';
-    fetchJSON(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "walkinLookup", activity: currentActivity.key, idNo: idNo, phone: phone })
-    })
-    .then(data => {
-      walkinAutofillInFlight = false;
-      if(!data || data.status !== "ok" || !data.found){ hideWalkinAutofillHint(); return; }
-
-      if(data.name){
-        const parts = data.name.trim().split(/\s+/);
-        walkinSurname.value = parts[0] || '';
-        walkinOtherNames.value = parts.slice(1).join(' ');
-      }
-      if(data.idNo && !idNo) walkinId.value = data.idNo;
-      if(data.phone && !phoneDigits){
-        const spaceIdx = data.phone.indexOf(' ');
-        if(spaceIdx !== -1){
-          const code = data.phone.slice(0, spaceIdx);
-          if([...walkinPhoneCode.options].some(o => o.value === code)) walkinPhoneCode.value = code;
-          walkinPhone.value = data.phone.slice(spaceIdx + 1);
-        }
-      }
-      if(data.class){
-        walkinClass.value = data.class;
-        if(walkinClass.value !== data.class){
-          // Not one of this activity's categories (e.g. matched from a
-          // different activity's Visits) — leave category for them to
-          // pick rather than silently selecting nothing useful.
-          walkinClass.value = '';
-        }
-      }
-      walkinAutofillHint.textContent = "Welcome back — we've filled in what we have on file. Please check it's correct.";
-      walkinAutofillHint.className = 'autofill-hint show';
-      ['field-walkin-surname','field-walkin-otherNames','field-walkin-id','field-walkin-phone','field-walkin-class'].forEach(clearFieldError);
-    })
-    .catch(() => { walkinAutofillInFlight = false; hideWalkinAutofillHint(); });
-  }
-  walkinId.addEventListener('blur', scheduleWalkinAutofill);
-  walkinPhone.addEventListener('blur', scheduleWalkinAutofill);
-
-  walkinSigninForm.addEventListener('submit', function(e){
-    e.preventDefault();
-    const surnameEl = document.getElementById('walkinSurname');
-    const otherNamesEl = document.getElementById('walkinOtherNames');
-    const phoneEl = document.getElementById('walkinPhone');
+  // Does the actual work of a walk-in submission: validates every
+  // field, then POSTs "submit" — used whether the name/category came
+  // from typing them in directly, or from quickWalkinLookupThenSubmit()
+  // below filling them in from a lookup.
+  function submitWalkinNow(){
     const needsId = currentActivity && currentActivity.idRequiredCategories.indexOf(walkinClass.value) !== -1;
     let valid = true;
 
     if(!walkinClass.value){ markInvalid('field-walkin-class'); valid = false; } else clearFieldError('field-walkin-class');
-    if(!surnameEl.value.trim()){ markInvalid('field-walkin-surname'); valid = false; } else clearFieldError('field-walkin-surname');
-    if(!otherNamesEl.value.trim()){ markInvalid('field-walkin-otherNames'); valid = false; } else clearFieldError('field-walkin-otherNames');
+    if(!walkinSurname.value.trim()){ markInvalid('field-walkin-surname'); valid = false; } else clearFieldError('field-walkin-surname');
+    if(!walkinOtherNames.value.trim()){ markInvalid('field-walkin-otherNames'); valid = false; } else clearFieldError('field-walkin-otherNames');
     if(needsId && !walkinId.value.trim()){ markInvalid('field-walkin-id'); valid = false; } else clearFieldError('field-walkin-id');
-    if(!/^\d{6,}$/.test(phoneEl.value.replace(/\D/g,''))){ markInvalid('field-walkin-phone'); valid = false; } else clearFieldError('field-walkin-phone');
-    if(!valid) return;
+    if(!/^\d{6,}$/.test(walkinPhone.value.replace(/\D/g,''))){ markInvalid('field-walkin-phone'); valid = false; } else clearFieldError('field-walkin-phone');
+    if(!valid){
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Submit Walk-in";
+      return;
+    }
 
+    hideWalkinAutofillHint();
     walkinSubmitBtn.disabled = true;
     walkinSubmitBtn.textContent = "Submitting…";
 
@@ -2366,8 +2291,8 @@
         class: walkinClass.value,
         idNo: needsId ? walkinId.value.trim() : "",
         duration: "Walk-in",
-        name: `${surnameEl.value.trim()} ${otherNamesEl.value.trim()}`.trim(),
-        phone: `${walkinPhoneCode.value} ${phoneEl.value.trim()}`,
+        name: `${walkinSurname.value.trim()} ${walkinOtherNames.value.trim()}`.trim(),
+        phone: `${walkinPhoneCode.value} ${walkinPhone.value.trim()}`,
         date: formatDateDMY(now),
         time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
       })
@@ -2387,6 +2312,96 @@
       walkinSubmitBtn.textContent = "Submit Walk-in";
       renderSigninMessage(true, "No connection", "Check the network and try again.");
     });
+  }
+
+  // Someone who's walked in before (or who's an actual member choosing
+  // to walk in) already has their name/phone/category on file — no
+  // reason to make them fill in a whole form for it. Looks up whatever
+  // they've entered (ID number or phone) against this activity's
+  // approved members, then its Visits history (a walk-in never becomes
+  // a Registrations row, so a returning walk-in visitor is usually only
+  // found there — see the "walkinLookup" action in Code.gs), and if
+  // that comes back with everything needed (name + category), submits
+  // immediately — one tap, nothing else to fill in or review. Only
+  // falls back to asking for name/category by hand when there's
+  // genuinely nothing (or an incomplete record) on file.
+  function quickWalkinLookupThenSubmit(){
+    walkinSubmitBtn.disabled = true;
+    walkinSubmitBtn.textContent = "Looking you up…";
+    walkinAutofillHint.textContent = "Checking…";
+    walkinAutofillHint.className = 'autofill-hint show miss';
+
+    const idNo = walkinId.value.trim();
+    const phone = `${walkinPhoneCode.value} ${walkinPhone.value.trim()}`;
+
+    fetchJSON(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "walkinLookup", activity: currentActivity.key, idNo: idNo, phone: phone })
+    })
+    .then(data => {
+      const found = !!(data && data.status === "ok" && data.found);
+
+      if(found && data.name){
+        const parts = data.name.trim().split(/\s+/);
+        walkinSurname.value = parts[0] || '';
+        walkinOtherNames.value = parts.slice(1).join(' ');
+      }
+      if(found && data.idNo && !idNo) walkinId.value = data.idNo;
+      if(found && data.class){
+        walkinClass.value = data.class;
+        if(walkinClass.value !== data.class){
+          // Not one of this activity's categories (e.g. matched from a
+          // different activity's Visits) — leave category for them to
+          // pick rather than silently selecting nothing useful.
+          walkinClass.value = '';
+        }
+      }
+
+      if(found && walkinClass.value && walkinSurname.value.trim() && walkinOtherNames.value.trim()){
+        submitWalkinNow(); // everything we needed came back — go straight through
+        return;
+      }
+
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Submit Walk-in";
+      walkinAutofillHint.textContent = found
+        ? "Found some of your info, but not all of it — please fill in what's left below."
+        : "We don't have you on file yet — please fill in your name and category below.";
+      walkinAutofillHint.className = 'autofill-hint show miss';
+      if(!walkinClass.value) markInvalid('field-walkin-class');
+      if(!walkinSurname.value.trim()) markInvalid('field-walkin-surname');
+      if(!walkinOtherNames.value.trim()) markInvalid('field-walkin-otherNames');
+    })
+    .catch(() => {
+      walkinSubmitBtn.disabled = false;
+      walkinSubmitBtn.textContent = "Submit Walk-in";
+      walkinAutofillHint.textContent = "Couldn't look you up — please fill in your name and category below, or try again.";
+      walkinAutofillHint.className = 'autofill-hint show miss';
+    });
+  }
+
+  walkinSigninForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const phoneDigits = walkinPhone.value.replace(/[^0-9+]/g, '');
+    const phoneValid = /^\d{6,}$/.test(phoneDigits);
+    const idNo = walkinId.value.trim();
+    const hasNameAndClass = walkinClass.value && walkinSurname.value.trim() && walkinOtherNames.value.trim();
+
+    // Name and category are already filled in (typed by hand, or left
+    // over from an earlier lookup) — nothing left to look up, submit
+    // with what's on the form.
+    if(hasNameAndClass){ submitWalkinNow(); return; }
+
+    // Nothing to search by either — ask for at least one.
+    if(!idNo && !phoneValid){
+      markInvalid('field-walkin-phone');
+      walkinAutofillHint.textContent = "Enter your phone number or ID number first.";
+      walkinAutofillHint.className = 'autofill-hint show miss';
+      return;
+    }
+    clearFieldError('field-walkin-phone');
+    quickWalkinLookupThenSubmit();
   });
 
   // The "date" column is always DATE_FORMAT-shaped ("dd/MM/yyyy") — the
