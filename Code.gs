@@ -1931,16 +1931,7 @@ function doPost(e) {
       let match = idNo ? getRegistrationRowByIdNo(registrations, REGISTRATIONS_HEADERS, idNo) : null;
       if (!match && phone) {
         const matches = dedupeRegistrationsByIdNo(getRegistrationRowsByPhone(registrations, REGISTRATIONS_HEADERS, phone));
-        // A shared phone (a family's landline, a parent registering a
-        // child under their own number) can belong to more than one
-        // DIFFERENT person — dedupeRegistrationsByIdNo only collapses
-        // repeat rows of the SAME idNo (renewals), not different
-        // people. Auto-submitting as whichever one happened to come
-        // back first would risk checking someone in under a stranger's
-        // identity, so a phone match only counts here when it's
-        // unambiguous — genuinely one person.
-        const distinctIdNos = new Set(matches.map(m => m.idNo));
-        if (matches.length && distinctIdNos.size === 1) match = matches[0];
+        if (matches.length) match = matches[0];
       }
       if (!match) match = findRecentVisitMatch(activity, idNo, phone);
 
